@@ -1,0 +1,18 @@
+server:
+  http_addr: ":8080"
+  grpc_addr: ":9090"
+
+jwt:
+  secret: "change-me"
+
+forge:
+  type: github
+  app_id: 12345
+  private_key: ./private-key.pem
+  webhook_secret: "secret"
+
+runner:
+  type: nomad
+  addr: "http://localhost:4646"
+  job_template: ./job.hcl
+  default_image: "ghcr.io/mise-ci/worker:latest"

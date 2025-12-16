@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ci;
 
-option go_package = "ci/proto";
+option go_package = "internal/proto";
 
 // Worker conecta na matriz e abre stream bidirecional
 service Matriz {

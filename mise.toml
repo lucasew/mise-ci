@@ -1,0 +1,20 @@
+[tasks.generate]
+description = "Gera código do protobuf"
+run = "protoc --go_out=. --go-grpc_out=. proto/ci.proto"
+
+[tasks.build]
+description = "Compila binários"
+run = """
+go build -o bin/matriz ./cmd/matriz
+go build -o bin/worker ./cmd/worker
+"""
+
+[tasks.ci]
+description = "Roda checks de CI"
+depends = ["ci:lint", "ci:test"]
+
+[tasks."ci:lint"]
+run = "golangci-lint run"
+
+[tasks."ci:test"]
+run = "go test ./..."
