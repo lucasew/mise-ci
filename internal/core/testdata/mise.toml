@@ -1,0 +1,31 @@
+[tasks.ci]
+description = "CI test task - generates output file"
+run = """
+#!/bin/bash
+echo "mise-ci test run"
+echo "timestamp: $(date -Iseconds)"
+echo "hostname: $(hostname)"
+echo "pwd: $(pwd)"
+echo "files: $(ls -la)"
+echo ""
+echo "Generating output file..."
+
+cat > output.txt <<EOF
+=== mise-ci Test Output ===
+Generated at: $(date -Iseconds)
+Hostname: $(hostname)
+Working Directory: $(pwd)
+User: $(whoami)
+
+Files in directory:
+$(ls -la)
+
+Environment:
+$(env | sort)
+
+Test completed successfully!
+EOF
+
+echo "Output file generated: output.txt"
+cat output.txt
+"""
