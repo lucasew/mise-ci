@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/forge/github"
+	"github.com/lucasew/mise-ci/internal/repository/sqlite"
 	"github.com/lucasew/mise-ci/internal/runner/nomad"
 	"github.com/lucasew/mise-ci/internal/server"
 )
@@ -86,7 +88,20 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no runner configured (nomad.job_name missing)")
 	}
 
-	appCore := core.NewCore(logger, cfg.JWT.Secret)
+	// Storage
+	dataDir := cfg.Storage.DataDir
+	if dataDir == "" {
+		dataDir = "./data"
+	}
+	dbPath := filepath.Join(dataDir, "runs.db")
+	repo, err := sqlite.NewRepository(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to create repository: %w", err)
+	}
+	defer repo.Close()
+	logger.Info("repository initialized", "path", dbPath)
+
+	appCore := core.NewCore(logger, cfg.JWT.Secret, repo)
 	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
 	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{

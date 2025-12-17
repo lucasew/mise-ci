@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/repository"
 )
 
 type RunStatus string
@@ -46,6 +48,7 @@ type RunInfo struct {
 type Core struct {
 	runs           map[string]*Run
 	runInfo        map[string]*RunInfo
+	repo           repository.Repository
 	mu             sync.RWMutex
 	logger         *slog.Logger
 	jwtSecret      []byte
@@ -61,10 +64,11 @@ type Run struct {
 	ConnectedCh chan struct{} // Signals when worker connects
 }
 
-func NewCore(logger *slog.Logger, secret string) *Core {
+func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {
 	return &Core{
 		runs:           make(map[string]*Run),
 		runInfo:        make(map[string]*RunInfo),
+		repo:           repo,
 		logger:         logger,
 		jwtSecret:      []byte(secret),
 		logListener:    make(map[string]*ListenerManager[LogEntry]),
@@ -99,6 +103,19 @@ func (c *Core) CreateRun(id string) *Run {
 		UIToken:   uiToken,
 	}
 	c.runInfo[id] = info
+
+	// Persist to repository
+	metadata := &repository.RunMetadata{
+		ID:        id,
+		Status:    StatusScheduled,
+		StartedAt: time.Now(),
+		UIToken:   uiToken,
+	}
+
+	ctx := context.Background()
+	if err := c.repo.CreateRun(ctx, metadata); err != nil {
+		c.logger.Error("failed to persist run", "error", err, "run_id", id)
+	}
 
 	// Broadcast new run to status listeners
 	infoCopy := *info
@@ -197,6 +214,14 @@ func (c *Core) AddLog(runID string, stream string, data string) {
 
 	info.Logs = append(info.Logs, entry)
 
+	// Persist async (não bloquear worker!)
+	go func() {
+		ctx := context.Background()
+		if err := c.repo.AppendLog(ctx, runID, entry); err != nil {
+			c.logger.Error("failed to persist log", "error", err, "run_id", runID)
+		}
+	}()
+
 	lm, exists := c.logListener[runID]
 	c.mu.Unlock()
 
@@ -223,6 +248,14 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 		now := time.Now()
 		info.FinishedAt = &now
 	}
+
+	// Persist to repository (async)
+	go func() {
+		ctx := context.Background()
+		if err := c.repo.UpdateRunStatus(ctx, runID, status, exitCode); err != nil {
+			c.logger.Error("failed to persist status", "error", err, "run_id", runID)
+		}
+	}()
 
 	// Broadcast status change to all listeners
 	infoCopy := *info
@@ -289,4 +322,8 @@ func (c *Core) SubscribeStatus() chan RunInfo {
 
 func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 	c.statusListener.Unsubscribe(ch)
+}
+
+func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEntry, error) {
+	return c.repo.GetLogs(ctx, runID)
 }

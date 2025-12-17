@@ -8,11 +8,12 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `yaml:"server" mapstructure:"server"`
-	JWT    JWTConfig    `yaml:"jwt" mapstructure:"jwt"`
-	GitHub GitHubConfig `yaml:"github" mapstructure:"github"`
-	Nomad  NomadConfig  `yaml:"nomad" mapstructure:"nomad"`
-	Auth   AuthConfig   `yaml:"auth" mapstructure:"auth"`
+	Server  ServerConfig  `yaml:"server" mapstructure:"server"`
+	JWT     JWTConfig     `yaml:"jwt" mapstructure:"jwt"`
+	GitHub  GitHubConfig  `yaml:"github" mapstructure:"github"`
+	Nomad   NomadConfig   `yaml:"nomad" mapstructure:"nomad"`
+	Auth    AuthConfig    `yaml:"auth" mapstructure:"auth"`
+	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
 }
 
 type AuthConfig struct {
@@ -39,6 +40,10 @@ type NomadConfig struct {
 	Addr         string `yaml:"addr" mapstructure:"addr"`
 	JobName      string `yaml:"job_name" mapstructure:"job_name"`
 	DefaultImage string `yaml:"default_image" mapstructure:"default_image"`
+}
+
+type StorageConfig struct {
+	DataDir string `yaml:"data_dir" mapstructure:"data_dir"`
 }
 
 func Load(path string) (*Config, error) {

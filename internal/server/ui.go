@@ -150,17 +150,24 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sseutil.SetHeaders(w)
+	ctx := r.Context()
 
-	// Get existing logs first (GetRunInfo returns a safe copy)
-	for _, log := range info.Logs {
-		sseutil.WriteEvent(w, map[string]interface{}{
-			"timestamp": log.Timestamp.Format(time.RFC3339),
-			"stream":    log.Stream,
-			"data":      log.Data,
-		})
+	// Get historical logs from repository
+	historicalLogs, err := s.core.GetLogsFromRepository(ctx, runID)
+	if err != nil {
+		s.logger.Error("failed to get logs from repository", "error", err)
+		// Continue mesmo com erro (run pode não ter logs ainda)
+	} else {
+		// Send historical logs
+		for _, log := range historicalLogs {
+			sseutil.WriteEvent(w, map[string]interface{}{
+				"timestamp": log.Timestamp.Format(time.RFC3339),
+				"stream":    log.Stream,
+				"data":      log.Data,
+			})
+		}
+		sseutil.Flush(w)
 	}
-
-	sseutil.Flush(w)
 
 	// Stream new logs
 	for {
