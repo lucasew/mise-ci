@@ -1,6 +1,6 @@
 server:
   http_addr: ":8080"
-  grpc_addr: ":9090"
+  public_url: "http://my-server:8080"
 
 jwt:
   secret: "change-me"
@@ -14,5 +14,5 @@ forge:
 runner:
   type: nomad
   addr: "http://localhost:4646"
-  job_template: ./job.hcl
+  job_name: "mise-ci-run"
   default_image: "ghcr.io/mise-ci/worker:latest"

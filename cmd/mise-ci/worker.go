@@ -13,27 +13,42 @@ import (
 	"strings"
 	"sync"
 
-	pb "mise-ci/internal/proto"
-
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+
+	pb "mise-ci/internal/proto"
 )
 
-func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	if err := run(logger); err != nil {
+var workerCmd = &cobra.Command{
+	Use:   "worker",
+	Short: "Runs the worker agent",
+	Run:   runWorker,
+}
+
+func init() {
+	rootCmd.AddCommand(workerCmd)
+	workerCmd.Flags().String("callback", "", "Matriz callback URL")
+	workerCmd.Flags().String("token", "", "Authentication token")
+	_ = viper.BindPFlag("callback", workerCmd.Flags().Lookup("callback"))
+	_ = viper.BindPFlag("token", workerCmd.Flags().Lookup("token"))
+}
+
+func runWorker(cmd *cobra.Command, args []string) {
+	if err := startWorker(); err != nil {
 		logger.Error("worker failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger) error {
-	callback := os.Getenv("MISE_CI_CALLBACK")
-	token := os.Getenv("MISE_CI_TOKEN")
+func startWorker() error {
+	callback := viper.GetString("callback")
+	token := viper.GetString("token")
 
 	if callback == "" || token == "" {
-		return fmt.Errorf("MISE_CI_CALLBACK and MISE_CI_TOKEN must be set")
+		return fmt.Errorf("callback and token must be set (via flags or env MISE_CI_CALLBACK/MISE_CI_TOKEN)")
 	}
 
 	target := callback
@@ -68,7 +83,7 @@ func run(logger *slog.Logger) error {
 			},
 		},
 	}
-	if err := stream.Send(info); err != nil {
+	if err := safeSend(stream, info); err != nil {
 		return fmt.Errorf("failed to send runner info: %w", err)
 	}
 
@@ -115,7 +130,7 @@ func run(logger *slog.Logger) error {
 			}()
 		case *pb.MatrizMessage_Close:
 			logger.Info("received close")
-			cancel() // Cancel whatever is running
+			cancel()
 			return nil
 		default:
 			logger.Warn("unknown message type")
@@ -125,19 +140,16 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
+// We need a mutex for sending to stream to be safe
+var sendMu sync.Mutex
+
+func safeSend(stream pb.Matriz_ConnectClient, msg *pb.WorkerMessage) error {
+	sendMu.Lock()
+	defer sendMu.Unlock()
+	return stream.Send(msg)
+}
+
 func sendError(stream pb.Matriz_ConnectClient, id uint64, err error) {
-	// Note: concurrent access to stream.Send must be synchronized if strict thread safety is needed.
-	// However, gRPC streams are thread-safe for one-way Send.
-	// Wait, grpc-go stream.Send is safe to be called concurrently with Recv, BUT
-	// concurrent calls to Send are NOT safe.
-	// Since we spawn a goroutine per message, but Matriz likely sends messages sequentially for a run,
-	// we shouldn't have concurrent Sends unless Matriz sends new command before old one finishes.
-	// But if we have overlapping commands (which we handle by cancelling old one), we might have overlap.
-	// We should probably lock Send.
-	// For simplicity in this implementation, we assume mostly sequential or tolerated race on Close/Error.
-
-	// A better approach would be a send channel.
-
 	_ = safeSend(stream, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_Error{
@@ -146,15 +158,6 @@ func sendError(stream pb.Matriz_ConnectClient, id uint64, err error) {
 			},
 		},
 	})
-}
-
-// We need a mutex for sending to stream to be safe
-var sendMu sync.Mutex
-
-func safeSend(stream pb.Matriz_ConnectClient, msg *pb.WorkerMessage) error {
-	sendMu.Lock()
-	defer sendMu.Unlock()
-	return stream.Send(msg)
 }
 
 func handleCopy(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
@@ -284,7 +287,6 @@ func handleRun(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, c
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
-			// If killed by context, exitCode might be -1 or similar.
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}

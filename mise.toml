@@ -1,13 +1,14 @@
-[tasks.generate]
+[tasks."codegen:protobuf"]
 description = "Gera código do protobuf"
 run = "protoc --go_out=. --go-grpc_out=. proto/ci.proto"
 
+[tasks.codegen]
+description = "Gera todo código necessário"
+depends = ["codegen:protobuf"]
+
 [tasks.build]
-description = "Compila binários"
-run = """
-go build -o bin/matriz ./cmd/matriz
-go build -o bin/worker ./cmd/worker
-"""
+description = "Compila binário"
+run = "go build -o bin/mise-ci ./cmd/mise-ci"
 
 [tasks.ci]
 description = "Roda checks de CI"

@@ -8,34 +8,33 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	JWT    JWTConfig    `yaml:"jwt"`
-	Forge  ForgeConfig  `yaml:"forge"`
-	Runner RunnerConfig `yaml:"runner"`
+	Server ServerConfig `yaml:"server" mapstructure:"server"`
+	JWT    JWTConfig    `yaml:"jwt" mapstructure:"jwt"`
+	Forge  ForgeConfig  `yaml:"forge" mapstructure:"forge"`
+	Runner RunnerConfig `yaml:"runner" mapstructure:"runner"`
 }
 
 type ServerConfig struct {
-	HTTPAddr  string `yaml:"http_addr"`
-	GRPCAddr  string `yaml:"grpc_addr"`
-	PublicURL string `yaml:"public_url"`
+	HTTPAddr  string `yaml:"http_addr" mapstructure:"http_addr"`
+	PublicURL string `yaml:"public_url" mapstructure:"public_url"`
 }
 
 type JWTConfig struct {
-	Secret string `yaml:"secret"`
+	Secret string `yaml:"secret" mapstructure:"secret"`
 }
 
 type ForgeConfig struct {
-	Type          string `yaml:"type"`
-	AppID         int64  `yaml:"app_id"`
-	PrivateKey    string `yaml:"private_key"`
-	WebhookSecret string `yaml:"webhook_secret"`
+	Type          string `yaml:"type" mapstructure:"type"`
+	AppID         int64  `yaml:"app_id" mapstructure:"app_id"`
+	PrivateKey    string `yaml:"private_key" mapstructure:"private_key"`
+	WebhookSecret string `yaml:"webhook_secret" mapstructure:"webhook_secret"`
 }
 
 type RunnerConfig struct {
-	Type         string `yaml:"type"`
-	Addr         string `yaml:"addr"`
-	JobTemplate  string `yaml:"job_template"`
-	DefaultImage string `yaml:"default_image"`
+	Type         string `yaml:"type" mapstructure:"type"`
+	Addr         string `yaml:"addr" mapstructure:"addr"`
+	JobName      string `yaml:"job_name" mapstructure:"job_name"`
+	DefaultImage string `yaml:"default_image" mapstructure:"default_image"`
 }
 
 func Load(path string) (*Config, error) {

@@ -2,6 +2,7 @@ package server
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 
 	"mise-ci/internal/matriz"
@@ -21,10 +22,9 @@ func NewHttpServer(addr string, service *matriz.Service, logger *slog.Logger) *H
 	}
 }
 
-func (s *HttpServer) Run() error {
+func (s *HttpServer) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/webhook", s.service.HandleWebhook)
 
-	s.logger.Info("http server listening", "addr", s.addr)
-	return http.ListenAndServe(s.addr, mux)
+	return http.Serve(l, mux)
 }

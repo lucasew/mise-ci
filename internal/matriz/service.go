@@ -79,7 +79,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent) {
 	// Dispatch
 	callback := s.Config.Server.PublicURL
 	if callback == "" {
-		callback = s.Config.Server.GRPCAddr
+		callback = s.Config.Server.HTTPAddr
 	}
 
 	params := runner.RunParams{
