@@ -75,10 +75,10 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no runner configured (nomad.job_name missing)")
 	}
 
-	core := core.NewCore(logger, cfg.JWT.Secret)
-	svc := core.NewService(core, forges, r, &cfg, logger)
+	appCore := core.NewCore(logger, cfg.JWT.Secret)
+	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
-	grpcSrv := server.NewGrpcServer(core, logger)
+	grpcSrv := server.NewGrpcServer(appCore, logger)
 	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, logger)
 
 	// Multiplex
