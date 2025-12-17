@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
@@ -17,6 +22,8 @@ import (
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/runner/nomad"
 	"github.com/lucasew/mise-ci/internal/server"
+
+	"io"
 )
 
 var agentCmd = &cobra.Command{
@@ -133,8 +140,73 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
 	logger.Info("=================================")
 	logger.Info("agent listening", "addr", cfg.Server.HTTPAddr)
+
+	// Validate public URL accessibility in background
+	go validatePublicURL(&cfg, logger)
+
 	if err := m.Serve(); err != nil {
 		return fmt.Errorf("cmux serve error: %w", err)
 	}
 	return nil
+}
+
+func validatePublicURL(cfg *config.Config, logger *slog.Logger) {
+	// Wait a moment for the server to fully start
+	time.Sleep(500 * time.Millisecond)
+
+	// Check if PublicURL is set
+	if cfg.Server.PublicURL == "" {
+		logger.Warn("public_url is not configured - workers may not be able to connect back to the agent")
+		logger.Warn("set MISE_CI_SERVER_PUBLIC_URL to the externally accessible URL of this agent")
+		return
+	}
+
+	// Build validate URL
+	publicURL := cfg.Server.PublicURL
+	if !strings.HasPrefix(publicURL, "http://") && !strings.HasPrefix(publicURL, "https://") {
+		publicURL = "http://" + publicURL
+	}
+	validateURL := strings.TrimSuffix(publicURL, "/") + "/validate"
+
+	logger.Info("validating public URL accessibility", "url", validateURL)
+
+	// Try to access validate endpoint
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", validateURL, nil)
+	if err != nil {
+		logger.Error("failed to create validation request", "error", err)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("❌ public URL is NOT accessible from this node", "url", validateURL, "error", err)
+		logger.Error("workers will NOT be able to connect back to the agent")
+		logger.Error("check your network configuration, firewall rules, and public_url setting")
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Error("public URL returned unexpected status", "url", validateURL, "status", resp.StatusCode)
+		return
+	}
+
+	// Read and verify response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("failed to read validation response", "error", err)
+		return
+	}
+
+	response := string(body)
+	if !strings.HasPrefix(response, "mise-ci-agent:") {
+		logger.Error("validation response does not match expected format", "response", response)
+		logger.Error("you may be reaching a different service or a proxy")
+		return
+	}
+
+	logger.Info("✅ public URL validated successfully - service is accessible from outside", "url", publicURL)
 }
