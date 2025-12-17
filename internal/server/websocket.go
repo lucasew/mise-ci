@@ -13,6 +13,7 @@ import (
 
 	"github.com/lucasew/mise-ci/internal/core"
 	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/stream"
 )
 
 var upgrader = websocket.Upgrader{
@@ -33,6 +34,32 @@ func NewWebSocketServer(core *core.Core, logger *slog.Logger) *WebSocketServer {
 		core:   core,
 		logger: logger,
 	}
+}
+
+// wsStreamAdapter adapts websocket.Conn to MessageStream interface
+type wsStreamAdapter struct {
+	conn *websocket.Conn
+}
+
+func (a *wsStreamAdapter) Send(msg *pb.ServerMessage) error {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return a.conn.WriteMessage(websocket.BinaryMessage, data)
+}
+
+func (a *wsStreamAdapter) Recv() (*pb.WorkerMessage, error) {
+	_, msgData, err := a.conn.ReadMessage()
+	if err != nil {
+		return nil, err
+	}
+
+	var workerMsg pb.WorkerMessage
+	if err := proto.Unmarshal(msgData, &workerMsg); err != nil {
+		return nil, err
+	}
+	return &workerMsg, nil
 }
 
 func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
@@ -68,104 +95,61 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 	s.logger.Info("worker connected", "run_id", runID)
 
-	// 3. Handshake - receive RunnerInfo
-	_, msgData, err := conn.ReadMessage()
-	if err != nil {
-		s.logger.Error("failed to read handshake", "error", err)
-		return
-	}
+	wsAdapter := &wsStreamAdapter{conn: conn}
 
-	var workerMsg pb.WorkerMessage
-	if err := proto.Unmarshal(msgData, &workerMsg); err != nil {
-		s.logger.Error("failed to unmarshal handshake", "error", err)
-		return
-	}
-
-	if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
-		s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
-		// Update status to running when worker connects
-		s.core.UpdateStatus(runID, core.StatusRunning, nil)
-		s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
-
-		// Signal that worker is connected
-		close(run.ConnectedCh)
-	} else {
-		s.logger.Error("expected RunnerInfo as first message")
-		return
-	}
-
-	// 4. Bidirectional communication
-	errCh := make(chan error, 2)
-
-	// Sender: reads from run.CommandCh and sends to WebSocket
-	go func() {
-		for cmd := range run.CommandCh {
-			data, err := proto.Marshal(cmd)
-			if err != nil {
-				s.logger.Error("failed to marshal command", "error", err)
-				errCh <- err
-				return
-			}
-
-			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-				s.logger.Error("failed to send command", "error", err)
-				errCh <- err
-				return
-			}
-
-			if _, ok := cmd.Payload.(*pb.ServerMessage_Close); ok {
-				errCh <- nil
-				return
-			}
-		}
-	}()
-
-	// Receiver: reads from WebSocket and sends to run.ResultCh
-	go func() {
-		for {
-			_, msgData, err := conn.ReadMessage()
-			if err != nil {
-				// Normal closure
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					s.logger.Info("worker closed connection normally", "run_id", runID)
-					errCh <- nil
-					return
+	err = stream.HandleBidiStream(
+		r.Context(),
+		wsAdapter,
+		run.CommandCh,
+		run.ResultCh,
+		stream.BidiConfig[*pb.ServerMessage]{
+			Logger: s.logger,
+			OnConnect: func() error {
+				// 3. Handshake - receive RunnerInfo
+				workerMsg, err := wsAdapter.Recv()
+				if err != nil {
+					return fmt.Errorf("failed to read handshake: %w", err)
 				}
 
-				// Connection closed by us (after sending Close message)
-				var netErr *net.OpError
-				if errors.As(err, &netErr) && errors.Is(netErr.Err, net.ErrClosed) {
-					s.logger.Info("connection closed by server", "run_id", runID)
-					errCh <- nil
-					return
+				if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
+					s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
+					// Update status to running when worker connects
+					s.core.UpdateStatus(runID, core.StatusRunning, nil)
+					s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
+
+					// Signal that worker is connected
+					close(run.ConnectedCh)
+					return nil
 				}
+				return errors.New("expected RunnerInfo as first message")
+			},
+			ShouldClose: func(msg *pb.ServerMessage) bool {
+				_, ok := msg.Payload.(*pb.ServerMessage_Close)
+				return ok
+			},
+		},
+	)
 
-				// Unexpected disconnection
-				s.logger.Error("worker disconnected unexpectedly", "run_id", runID, "error", err)
-				s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
-				s.core.UpdateStatus(runID, core.StatusError, nil)
-				errCh <- err
-				return
-			}
-
-			var workerMsg pb.WorkerMessage
-			if err := proto.Unmarshal(msgData, &workerMsg); err != nil {
-				s.logger.Error("failed to unmarshal message", "error", err)
-				continue
-			}
-
-			select {
-			case run.ResultCh <- &workerMsg:
-			case <-r.Context().Done():
-				return
-			}
-		}
-	}()
-
-	// Wait for either goroutine to finish
-	err = <-errCh
 	if err != nil {
+		// Normal closure
+		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			s.logger.Info("worker closed connection normally", "run_id", runID)
+			return
+		}
+
+		// Connection closed by us (after sending Close message)
+		var netErr *net.OpError
+		if errors.As(err, &netErr) && errors.Is(netErr.Err, net.ErrClosed) {
+			s.logger.Info("connection closed by server", "run_id", runID)
+			return
+		}
+
 		s.logger.Error("worker connection error", "run_id", runID, "error", err)
+		// Only log to system log if it's not a normal close/EOF that might be wrapped
+		if !strings.Contains(err.Error(), "closed") && !errors.Is(err, net.ErrClosed) {
+			s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
+			s.core.UpdateStatus(runID, core.StatusError, nil)
+		}
 	} else {
 		s.logger.Info("worker disconnected", "run_id", runID)
 	}

@@ -1,80 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Run {{.Run.ID}} - mise-ci</title>
-    <link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css">
-    <style>
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 3px;
-            font-size: 1em;
-            font-weight: bold;
-        }
-        .success { background-color: #28a745; color: white; }
-        .failure { background-color: #dc3545; color: white; }
-        .error { background-color: #ffc107; color: black; }
-        .running { background-color: #17a2b8; color: white; }
-        .scheduled { background-color: #6c757d; color: white; }
-
-        .log-container {
-            background-color: #1e1e1e;
-            color: #d4d4d4;
-            padding: 15px;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-            max-height: 600px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        .log-entry {
-            margin: 2px 0;
-        }
-
-        .log-timestamp {
-            color: #808080;
-            font-size: 0.85em;
-        }
-
-        .log-stdout {
-            color: #d4d4d4;
-        }
-
-        .log-stderr {
-            color: #f48771;
-        }
-
-        .log-system {
-            color: #4ec9b0;
-            font-weight: bold;
-        }
-
-        .info-section {
-            margin-bottom: 20px;
-        }
-
-        .info-item {
-            margin: 8px 0;
-        }
-
-        .info-label {
-            font-weight: bold;
-            display: inline-block;
-            min-width: 120px;
-        }
-
-        .back-link {
-            display: inline-block;
-            margin-bottom: 20px;
-        }
-    </style>
-</head>
-<body>
+{{define "content"}}
     <a href="/ui/" class="back-link">← Back to Runs</a>
 
     <h1>Run: {{.Run.ID}}</h1>
@@ -193,5 +117,4 @@
         // Update every second
         setInterval(updateDuration, 1000);
     </script>
-</body>
-</html>
+{{end}}

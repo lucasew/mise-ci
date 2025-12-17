@@ -10,16 +10,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abiosoft/mold"
 	"github.com/lucasew/mise-ci/internal/core"
+	"github.com/lucasew/mise-ci/internal/httputil"
+	"github.com/lucasew/mise-ci/internal/sseutil"
 )
 
 //go:embed templates/*
 var templatesFS embed.FS
 
 type UIServer struct {
-	core      *core.Core
-	logger    *slog.Logger
-	templates *template.Template
+	core   *core.Core
+	logger *slog.Logger
+	engine mold.Engine
 }
 
 func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
@@ -51,12 +54,12 @@ func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 		},
 	}
 
-	tmpl := template.Must(template.New("").Funcs(funcMap).ParseFS(templatesFS, "templates/*.html"))
+	engine := mold.Must(mold.New(templatesFS, mold.WithLayout("templates/layouts/base.html"), mold.WithFuncMap(funcMap)))
 
 	return &UIServer{
-		core:      c,
-		logger:    logger,
-		templates: tmpl,
+		core:   c,
+		logger: logger,
+		engine: engine,
 	}
 }
 
@@ -69,12 +72,13 @@ func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 
 	data := map[string]interface{}{
-		"Runs": runs,
+		"Title": "Runs",
+		"Runs":  runs,
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "index.html", data); err != nil {
-		s.logger.Error("failed to render template", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	if err := s.engine.Render(w, "templates/pages/index.html", data); err != nil {
+		s.logger.Error("failed to render template", "template", "index", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 	}
 }
 
@@ -92,19 +96,20 @@ func (s *UIServer) HandleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Run": info,
+		"Title": fmt.Sprintf("Run %s", info.ID),
+		"Run":   info,
 	}
 
-	if err := s.templates.ExecuteTemplate(w, "run.html", data); err != nil {
-		s.logger.Error("failed to render template", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	if err := s.engine.Render(w, "templates/pages/run.html", data); err != nil {
+		s.logger.Error("failed to render template", "template", "run", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 	}
 }
 
 func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	runID := strings.TrimPrefix(r.URL.Path, "/ui/logs/")
 	if runID == "" {
-		http.Error(w, "Missing run ID", http.StatusBadRequest)
+		httputil.WriteErrorMessage(w, http.StatusBadRequest, "Missing run ID")
 		return
 	}
 
@@ -115,24 +120,19 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set headers for SSE
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	sseutil.SetHeaders(w)
 
 	// Get existing logs first
 	info, _ := s.core.GetRunInfo(runID)
 	for _, log := range info.Logs {
-		fmt.Fprintf(w, "data: {\"timestamp\":\"%s\",\"stream\":\"%s\",\"data\":%q}\n\n",
-			log.Timestamp.Format(time.RFC3339),
-			log.Stream,
-			log.Data)
+		sseutil.WriteEvent(w, map[string]interface{}{
+			"timestamp": log.Timestamp.Format(time.RFC3339),
+			"stream":    log.Stream,
+			"data":      log.Data,
+		})
 	}
 
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
-	}
+	sseutil.Flush(w)
 
 	// Subscribe to new logs
 	logCh := s.core.SubscribeLogs(runID)
@@ -145,13 +145,12 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			fmt.Fprintf(w, "data: {\"timestamp\":\"%s\",\"stream\":\"%s\",\"data\":%q}\n\n",
-				log.Timestamp.Format(time.RFC3339),
-				log.Stream,
-				log.Data)
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
+			sseutil.WriteEvent(w, map[string]interface{}{
+				"timestamp": log.Timestamp.Format(time.RFC3339),
+				"stream":    log.Stream,
+				"data":      log.Data,
+			})
+			sseutil.Flush(w)
 		case <-r.Context().Done():
 			return
 		}
@@ -159,11 +158,7 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *UIServer) HandleStatusStream(w http.ResponseWriter, r *http.Request) {
-	// Set headers for SSE
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	sseutil.SetHeaders(w)
 
 	// Subscribe to status changes
 	statusCh := s.core.SubscribeStatus()
@@ -177,26 +172,23 @@ func (s *UIServer) HandleStatusStream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			finishedAt := "null"
+			data := map[string]interface{}{
+				"id":          status.ID,
+				"status":      status.Status,
+				"started_at":  status.StartedAt.Format(time.RFC3339),
+				"finished_at": nil,
+				"exit_code":   nil,
+			}
+
 			if status.FinishedAt != nil {
-				finishedAt = fmt.Sprintf("\"%s\"", status.FinishedAt.Format(time.RFC3339))
+				data["finished_at"] = status.FinishedAt.Format(time.RFC3339)
 			}
-
-			exitCode := "null"
 			if status.ExitCode != nil {
-				exitCode = fmt.Sprintf("%d", *status.ExitCode)
+				data["exit_code"] = *status.ExitCode
 			}
 
-			fmt.Fprintf(w, "data: {\"id\":\"%s\",\"status\":\"%s\",\"started_at\":\"%s\",\"finished_at\":%s,\"exit_code\":%s}\n\n",
-				status.ID,
-				status.Status,
-				status.StartedAt.Format(time.RFC3339),
-				finishedAt,
-				exitCode)
-
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
+			sseutil.WriteEvent(w, data)
+			sseutil.Flush(w)
 		case <-r.Context().Done():
 			return
 		}
