@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -41,7 +42,19 @@ func initConfig() {
 	}
 
 	viper.SetEnvPrefix("MISE_CI")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
+
+	// Explicitly bind environment variables
+	viper.BindEnv("jwt.secret")
+	viper.BindEnv("server.http_addr")
+	viper.BindEnv("server.public_url")
+	viper.BindEnv("github.app_id")
+	viper.BindEnv("github.private_key")
+	viper.BindEnv("github.webhook_secret")
+	viper.BindEnv("nomad.addr")
+	viper.BindEnv("nomad.job_name")
+	viper.BindEnv("nomad.default_image")
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("using config file", "file", viper.ConfigFileUsed())
