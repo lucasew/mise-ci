@@ -60,19 +60,66 @@
                 <th>Duration</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="runs-table">
             {{range .Runs}}
-            <tr>
+            <tr data-run-id="{{.ID}}" data-status="{{.Status}}" data-started="{{.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .FinishedAt}}{{.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
                 <td><a href="/ui/run/{{.ID}}">{{.ID}}</a></td>
                 <td><span class="status-badge {{statusClass .Status}}">{{.Status}}</span></td>
                 <td>{{formatTime .StartedAt}}</td>
-                <td>{{formatDuration .StartedAt .FinishedAt}}</td>
+                <td class="duration">{{formatDuration .StartedAt .FinishedAt}}</td>
             </tr>
             {{end}}
         </tbody>
     </table>
     {{else}}
-    <p>No runs yet.</p>
+    <p id="no-runs">No runs yet.</p>
     {{end}}
+
+    <script>
+        // Connect to status stream
+        const eventSource = new EventSource('/ui/status-stream');
+
+        eventSource.onmessage = function(event) {
+            // Reload page on any status update
+            location.reload();
+        };
+
+        eventSource.onerror = function(error) {
+            console.error('SSE error:', error);
+        };
+
+        // Update duration optimistically every second
+        function formatDuration(startStr, endStr) {
+            const start = new Date(startStr);
+            const end = endStr ? new Date(endStr) : new Date();
+            const diffMs = end - start;
+            const seconds = Math.floor(diffMs / 1000);
+            if (seconds < 60) return seconds + 's';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ' + (seconds % 60) + 's';
+            const hours = Math.floor(minutes / 60);
+            return hours + 'h ' + (minutes % 60) + 'm';
+        }
+
+        function updateDurations() {
+            const rows = document.querySelectorAll('#runs-table tr[data-run-id]');
+            rows.forEach(row => {
+                const status = row.getAttribute('data-status');
+                const startedAt = row.getAttribute('data-started');
+                const finishedAt = row.getAttribute('data-finished');
+
+                // Only update if running or scheduled (not finished)
+                if ((status === 'running' || status === 'scheduled') && !finishedAt) {
+                    const durationCell = row.querySelector('.duration');
+                    if (durationCell && startedAt) {
+                        durationCell.textContent = formatDuration(startedAt, null);
+                    }
+                }
+            });
+        }
+
+        // Update every second
+        setInterval(updateDurations, 1000);
+    </script>
 </body>
 </html>

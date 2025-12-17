@@ -55,6 +55,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/ui/", s.uiServer.HandleIndex)
 	mux.HandleFunc("/ui/run/", s.uiServer.HandleRun)
 	mux.HandleFunc("/ui/logs/", s.uiServer.HandleLogs)
+	mux.HandleFunc("/ui/status-stream", s.uiServer.HandleStatusStream)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/ui/", http.StatusFound)

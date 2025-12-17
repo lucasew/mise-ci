@@ -157,3 +157,48 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+func (s *UIServer) HandleStatusStream(w http.ResponseWriter, r *http.Request) {
+	// Set headers for SSE
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Subscribe to status changes
+	statusCh := s.core.SubscribeStatus()
+	defer s.core.UnsubscribeStatus(statusCh)
+
+	// Stream status updates
+	for {
+		select {
+		case status, ok := <-statusCh:
+			if !ok {
+				return
+			}
+
+			finishedAt := "null"
+			if status.FinishedAt != nil {
+				finishedAt = fmt.Sprintf("\"%s\"", status.FinishedAt.Format(time.RFC3339))
+			}
+
+			exitCode := "null"
+			if status.ExitCode != nil {
+				exitCode = fmt.Sprintf("%d", *status.ExitCode)
+			}
+
+			fmt.Fprintf(w, "data: {\"id\":\"%s\",\"status\":\"%s\",\"started_at\":\"%s\",\"finished_at\":%s,\"exit_code\":%s}\n\n",
+				status.ID,
+				status.Status,
+				status.StartedAt.Format(time.RFC3339),
+				finishedAt,
+				exitCode)
+
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+		case <-r.Context().Done():
+			return
+		}
+	}
+}

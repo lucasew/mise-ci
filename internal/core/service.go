@@ -127,6 +127,9 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	s.Logger.Info("test project created", "dir", testDir)
 
 	// 1. Send mise.toml to worker
+	s.Core.AddLog(run.ID, "system", "Preparing test project files...")
+	time.Sleep(2 * time.Second)
+
 	s.Logger.Info("sending mise.toml to worker")
 	miseTomlData, err := os.ReadFile(miseTomlPath)
 	if err != nil {
@@ -134,6 +137,7 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 		return
 	}
 
+	s.Core.AddLog(run.ID, "system", "Copying mise.toml to worker...")
 	run.CommandCh <- &pb.ServerMessage{
 		Id: 1,
 		Payload: &pb.ServerMessage_Copy{
@@ -150,19 +154,34 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 		return
 	}
 
+	time.Sleep(1 * time.Second)
+
 	// 2. Trust mise config
+	s.Core.AddLog(run.ID, "system", "Trusting mise configuration...")
+	time.Sleep(1 * time.Second)
+
 	if !s.runCommand(run, 2, "mise", "trust") {
 		s.Logger.Error("mise trust failed")
 		return
 	}
 
+	time.Sleep(1 * time.Second)
+
 	// 3. Run CI task
+	s.Core.AddLog(run.ID, "system", "Starting CI task...")
+	time.Sleep(1 * time.Second)
+
 	if !s.runCommand(run, 3, "mise", "run", "ci") {
 		s.Logger.Error("mise run ci failed")
 		return
 	}
 
+	time.Sleep(1 * time.Second)
+
 	// 4. Copy output.txt back from worker
+	s.Core.AddLog(run.ID, "system", "Retrieving output artifacts...")
+	time.Sleep(1 * time.Second)
+
 	s.Logger.Info("requesting output.txt from worker")
 	outputPath := testDir + "/output.txt"
 	run.CommandCh <- &pb.ServerMessage{
@@ -180,7 +199,10 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 		return
 	}
 
+	time.Sleep(1 * time.Second)
+
 	// 5. Read and log the output
+	s.Core.AddLog(run.ID, "system", "Processing output...")
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
 		s.Logger.Error("failed to read output.txt", "error", err)
@@ -191,6 +213,9 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	s.Logger.Info(string(output))
 	s.Logger.Info("===================")
 	s.Logger.Info("test completed successfully")
+
+	time.Sleep(1 * time.Second)
+	s.Core.AddLog(run.ID, "system", "All tasks completed successfully!")
 
 	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
 	s.Core.AddLog(run.ID, "system", "Test run completed successfully")
