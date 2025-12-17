@@ -54,7 +54,7 @@ func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 		},
 	}
 
-	engine := mold.Must(mold.New(templatesFS, mold.WithLayout("templates/layouts/base.html"), mold.WithFuncMap(funcMap)))
+	engine := mold.Must(mold.New(templatesFS, mold.WithLayout("templates/layouts/layout.html"), mold.WithFuncMap(funcMap)))
 
 	return &UIServer{
 		core:   c,
@@ -113,8 +113,12 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if run exists
-	_, ok := s.core.GetRunInfo(runID)
+	// Subscribe to new logs first to avoid gaps
+	logCh := s.core.SubscribeLogs(runID)
+	defer s.core.UnsubscribeLogs(runID, logCh)
+
+	// Check if run exists and get initial history
+	info, ok := s.core.GetRunInfo(runID)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -122,8 +126,7 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 
 	sseutil.SetHeaders(w)
 
-	// Get existing logs first
-	info, _ := s.core.GetRunInfo(runID)
+	// Get existing logs first (GetRunInfo returns a safe copy)
 	for _, log := range info.Logs {
 		sseutil.WriteEvent(w, map[string]interface{}{
 			"timestamp": log.Timestamp.Format(time.RFC3339),
@@ -133,10 +136,6 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sseutil.Flush(w)
-
-	// Subscribe to new logs
-	logCh := s.core.SubscribeLogs(runID)
-	defer s.core.UnsubscribeLogs(runID, logCh)
 
 	// Stream new logs
 	for {
