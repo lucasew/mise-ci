@@ -23,10 +23,30 @@ func NewNomadRunner(addr string, jobName string) (*NomadRunner, error) {
 		return nil, fmt.Errorf("create nomad client: %w", err)
 	}
 
-	return &NomadRunner{
+	nr := &NomadRunner{
 		client:  client,
 		jobName: jobName,
-	}, nil
+	}
+
+	// Verify the job exists and is parameterized
+	if err := nr.VerifyJob(); err != nil {
+		return nil, err
+	}
+
+	return nr, nil
+}
+
+func (n *NomadRunner) VerifyJob() error {
+	job, _, err := n.client.Jobs().Info(n.jobName, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get job info: %w (make sure the parameterized job '%s' exists in Nomad)", err, n.jobName)
+	}
+
+	if job.ParameterizedJob == nil {
+		return fmt.Errorf("job '%s' exists but is not a parameterized job", n.jobName)
+	}
+
+	return nil
 }
 
 func (n *NomadRunner) Dispatch(ctx context.Context, params runner.RunParams) (string, error) {

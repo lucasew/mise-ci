@@ -71,6 +71,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create nomad runner: %w", err)
 		}
 		logger.Info("nomad runner enabled", "addr", nomadAddr, "job", cfg.Nomad.JobName)
+		logger.Info("nomad parameterized job verified successfully", "job", cfg.Nomad.JobName)
 	} else {
 		return fmt.Errorf("no runner configured (nomad.job_name missing)")
 	}
@@ -106,6 +107,31 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	// Configuration summary
+	logger.Info("=== mise-ci agent configuration ===")
+	logger.Info("server", "http_addr", cfg.Server.HTTPAddr, "public_url", cfg.Server.PublicURL)
+
+	if len(forges) > 0 {
+		logger.Info("forges configured", "count", len(forges))
+		if cfg.GitHub.AppID != 0 {
+			logger.Info("  - github", "app_id", cfg.GitHub.AppID, "webhook_secret_set", cfg.GitHub.WebhookSecret != "")
+		}
+	} else {
+		logger.Info("forges", "status", "none configured")
+	}
+
+	if r != nil {
+		defaultImage := cfg.Nomad.DefaultImage
+		if defaultImage == "" {
+			defaultImage = "(not set)"
+		}
+		logger.Info("runner", "type", "nomad", "addr", cfg.Nomad.Addr, "job", cfg.Nomad.JobName, "default_image", defaultImage)
+	} else {
+		logger.Info("runner", "status", "not configured")
+	}
+
+	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
+	logger.Info("=================================")
 	logger.Info("agent listening", "addr", cfg.Server.HTTPAddr)
 	if err := m.Serve(); err != nil {
 		return fmt.Errorf("cmux serve error: %w", err)

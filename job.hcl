@@ -4,7 +4,6 @@ job "mise-ci-run" {
   parameterized {
     payload       = "forbidden"
     meta_required = ["callback_url", "token"]
-    meta_optional = ["image"]
   }
 
   group "worker" {
@@ -12,7 +11,12 @@ job "mise-ci-run" {
       driver = "docker"
 
       config {
-        image = "${NOMAD_META_image}"
+        image = "jdxcode/mise:latest"
+        args = [
+          "exec",
+          "go:github.com/lucasew/mise-ci/cmd/mise-ci",
+          "worker"
+        ]
       }
 
       env {
