@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -41,10 +39,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	if cfg.JWT.Secret == "" {
-		b := make([]byte, 32)
-		_, _ = rand.Read(b)
-		cfg.JWT.Secret = hex.EncodeToString(b)
-		logger.Info("generated random jwt secret")
+		return fmt.Errorf("jwt.secret is required (MISE_CI_JWT_SECRET)")
 	}
 
 	// Forges
