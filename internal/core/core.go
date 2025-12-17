@@ -41,8 +41,8 @@ type Core struct {
 	mu             sync.RWMutex
 	logger         *slog.Logger
 	jwtSecret      []byte
-	logListener    map[string][]chan LogEntry // run_id -> list of log listeners
-	statusListener []chan RunInfo             // global status change listeners
+	logListener    map[string]*ListenerManager[LogEntry] // run_id -> log listeners manager
+	statusListener *ListenerManager[RunInfo]             // global status change listeners manager
 }
 
 type Run struct {
@@ -59,8 +59,8 @@ func NewCore(logger *slog.Logger, secret string) *Core {
 		runInfo:        make(map[string]*RunInfo),
 		logger:         logger,
 		jwtSecret:      []byte(secret),
-		logListener:    make(map[string][]chan LogEntry),
-		statusListener: make([]chan RunInfo, 0),
+		logListener:    make(map[string]*ListenerManager[LogEntry]),
+		statusListener: NewListenerManager[RunInfo](),
 	}
 }
 
@@ -88,13 +88,7 @@ func (c *Core) CreateRun(id string) *Run {
 	// Broadcast new run to status listeners
 	infoCopy := *info
 	infoCopy.Logs = nil
-	for _, ch := range c.statusListener {
-		select {
-		case ch <- infoCopy:
-		default:
-			// Skip if channel is full
-		}
-	}
+	c.statusListener.Broadcast(infoCopy)
 
 	return run
 }
@@ -137,10 +131,9 @@ func (c *Core) GenerateToken(runID string) (string, error) {
 
 func (c *Core) AddLog(runID string, stream string, data string) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	info, ok := c.runInfo[runID]
 	if !ok {
+		c.mu.Unlock()
 		return
 	}
 
@@ -152,24 +145,20 @@ func (c *Core) AddLog(runID string, stream string, data string) {
 
 	info.Logs = append(info.Logs, entry)
 
+	lm, exists := c.logListener[runID]
+	c.mu.Unlock()
+
 	// Broadcast to listeners
-	if listeners, ok := c.logListener[runID]; ok {
-		for _, ch := range listeners {
-			select {
-			case ch <- entry:
-			default:
-				// Skip if channel is full
-			}
-		}
+	if exists {
+		lm.Broadcast(entry)
 	}
 }
 
 func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	info, ok := c.runInfo[runID]
 	if !ok {
+		c.mu.Unlock()
 		return
 	}
 
@@ -186,13 +175,9 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 	// Broadcast status change to all listeners
 	infoCopy := *info
 	infoCopy.Logs = nil // Don't send logs in status updates
-	for _, ch := range c.statusListener {
-		select {
-		case ch <- infoCopy:
-		default:
-			// Skip if channel is full
-		}
-	}
+	c.mu.Unlock()
+
+	c.statusListener.Broadcast(infoCopy)
 }
 
 func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
@@ -230,43 +215,26 @@ func (c *Core) SubscribeLogs(runID string) chan LogEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	ch := make(chan LogEntry, 100)
-	c.logListener[runID] = append(c.logListener[runID], ch)
-	return ch
+	if _, ok := c.logListener[runID]; !ok {
+		c.logListener[runID] = NewListenerManager[LogEntry]()
+	}
+	return c.logListener[runID].Subscribe()
 }
 
 func (c *Core) UnsubscribeLogs(runID string, ch chan LogEntry) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	lm, ok := c.logListener[runID]
+	c.mu.RUnlock()
 
-	listeners := c.logListener[runID]
-	for i, listener := range listeners {
-		if listener == ch {
-			c.logListener[runID] = append(listeners[:i], listeners[i+1:]...)
-			close(ch)
-			break
-		}
+	if ok {
+		lm.Unsubscribe(ch)
 	}
 }
 
 func (c *Core) SubscribeStatus() chan RunInfo {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	ch := make(chan RunInfo, 100)
-	c.statusListener = append(c.statusListener, ch)
-	return ch
+	return c.statusListener.Subscribe()
 }
 
 func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for i, listener := range c.statusListener {
-		if listener == ch {
-			c.statusListener = append(c.statusListener[:i], c.statusListener[i+1:]...)
-			close(ch)
-			break
-		}
-	}
+	c.statusListener.Unsubscribe(ch)
 }

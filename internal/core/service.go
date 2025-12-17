@@ -12,6 +12,9 @@ import (
 
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/forge"
+	"github.com/lucasew/mise-ci/internal/httputil"
+	"github.com/lucasew/mise-ci/internal/msgutil"
+	"github.com/lucasew/mise-ci/internal/orchestration"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/runner"
 )
@@ -48,20 +51,17 @@ func (s *Service) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		if event != nil {
 			s.Logger.Info("received webhook", "repo", event.Repo, "sha", event.SHA)
 			go s.StartRun(event, f)
-			w.WriteHeader(http.StatusAccepted)
-			w.Write([]byte("accepted"))
+			httputil.WriteText(w, http.StatusAccepted, "accepted")
 			return
 		}
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ignored"))
+	httputil.WriteText(w, http.StatusOK, "ignored")
 }
 
 func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		w.Write([]byte("only POST allowed"))
+		httputil.WriteErrorMessage(w, http.StatusMethodNotAllowed, "only POST allowed")
 		return
 	}
 
@@ -74,8 +74,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	token, err := s.Core.GenerateToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("error: %v", err)))
+		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
 	}
 
@@ -93,8 +92,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	jobID, err := s.Runner.Dispatch(ctx, params)
 	if err != nil {
 		s.Logger.Error("dispatch job", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf("error: %v", err)))
+		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
 	}
 
@@ -103,8 +101,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	// Run test orchestration in background
 	go s.TestOrchestrate(ctx, run)
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("dispatched: run_id=%s job_id=%s", runID, jobID)))
+	httputil.WriteText(w, http.StatusOK, fmt.Sprintf("dispatched: run_id=%s job_id=%s", runID, jobID))
 }
 
 func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
@@ -131,82 +128,36 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 
 	s.Logger.Info("test project created", "dir", testDir)
 
-	// 1. Send mise.toml to worker
-	s.Core.AddLog(run.ID, "system", "Preparing test project files...")
-	time.Sleep(2 * time.Second)
-
-	s.Logger.Info("sending mise.toml to worker")
 	miseTomlData, err := os.ReadFile(miseTomlPath)
 	if err != nil {
 		s.Logger.Error("failed to read mise.toml", "error", err)
 		return
 	}
 
-	s.Core.AddLog(run.ID, "system", "Copying mise.toml to worker...")
-	run.CommandCh <- &pb.ServerMessage{
-		Id: 1,
-		Payload: &pb.ServerMessage_Copy{
-			Copy: &pb.Copy{
-				Direction: pb.Copy_TO_WORKER,
-				Source:    "mise.toml",
-				Dest:      "mise.toml",
-				Data:      miseTomlData,
-			},
-		},
-	}
-	if !s.waitForDone(run, "copy mise.toml") {
-		s.Logger.Error("failed to copy mise.toml")
-		return
-	}
-
-	time.Sleep(1 * time.Second)
-
-	// 2. Trust mise config
-	s.Core.AddLog(run.ID, "system", "Trusting mise configuration...")
-	time.Sleep(1 * time.Second)
-
-	if !s.runCommand(run, 2, "mise", "trust") {
-		s.Logger.Error("mise trust failed")
-		return
-	}
-
-	time.Sleep(1 * time.Second)
-
-	// 3. Run CI task
-	s.Core.AddLog(run.ID, "system", "Starting CI task...")
-	time.Sleep(1 * time.Second)
-
-	if !s.runCommand(run, 3, "mise", "run", "ci") {
-		s.Logger.Error("mise run ci failed")
-		return
-	}
-
-	time.Sleep(1 * time.Second)
-
-	// 4. Copy output.txt back from worker
-	s.Core.AddLog(run.ID, "system", "Retrieving output artifacts...")
-	time.Sleep(1 * time.Second)
-
-	s.Logger.Info("requesting output.txt from worker")
 	outputPath := testDir + "/output.txt"
-	run.CommandCh <- &pb.ServerMessage{
-		Id: 4,
-		Payload: &pb.ServerMessage_Copy{
-			Copy: &pb.Copy{
-				Direction: pb.Copy_FROM_WORKER,
-				Source:    "output.txt",
-				Dest:      outputPath,
-			},
-		},
-	}
-	if !s.receiveFile(run, outputPath, "copy output.txt") {
-		s.Logger.Error("failed to copy output.txt")
+
+	pipeline := orchestration.NewPipeline(run.ID, s.Core, s.Logger)
+
+	pipeline.
+		AddStep("copy-config", "Copying mise.toml to worker", func() error {
+			return s.copyFileToWorker(run, 1, "mise.toml", "mise.toml", miseTomlData)
+		}).
+		AddStep("trust", "Trusting mise configuration", func() error {
+			return s.runCommandSync(run, 2, "mise", "trust")
+		}).
+		AddStep("run-ci", "Starting CI task", func() error {
+			return s.runCommandSync(run, 3, "mise", "run", "ci")
+		}).
+		AddStep("retrieve", "Retrieving output artifacts", func() error {
+			return s.copyFileFromWorker(run, 4, "output.txt", outputPath)
+		})
+
+	if err := pipeline.Run(); err != nil {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return
 	}
 
-	time.Sleep(1 * time.Second)
-
-	// 5. Read and log the output
+	// Read and log the output
 	s.Core.AddLog(run.ID, "system", "Processing output...")
 	output, err := os.ReadFile(outputPath)
 	if err != nil {
@@ -219,19 +170,13 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	s.Logger.Info("===================")
 	s.Logger.Info("test completed successfully")
 
-	time.Sleep(1 * time.Second)
 	s.Core.AddLog(run.ID, "system", "All tasks completed successfully!")
 
 	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
 	s.Core.AddLog(run.ID, "system", "Test run completed successfully")
 
 	// Close connection
-	run.CommandCh <- &pb.ServerMessage{
-		Id: 5,
-		Payload: &pb.ServerMessage_Close{
-			Close: &pb.Close{},
-		},
-	}
+	run.CommandCh <- msgutil.NewCloseCommand(5)
 }
 
 func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
@@ -351,17 +296,36 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 }
 
 func (s *Service) runCommand(run *Run, id uint64, cmd string, args ...string) bool {
-	s.Logger.Info("sending run", "cmd", cmd, "args", args)
-	run.CommandCh <- &pb.ServerMessage{
-		Id: id,
-		Payload: &pb.ServerMessage_Run{
-			Run: &pb.Run{
-				Cmd:  cmd,
-				Args: args,
-			},
-		},
+	return s.runCommandSync(run, id, cmd, args...) == nil
+}
+
+// runCommandSync executes a command and waits for it to complete
+func (s *Service) runCommandSync(run *Run, id uint64, cmd string, args ...string) error {
+	s.Logger.Info("executing command", "cmd", cmd, "args", args)
+	run.CommandCh <- msgutil.NewRunCommand(id, cmd, args...)
+
+	if !s.waitForDone(run, cmd) {
+		return fmt.Errorf("command failed: %s", cmd)
 	}
-	return s.waitForDone(run, cmd)
+	return nil
+}
+
+// copyFileToWorker sends a file to the worker
+func (s *Service) copyFileToWorker(run *Run, id uint64, source, dest string, data []byte) error {
+	run.CommandCh <- msgutil.NewCopyToWorker(id, source, dest, data)
+	if !s.waitForDone(run, fmt.Sprintf("copy %s", source)) {
+		return fmt.Errorf("failed to copy file: %s", source)
+	}
+	return nil
+}
+
+// copyFileFromWorker receives a file from the worker
+func (s *Service) copyFileFromWorker(run *Run, id uint64, source, dest string) error {
+	run.CommandCh <- msgutil.NewCopyFromWorker(id, source, dest)
+	if !s.receiveFile(run, dest, fmt.Sprintf("copy %s", source)) {
+		return fmt.Errorf("failed to receive file: %s", source)
+	}
+	return nil
 }
 
 func (s *Service) waitForDone(run *Run, context string) bool {

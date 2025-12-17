@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/abiosoft/mold v0.0.0-20250328135240-0a4c28cb836a // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect

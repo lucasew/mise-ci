@@ -1,49 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mise-ci - Runs</title>
-    <link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css">
-    <style>
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-        .success { background-color: #28a745; color: white; }
-        .failure { background-color: #dc3545; color: white; }
-        .error { background-color: #ffc107; color: black; }
-        .running { background-color: #17a2b8; color: white; }
-        .scheduled { background-color: #6c757d; color: white; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        tr:hover {
-            background-color: #f5f5f5;
-        }
-
-        a {
-            text-decoration: none;
-        }
-
-        .refresh-btn {
-            float: right;
-        }
-    </style>
-</head>
-<body>
+{{define "content"}}
     <h1>mise-ci</h1>
 
     <button class="refresh-btn" onclick="location.reload()">Refresh</button>
@@ -134,5 +89,4 @@
         // Update every second
         setInterval(updateDurations, 1000);
     </script>
-</body>
-</html>
+{{end}}

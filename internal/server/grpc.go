@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/lucasew/mise-ci/internal/core"
 	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/stream"
 )
 
 type GrpcServer struct {
@@ -26,9 +28,22 @@ func NewGrpcServer(core *core.Core, logger *slog.Logger) *GrpcServer {
 	}
 }
 
-func (s *GrpcServer) Connect(stream pb.Server_ConnectServer) error {
+// grpcStreamAdapter adapts pb.Server_ConnectServer to MessageStream interface
+type grpcStreamAdapter struct {
+	stream pb.Server_ConnectServer
+}
+
+func (a *grpcStreamAdapter) Send(msg *pb.ServerMessage) error {
+	return a.stream.Send(msg)
+}
+
+func (a *grpcStreamAdapter) Recv() (*pb.WorkerMessage, error) {
+	return a.stream.Recv()
+}
+
+func (s *GrpcServer) Connect(serverStream pb.Server_ConnectServer) error {
 	// 1. Auth
-	md, ok := metadata.FromIncomingContext(stream.Context())
+	md, ok := metadata.FromIncomingContext(serverStream.Context())
 	if !ok {
 		return status.Error(codes.Unauthenticated, "missing metadata")
 	}
@@ -50,54 +65,36 @@ func (s *GrpcServer) Connect(stream pb.Server_ConnectServer) error {
 
 	s.logger.Info("worker connected", "run_id", runID)
 
-	// 2. Handshake - receive RunnerInfo
-	msg, err := stream.Recv()
-	if err != nil {
-		return err
+	adapter := &grpcStreamAdapter{stream: serverStream}
+
+	err = stream.HandleBidiStream(
+		serverStream.Context(),
+		adapter,
+		run.CommandCh,
+		run.ResultCh,
+		stream.BidiConfig[*pb.ServerMessage]{
+			Logger: s.logger,
+			OnConnect: func() error {
+				// 2. Handshake - receive RunnerInfo
+				msg, err := adapter.Recv()
+				if err != nil {
+					return err
+				}
+				if info, ok := msg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
+					s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
+					return nil
+				}
+				return status.Error(codes.InvalidArgument, "expected RunnerInfo as first message")
+			},
+			ShouldClose: func(msg *pb.ServerMessage) bool {
+				_, ok := msg.Payload.(*pb.ServerMessage_Close)
+				return ok
+			},
+		},
+	)
+
+	if errors.Is(err, io.EOF) {
+		return nil
 	}
-	if info, ok := msg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
-		s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
-	} else {
-		return status.Error(codes.InvalidArgument, "expected RunnerInfo as first message")
-	}
-
-	// 3. Loop
-	errCh := make(chan error, 1)
-
-	// Sender: reads from run.CommandCh and sends to stream
-	go func() {
-		for cmd := range run.CommandCh {
-			if err := stream.Send(cmd); err != nil {
-				s.logger.Error("failed to send command", "error", err)
-				errCh <- err
-				return
-			}
-			if _, ok := cmd.Payload.(*pb.ServerMessage_Close); ok {
-				return
-			}
-		}
-	}()
-
-	// Receiver: reads from stream and sends to run.ResultCh
-	go func() {
-		for {
-			msg, err := stream.Recv()
-			if err == io.EOF {
-				errCh <- nil
-				return
-			}
-			if err != nil {
-				s.logger.Error("failed to receive message", "error", err)
-				errCh <- err
-				return
-			}
-			select {
-			case run.ResultCh <- msg:
-			case <-stream.Context().Done():
-				return
-			}
-		}
-	}()
-
-	return <-errCh
+	return err
 }
