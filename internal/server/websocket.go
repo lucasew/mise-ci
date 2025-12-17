@@ -1,8 +1,10 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -84,6 +86,9 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		// Update status to running when worker connects
 		s.core.UpdateStatus(runID, core.StatusRunning, nil)
 		s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
+
+		// Signal that worker is connected
+		close(run.ConnectedCh)
 	} else {
 		s.logger.Error("expected RunnerInfo as first message")
 		return
@@ -120,12 +125,26 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		for {
 			_, msgData, err := conn.ReadMessage()
 			if err != nil {
+				// Normal closure
 				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					s.logger.Info("worker closed connection normally", "run_id", runID)
 					errCh <- nil
-				} else {
-					s.logger.Error("failed to receive message", "error", err)
-					errCh <- err
+					return
 				}
+
+				// Connection closed by us (after sending Close message)
+				var netErr *net.OpError
+				if errors.As(err, &netErr) && errors.Is(netErr.Err, net.ErrClosed) {
+					s.logger.Info("connection closed by server", "run_id", runID)
+					errCh <- nil
+					return
+				}
+
+				// Unexpected disconnection
+				s.logger.Error("worker disconnected unexpectedly", "run_id", runID, "error", err)
+				s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
+				s.core.UpdateStatus(runID, core.StatusError, nil)
+				errCh <- err
 				return
 			}
 
@@ -144,6 +163,10 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	// Wait for either goroutine to finish
-	<-errCh
-	s.logger.Info("worker disconnected", "run_id", runID)
+	err = <-errCh
+	if err != nil {
+		s.logger.Error("worker connection error", "run_id", runID, "error", err)
+	} else {
+		s.logger.Info("worker disconnected", "run_id", runID)
+	}
 }

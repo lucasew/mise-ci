@@ -79,13 +79,26 @@
         // Connect to status stream
         const eventSource = new EventSource('/ui/status-stream');
 
+        let reloadTimeout = null;
+
         eventSource.onmessage = function(event) {
-            // Reload page on any status update
-            location.reload();
+            // Debounce reload to avoid multiple rapid reloads
+            if (reloadTimeout) {
+                clearTimeout(reloadTimeout);
+            }
+            reloadTimeout = setTimeout(function() {
+                location.reload();
+            }, 500); // Wait 500ms before reloading
         };
 
         eventSource.onerror = function(error) {
             console.error('SSE error:', error);
+            // Try to reconnect after error
+            if (eventSource.readyState === EventSource.CLOSED) {
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
+            }
         };
 
         // Update duration optimistically every second

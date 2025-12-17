@@ -79,7 +79,7 @@
 
     <h1>Run: {{.Run.ID}}</h1>
 
-    <div class="info-section">
+    <div class="info-section" data-status="{{.Run.Status}}" data-started="{{.Run.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .Run.FinishedAt}}{{.Run.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
         <div class="info-item">
             <span class="info-label">Status:</span>
             <span class="status-badge {{statusClass .Run.Status}}">{{.Run.Status}}</span>
@@ -96,7 +96,7 @@
         {{end}}
         <div class="info-item">
             <span class="info-label">Duration:</span>
-            {{formatDuration .Run.StartedAt .Run.FinishedAt}}
+            <span class="duration">{{formatDuration .Run.StartedAt .Run.FinishedAt}}</span>
         </div>
         {{if .Run.ExitCode}}
         <div class="info-item">
@@ -113,10 +113,10 @@
         const logsContainer = document.getElementById('logs');
         const runID = '{{.Run.ID}}';
 
-        // Connect to SSE endpoint
-        const eventSource = new EventSource(`/ui/logs/${runID}`);
+        // Connect to logs SSE endpoint
+        const logsEventSource = new EventSource(`/ui/logs/${runID}`);
 
-        eventSource.onmessage = function(event) {
+        logsEventSource.onmessage = function(event) {
             const log = JSON.parse(event.data);
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
@@ -137,15 +137,61 @@
             logsContainer.scrollTop = logsContainer.scrollHeight;
         };
 
-        eventSource.onerror = function(error) {
-            console.error('SSE error:', error);
-            // Optionally reconnect or show error message
+        logsEventSource.onerror = function(error) {
+            console.error('Logs SSE error:', error);
+        };
+
+        // Connect to status stream to update status in real-time
+        const statusEventSource = new EventSource('/ui/status-stream');
+
+        statusEventSource.onmessage = function(event) {
+            const status = JSON.parse(event.data);
+            // Only update if it's for this run
+            if (status.id === runID) {
+                // Reload page to show updated status
+                location.reload();
+            }
+        };
+
+        statusEventSource.onerror = function(error) {
+            console.error('Status SSE error:', error);
         };
 
         // Auto-scroll to bottom on page load
         window.addEventListener('load', function() {
             logsContainer.scrollTop = logsContainer.scrollHeight;
         });
+
+        // Update duration optimistically every second
+        function formatDuration(startStr, endStr) {
+            const start = new Date(startStr);
+            const end = endStr ? new Date(endStr) : new Date();
+            const diffMs = end - start;
+            const seconds = Math.floor(diffMs / 1000);
+            if (seconds < 60) return seconds + 's';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ' + (seconds % 60) + 's';
+            const hours = Math.floor(minutes / 60);
+            return hours + 'h ' + (minutes % 60) + 'm';
+        }
+
+        function updateDuration() {
+            const infoSection = document.querySelector('.info-section');
+            const status = infoSection.getAttribute('data-status');
+            const startedAt = infoSection.getAttribute('data-started');
+            const finishedAt = infoSection.getAttribute('data-finished');
+
+            // Only update if running or scheduled (not finished)
+            if ((status === 'running' || status === 'scheduled') && !finishedAt) {
+                const durationSpan = document.querySelector('.duration');
+                if (durationSpan && startedAt) {
+                    durationSpan.textContent = formatDuration(startedAt, null);
+                }
+            }
+        }
+
+        // Update every second
+        setInterval(updateDuration, 1000);
     </script>
 </body>
 </html>

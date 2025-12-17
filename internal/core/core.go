@@ -46,10 +46,11 @@ type Core struct {
 }
 
 type Run struct {
-	ID        string
-	CommandCh chan *pb.ServerMessage // Commands to send to worker
-	ResultCh  chan *pb.WorkerMessage // Results from worker (for logic to consume)
-	DoneCh    chan struct{}
+	ID          string
+	CommandCh   chan *pb.ServerMessage // Commands to send to worker
+	ResultCh    chan *pb.WorkerMessage // Results from worker (for logic to consume)
+	DoneCh      chan struct{}
+	ConnectedCh chan struct{} // Signals when worker connects
 }
 
 func NewCore(logger *slog.Logger, secret string) *Core {
@@ -68,10 +69,11 @@ func (c *Core) CreateRun(id string) *Run {
 	defer c.mu.Unlock()
 
 	run := &Run{
-		ID:        id,
-		CommandCh: make(chan *pb.ServerMessage, 10),
-		ResultCh:  make(chan *pb.WorkerMessage, 10),
-		DoneCh:    make(chan struct{}),
+		ID:          id,
+		CommandCh:   make(chan *pb.ServerMessage, 10),
+		ResultCh:    make(chan *pb.WorkerMessage, 10),
+		DoneCh:      make(chan struct{}),
+		ConnectedCh: make(chan struct{}),
 	}
 	c.runs[id] = run
 

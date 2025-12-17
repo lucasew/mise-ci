@@ -108,6 +108,11 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
+	// Wait for worker to connect
+	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
+	<-run.ConnectedCh
+	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+
 	// Create temporary test project directory
 	testDir, err := os.MkdirTemp("", "mise-ci-test-*")
 	if err != nil {
@@ -289,6 +294,11 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 }
 
 func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge) bool {
+	// Wait for worker to connect
+	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
+	<-run.ConnectedCh
+	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+
 	creds, err := f.CloneCredentials(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Error("get credentials", "error", err)
