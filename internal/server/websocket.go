@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -80,6 +81,9 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 	if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
 		s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
+		// Update status to running when worker connects
+		s.core.UpdateStatus(runID, core.StatusRunning, nil)
+		s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
 	} else {
 		s.logger.Error("expected RunnerInfo as first message")
 		return

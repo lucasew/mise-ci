@@ -29,14 +29,16 @@ type HttpServer struct {
 	addr      string
 	service   *core.Service
 	wsServer  *WebSocketServer
+	uiServer  *UIServer
 	logger    *slog.Logger
 }
 
-func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, logger *slog.Logger) *HttpServer {
+func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, uiServer *UIServer, logger *slog.Logger) *HttpServer {
 	return &HttpServer{
 		addr:     addr,
 		service:  service,
 		wsServer: wsServer,
+		uiServer: uiServer,
 		logger:   logger,
 	}
 }
@@ -48,6 +50,18 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/ws", s.wsServer.HandleConnect)
 	mux.HandleFunc("/webhook", s.service.HandleWebhook)
 	mux.HandleFunc("/test/dispatch", s.service.HandleTestDispatch)
+
+	// UI routes
+	mux.HandleFunc("/ui/", s.uiServer.HandleIndex)
+	mux.HandleFunc("/ui/run/", s.uiServer.HandleRun)
+	mux.HandleFunc("/ui/logs/", s.uiServer.HandleLogs)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/ui/", http.StatusFound)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 
 	return http.Serve(l, mux)
 }

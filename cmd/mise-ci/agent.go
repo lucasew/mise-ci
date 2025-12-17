@@ -83,7 +83,8 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
 	wsSrv := server.NewWebSocketServer(appCore, logger)
-	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, logger)
+	uiSrv := server.NewUIServer(appCore, logger)
+	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, uiSrv, logger)
 
 	// Simple HTTP listener (no multiplexing needed!)
 	lis, err := net.Listen("tcp", cfg.Server.HTTPAddr)
@@ -122,6 +123,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
 	logger.Info("websocket", "endpoint", "/ws")
+	logger.Info("webui", "url", fmt.Sprintf("http://%s/ui/", cfg.Server.HTTPAddr))
 	logger.Info("=================================")
 	logger.Info("agent listening", "addr", cfg.Server.HTTPAddr)
 

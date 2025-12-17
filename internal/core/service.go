@@ -112,6 +112,7 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	testDir, err := os.MkdirTemp("", "mise-ci-test-*")
 	if err != nil {
 		s.Logger.Error("failed to create temp dir", "error", err)
+		s.Core.UpdateStatus(run.ID, StatusError, nil)
 		return
 	}
 	defer os.RemoveAll(testDir)
@@ -191,6 +192,9 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	s.Logger.Info("===================")
 	s.Logger.Info("test completed successfully")
 
+	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
+	s.Core.AddLog(run.ID, "system", "Test run completed successfully")
+
 	// Close connection
 	run.CommandCh <- &pb.ServerMessage{
 		Id: 5,
@@ -263,6 +267,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	creds, err := f.CloneCredentials(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Error("get credentials", "error", err)
+		s.Core.UpdateStatus(run.ID, StatusError, nil)
 		return false
 	}
 
@@ -278,20 +283,27 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 
 	s.Logger.Info("cloning repository")
 	if !s.runCommand(run, 1, "git", "clone", cloneURL, ".") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	if !s.runCommand(run, 2, "mise", "trust") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	if !s.runCommand(run, 3, "mise", "install") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	if !s.runCommand(run, 4, "mise", "run", "ci") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
+
+	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
+	s.Core.AddLog(run.ID, "system", "Build completed successfully")
 
 	run.CommandCh <- &pb.ServerMessage{
 		Id: 5,
@@ -323,14 +335,21 @@ func (s *Service) waitForDone(run *Run, context string) bool {
 		case *pb.WorkerMessage_Done:
 			if payload.Done.ExitCode != 0 {
 				s.Logger.Error("command failed", "context", context, "exit_code", payload.Done.ExitCode)
+				s.Core.AddLog(run.ID, "system", fmt.Sprintf("Command '%s' failed with exit code %d", context, payload.Done.ExitCode))
 				return false
 			}
+			s.Core.AddLog(run.ID, "system", fmt.Sprintf("Command '%s' completed successfully", context))
 			return true
 		case *pb.WorkerMessage_Error:
 			s.Logger.Error("worker error", "context", context, "message", payload.Error.Message)
+			s.Core.AddLog(run.ID, "system", fmt.Sprintf("Error: %s", payload.Error.Message))
 			return false
 		case *pb.WorkerMessage_Output:
-			// log
+			stream := "stdout"
+			if payload.Output.Stream == pb.Output_STDERR {
+				stream = "stderr"
+			}
+			s.Core.AddLog(run.ID, stream, string(payload.Output.Data))
 		case *pb.WorkerMessage_FileChunk:
 			// Ignore file chunks here - they should be handled by receiveFile
 			s.Logger.Warn("unexpected file chunk in waitForDone", "context", context)
