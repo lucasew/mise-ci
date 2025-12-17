@@ -45,6 +45,13 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("jwt.secret is required (MISE_CI_JWT_SECRET)")
 	}
 
+	// Warn if PublicURL not set
+	if cfg.Server.PublicURL == "" {
+		logger.Warn("public URL not configured - GitHub status links may not work",
+			"fallback", cfg.Server.HTTPAddr,
+			"env", "MISE_CI_SERVER_PUBLIC_URL")
+	}
+
 	// Forges
 	var forges []forge.Forge
 

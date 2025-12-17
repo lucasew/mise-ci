@@ -116,9 +116,11 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		}
 
 		// 2. Fallback to Basic Auth
-		// If no credentials configured, allow access
+		// If no credentials configured, allow access (graceful degradation)
+		// but status stream requires auth, so we deny access if no credentials
 		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
-			next(w, r)
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
 			return
 		}
 
