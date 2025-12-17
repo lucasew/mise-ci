@@ -1,0 +1,28 @@
+[tasks."codegen:protobuf"]
+description = "Generate protobuf code"
+run = "protoc --go_out=. --go-grpc_out=. internal/proto/ci.proto"
+
+[tasks.codegen]
+description = "Generate all code"
+depends = ["codegen:protobuf"]
+
+[tasks.build]
+description = "Build binary"
+run = "go build -o bin/mise-ci ./cmd/mise-ci"
+
+[tasks.ci]
+description = "Run CI checks"
+depends = ["ci:lint", "ci:test"]
+
+[tasks."ci:lint"]
+run = "golangci-lint run"
+
+[tasks."ci:test"]
+run = "go test ./..."
+
+[tools]
+go = "1.25.4"
+"go:golang.org/x/tools/gopls" = "latest"
+protoc = "33.2"
+protoc-gen-go = "1.36.11"
+protoc-gen-go-grpc = "1.6.0"
