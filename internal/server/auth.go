@@ -45,33 +45,29 @@ func extractRunIDFromPath(path string) string {
 func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := extractTokenFromQuery(r)
-		if token == "" {
-			http.Error(w, "missing token", http.StatusUnauthorized)
+		if token != "" {
+			runID, tokenType, err := m.core.ValidateToken(token)
+			if err == nil && tokenType == core.TokenTypeUI {
+				pathRunID := extractRunIDFromPath(r.URL.Path)
+				if pathRunID != "" && runID == pathRunID {
+					next(w, r)
+					return
+				}
+			}
+			// If invalid token or mismatch, fall through to Basic Auth
+		}
+
+		// Fallback to Basic Auth for admins
+		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
 			return
 		}
 
-		runID, tokenType, err := m.core.ValidateToken(token)
-		if err != nil {
-			http.Error(w, "invalid token", http.StatusForbidden)
-			return
-		}
-
-		if tokenType != core.TokenTypeUI {
-			http.Error(w, "invalid token type", http.StatusForbidden)
-			return
-		}
-
-		pathRunID := extractRunIDFromPath(r.URL.Path)
-		if pathRunID == "" {
-			// If we can't extract runID from path, we can't validate the token against the path
-			// But maybe the handler doesn't need it or it's a different kind of route?
-			// The requirement is "Verify token's run_id matches path's run_id"
-			http.Error(w, "invalid path", http.StatusBadRequest)
-			return
-		}
-
-		if runID != pathRunID {
-			http.Error(w, "token mismatch", http.StatusForbidden)
+		user, pass, ok := r.BasicAuth()
+		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
