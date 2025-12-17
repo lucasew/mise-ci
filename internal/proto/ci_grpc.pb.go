@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v3.21.12
-// source: proto/ci.proto
+// source: internal/proto/ci.proto
 
 package proto
 
@@ -19,101 +19,101 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Matriz_Connect_FullMethodName = "/ci.Matriz/Connect"
+	Server_Connect_FullMethodName = "/ci.Server/Connect"
 )
 
-// MatrizClient is the client API for Matriz service.
+// ServerClient is the client API for Server service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Worker conecta na matriz e abre stream bidirecional
-type MatrizClient interface {
-	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[WorkerMessage, MatrizMessage], error)
+// Worker connects to the server and opens a bidirectional stream
+type ServerClient interface {
+	Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[WorkerMessage, ServerMessage], error)
 }
 
-type matrizClient struct {
+type serverClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewMatrizClient(cc grpc.ClientConnInterface) MatrizClient {
-	return &matrizClient{cc}
+func NewServerClient(cc grpc.ClientConnInterface) ServerClient {
+	return &serverClient{cc}
 }
 
-func (c *matrizClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[WorkerMessage, MatrizMessage], error) {
+func (c *serverClient) Connect(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[WorkerMessage, ServerMessage], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &Matriz_ServiceDesc.Streams[0], Matriz_Connect_FullMethodName, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Server_ServiceDesc.Streams[0], Server_Connect_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[WorkerMessage, MatrizMessage]{ClientStream: stream}
+	x := &grpc.GenericClientStream[WorkerMessage, ServerMessage]{ClientStream: stream}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Matriz_ConnectClient = grpc.BidiStreamingClient[WorkerMessage, MatrizMessage]
+type Server_ConnectClient = grpc.BidiStreamingClient[WorkerMessage, ServerMessage]
 
-// MatrizServer is the server API for Matriz service.
-// All implementations must embed UnimplementedMatrizServer
+// ServerServer is the server API for Server service.
+// All implementations must embed UnimplementedServerServer
 // for forward compatibility.
 //
-// Worker conecta na matriz e abre stream bidirecional
-type MatrizServer interface {
-	Connect(grpc.BidiStreamingServer[WorkerMessage, MatrizMessage]) error
-	mustEmbedUnimplementedMatrizServer()
+// Worker connects to the server and opens a bidirectional stream
+type ServerServer interface {
+	Connect(grpc.BidiStreamingServer[WorkerMessage, ServerMessage]) error
+	mustEmbedUnimplementedServerServer()
 }
 
-// UnimplementedMatrizServer must be embedded to have
+// UnimplementedServerServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedMatrizServer struct{}
+type UnimplementedServerServer struct{}
 
-func (UnimplementedMatrizServer) Connect(grpc.BidiStreamingServer[WorkerMessage, MatrizMessage]) error {
+func (UnimplementedServerServer) Connect(grpc.BidiStreamingServer[WorkerMessage, ServerMessage]) error {
 	return status.Error(codes.Unimplemented, "method Connect not implemented")
 }
-func (UnimplementedMatrizServer) mustEmbedUnimplementedMatrizServer() {}
-func (UnimplementedMatrizServer) testEmbeddedByValue()                {}
+func (UnimplementedServerServer) mustEmbedUnimplementedServerServer() {}
+func (UnimplementedServerServer) testEmbeddedByValue()                {}
 
-// UnsafeMatrizServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to MatrizServer will
+// UnsafeServerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ServerServer will
 // result in compilation errors.
-type UnsafeMatrizServer interface {
-	mustEmbedUnimplementedMatrizServer()
+type UnsafeServerServer interface {
+	mustEmbedUnimplementedServerServer()
 }
 
-func RegisterMatrizServer(s grpc.ServiceRegistrar, srv MatrizServer) {
-	// If the following call panics, it indicates UnimplementedMatrizServer was
+func RegisterServerServer(s grpc.ServiceRegistrar, srv ServerServer) {
+	// If the following call panics, it indicates UnimplementedServerServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&Matriz_ServiceDesc, srv)
+	s.RegisterService(&Server_ServiceDesc, srv)
 }
 
-func _Matriz_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(MatrizServer).Connect(&grpc.GenericServerStream[WorkerMessage, MatrizMessage]{ServerStream: stream})
+func _Server_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ServerServer).Connect(&grpc.GenericServerStream[WorkerMessage, ServerMessage]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type Matriz_ConnectServer = grpc.BidiStreamingServer[WorkerMessage, MatrizMessage]
+type Server_ConnectServer = grpc.BidiStreamingServer[WorkerMessage, ServerMessage]
 
-// Matriz_ServiceDesc is the grpc.ServiceDesc for Matriz service.
+// Server_ServiceDesc is the grpc.ServiceDesc for Server service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Matriz_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "ci.Matriz",
-	HandlerType: (*MatrizServer)(nil),
+var Server_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "ci.Server",
+	HandlerType: (*ServerServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Connect",
-			Handler:       _Matriz_Connect_Handler,
+			Handler:       _Server_Connect_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/ci.proto",
+	Metadata: "internal/proto/ci.proto",
 }

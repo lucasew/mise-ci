@@ -1,4 +1,4 @@
-package matriz
+package core
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type Core struct {
 
 type Run struct {
 	ID        string
-	CommandCh chan *pb.MatrizMessage // Commands to send to worker
+	CommandCh chan *pb.ServerMessage // Commands to send to worker
 	ResultCh  chan *pb.WorkerMessage // Results from worker (for logic to consume)
 	DoneCh    chan struct{}
 }
@@ -37,7 +37,7 @@ func (c *Core) CreateRun(id string) *Run {
 
 	run := &Run{
 		ID:        id,
-		CommandCh: make(chan *pb.MatrizMessage, 10),
+		CommandCh: make(chan *pb.ServerMessage, 10),
 		ResultCh:  make(chan *pb.WorkerMessage, 10),
 		DoneCh:    make(chan struct{}),
 	}

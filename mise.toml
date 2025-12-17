@@ -1,17 +1,17 @@
 [tasks."codegen:protobuf"]
-description = "Gera código do protobuf"
-run = "protoc --go_out=. --go-grpc_out=. proto/ci.proto"
+description = "Generate protobuf code"
+run = "protoc --go_out=. --go-grpc_out=. internal/proto/ci.proto"
 
 [tasks.codegen]
-description = "Gera todo código necessário"
+description = "Generate all code"
 depends = ["codegen:protobuf"]
 
 [tasks.build]
-description = "Compila binário"
+description = "Build binary"
 run = "go build -o bin/mise-ci ./cmd/mise-ci"
 
 [tasks.ci]
-description = "Roda checks de CI"
+description = "Run CI checks"
 depends = ["ci:lint", "ci:test"]
 
 [tasks."ci:lint"]

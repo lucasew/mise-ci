@@ -13,8 +13,9 @@ import (
 	"google.golang.org/grpc"
 
 	"mise-ci/internal/config"
+	"mise-ci/internal/core"
+	"mise-ci/internal/forge"
 	"mise-ci/internal/forge/github"
-	"mise-ci/internal/matriz"
 	pb "mise-ci/internal/proto"
 	"mise-ci/internal/runner/nomad"
 	"mise-ci/internal/server"
@@ -22,7 +23,7 @@ import (
 
 var agentCmd = &cobra.Command{
 	Use:   "agent",
-	Short: "Runs the Matriz server",
+	Short: "Runs the server",
 	RunE:  runAgent,
 }
 
@@ -46,31 +47,41 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		logger.Info("generated random jwt secret")
 	}
 
-	// Components
-	var f *github.GitHubForge
-	if cfg.Forge.Type == "github" {
-		key, err := os.ReadFile(cfg.Forge.PrivateKey)
+	// Forges
+	var forges []forge.Forge
+
+	// GitHub
+	if cfg.GitHub.AppID != 0 {
+		key, err := os.ReadFile(cfg.GitHub.PrivateKey)
 		if err != nil {
-			return fmt.Errorf("failed to read private key: %w", err)
+			return fmt.Errorf("failed to read github private key: %w", err)
 		}
-		f = github.NewGitHubForge(cfg.Forge.AppID, key, cfg.Forge.WebhookSecret)
-	} else {
-		return fmt.Errorf("unknown forge type: %s", cfg.Forge.Type)
+		f := github.NewGitHubForge(cfg.GitHub.AppID, key, cfg.GitHub.WebhookSecret)
+		forges = append(forges, f)
+		logger.Info("github forge enabled", "app_id", cfg.GitHub.AppID)
 	}
 
+	// Runner
 	var r *nomad.NomadRunner
 	var err error
-	if cfg.Runner.Type == "nomad" {
-		r, err = nomad.NewNomadRunner(cfg.Runner.Addr, cfg.Runner.JobName)
-		if err != nil {
-			return fmt.Errorf("failed to create runner: %w", err)
+
+	// Nomad
+	if cfg.Nomad.JobName != "" {
+		nomadAddr := cfg.Nomad.Addr
+		if nomadAddr == "" {
+			nomadAddr = os.Getenv("NOMAD_ADDR")
 		}
+		r, err = nomad.NewNomadRunner(nomadAddr, cfg.Nomad.JobName)
+		if err != nil {
+			return fmt.Errorf("failed to create nomad runner: %w", err)
+		}
+		logger.Info("nomad runner enabled", "addr", nomadAddr, "job", cfg.Nomad.JobName)
 	} else {
-		return fmt.Errorf("unknown runner type: %s", cfg.Runner.Type)
+		return fmt.Errorf("no runner configured (nomad.job_name missing)")
 	}
 
-	core := matriz.NewCore(logger, cfg.JWT.Secret)
-	svc := matriz.NewService(core, f, r, &cfg, logger)
+	core := core.NewCore(logger, cfg.JWT.Secret)
+	svc := core.NewService(core, forges, r, &cfg, logger)
 
 	grpcSrv := server.NewGrpcServer(core, logger)
 	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, logger)
@@ -86,7 +97,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	httpL := m.Match(cmux.Any())
 
 	s := grpc.NewServer()
-	pb.RegisterMatrizServer(s, grpcSrv)
+	pb.RegisterServerServer(s, grpcSrv)
 
 	go func() {
 		if err := s.Serve(grpcL); err != nil {

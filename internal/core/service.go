@@ -1,4 +1,4 @@
-package matriz
+package core
 
 import (
 	"context"
@@ -15,16 +15,16 @@ import (
 
 type Service struct {
 	Core   *Core
-	Forge  forge.Forge
+	Forges []forge.Forge
 	Runner runner.Runner
 	Config *config.Config
 	Logger *slog.Logger
 }
 
-func NewService(core *Core, f forge.Forge, r runner.Runner, cfg *config.Config, logger *slog.Logger) *Service {
+func NewService(core *Core, forges []forge.Forge, r runner.Runner, cfg *config.Config, logger *slog.Logger) *Service {
 	return &Service{
 		Core:   core,
-		Forge:  f,
+		Forges: forges,
 		Runner: r,
 		Config: cfg,
 		Logger: logger,
@@ -32,40 +32,38 @@ func NewService(core *Core, f forge.Forge, r runner.Runner, cfg *config.Config, 
 }
 
 func (s *Service) HandleWebhook(w http.ResponseWriter, r *http.Request) {
-	event, err := s.Forge.ParseWebhook(r)
-	if err != nil {
-		s.Logger.Error("parse webhook", "error", err)
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
+	for _, f := range s.Forges {
+		event, err := f.ParseWebhook(r)
+		if err != nil {
+			s.Logger.Debug("forge parse webhook error", "error", err)
+			continue
+		}
+		if event != nil {
+			s.Logger.Info("received webhook", "repo", event.Repo, "sha", event.SHA)
+			go s.StartRun(event, f)
+			w.WriteHeader(http.StatusAccepted)
+			w.Write([]byte("accepted"))
+			return
+		}
 	}
-	if event == nil {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ignored"))
-		return
-	}
 
-	s.Logger.Info("received webhook", "repo", event.Repo, "sha", event.SHA)
-
-	go s.StartRun(event)
-
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte("accepted"))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ignored"))
 }
 
-func (s *Service) StartRun(event *forge.WebhookEvent) {
+func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	ctx := context.Background()
 	runID := fmt.Sprintf("%s-%d", event.SHA[:8], time.Now().Unix())
 
 	s.Logger.Info("starting run", "run_id", runID)
 
-	// Update status
 	status := forge.Status{
 		State:       forge.StatePending,
 		Context:     "mise-ci",
 		Description: "Run started",
-		TargetURL:   "", // TODO: Link to logs
+		TargetURL:   "",
 	}
-	if err := s.Forge.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+	if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
 		s.Logger.Error("update status pending", "error", err)
 	}
 
@@ -76,7 +74,6 @@ func (s *Service) StartRun(event *forge.WebhookEvent) {
 		return
 	}
 
-	// Dispatch
 	callback := s.Config.Server.PublicURL
 	if callback == "" {
 		callback = s.Config.Server.HTTPAddr
@@ -85,28 +82,22 @@ func (s *Service) StartRun(event *forge.WebhookEvent) {
 	params := runner.RunParams{
 		CallbackURL: callback,
 		Token:       token,
-		Image:       s.Config.Runner.DefaultImage,
+		Image:       s.Config.Nomad.DefaultImage,
 	}
-
-	// If GRPCAddr starts with :, prepend hostname or use configured external URL
-	// For now assuming GRPCAddr is reachable by worker (e.g. within same network)
-	// Ideally config should have PublicURL
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
 	if err != nil {
 		s.Logger.Error("dispatch job", "error", err)
 		status.State = forge.StateError
 		status.Description = "Failed to dispatch job"
-		s.Forge.UpdateStatus(ctx, event.Repo, event.SHA, status)
+		f.UpdateStatus(ctx, event.Repo, event.SHA, status)
 		return
 	}
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
 
-	// Orchestrate
-	success := s.Orchestrate(ctx, run, event)
+	success := s.Orchestrate(ctx, run, event, f)
 
-	// Final status
 	status.State = forge.StateSuccess
 	status.Description = "Build passed"
 	if !success {
@@ -114,26 +105,22 @@ func (s *Service) StartRun(event *forge.WebhookEvent) {
 		status.Description = "Build failed"
 	}
 
-	if err := s.Forge.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+	if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
 		s.Logger.Error("update status final", "error", err)
 	}
-
-	// Cleanup?
 }
 
-func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent) bool {
-	// 1. Get credentials
-	creds, err := s.Forge.CloneCredentials(ctx, event.Repo)
+func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge) bool {
+	creds, err := f.CloneCredentials(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Error("get credentials", "error", err)
 		return false
 	}
 
-	// 2. Send Copy (Clone)
 	s.Logger.Info("sending copy (clone)")
-	run.CommandCh <- &pb.MatrizMessage{
+	run.CommandCh <- &pb.ServerMessage{
 		Id: 1,
-		Payload: &pb.MatrizMessage_Copy{
+		Payload: &pb.ServerMessage_Copy{
 			Copy: &pb.Copy{
 				Direction: pb.Copy_TO_WORKER,
 				Source:    event.Clone,
@@ -151,25 +138,21 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	// 3. Run mise trust
 	if !s.runCommand(run, 2, "mise", "trust") {
 		return false
 	}
 
-	// 4. Run mise install
 	if !s.runCommand(run, 3, "mise", "install") {
 		return false
 	}
 
-	// 5. Run mise run ci
 	if !s.runCommand(run, 4, "mise", "run", "ci") {
 		return false
 	}
 
-	// 6. Close
-	run.CommandCh <- &pb.MatrizMessage{
+	run.CommandCh <- &pb.ServerMessage{
 		Id: 5,
-		Payload: &pb.MatrizMessage_Close{
+		Payload: &pb.ServerMessage_Close{
 			Close: &pb.Close{},
 		},
 	}
@@ -179,9 +162,9 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 
 func (s *Service) runCommand(run *Run, id uint64, cmd string, args ...string) bool {
 	s.Logger.Info("sending run", "cmd", cmd, "args", args)
-	run.CommandCh <- &pb.MatrizMessage{
+	run.CommandCh <- &pb.ServerMessage{
 		Id: id,
-		Payload: &pb.MatrizMessage_Run{
+		Payload: &pb.ServerMessage_Run{
 			Run: &pb.Run{
 				Cmd:  cmd,
 				Args: args,
@@ -204,10 +187,7 @@ func (s *Service) waitForDone(run *Run, context string) bool {
 			s.Logger.Error("worker error", "context", context, "message", payload.Error.Message)
 			return false
 		case *pb.WorkerMessage_Output:
-			// Log output?
-			// For now just dropping it or printing to stdout
-			// Real impl would save logs
-			// fmt.Print(string(payload.Output.Data))
+			// log
 		}
 	}
 	return false

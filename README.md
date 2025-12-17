@@ -1,59 +1,57 @@
 # mise-ci
 
-Um sistema de CI minimalista baseado em mise tasks.
+A minimalist CI system based on mise tasks.
 
-## Estrutura
+## Structure
 
-- `cmd/mise-ci`: Binário único (agent + worker)
-- `internal/`: Lógica do sistema
+- `cmd/mise-ci`: Single binary (agent + worker)
+- `internal/`: System logic
 
 ## Setup
 
-1. Instale dependências:
+1. Install dependencies:
    ```bash
    mise install
    ```
 
-2. Gere o código protobuf:
+2. Generate protobuf code:
    ```bash
    mise run codegen:protobuf
    ```
 
-3. Compile:
+3. Build:
    ```bash
    mise run build
    ```
 
-## Configuração
+## Configuration
 
-O sistema é configurado preferencialmente via variáveis de ambiente com prefixo `MISE_CI_`.
-A estrutura segue o formato do arquivo de configuração (aninhamento separado por `_`).
+The system is configured preferably via environment variables with `MISE_CI_` prefix.
+The structure follows the configuration file format (nested with `_` separator).
 
-Exemplos:
+Examples:
 
-- `MISE_CI_SERVER_HTTP_ADDR`: Endereço de listen (ex: `:8080`)
-- `MISE_CI_JWT_SECRET`: Segredo JWT
-- `MISE_CI_FORGE_TYPE`: Tipo da forja (`github`)
-- `MISE_CI_FORGE_APP_ID`: App ID do GitHub
-- `MISE_CI_FORGE_PRIVATE_KEY`: Caminho para chave privada
-- `MISE_CI_FORGE_WEBHOOK_SECRET`: Segredo do webhook
-- `MISE_CI_RUNNER_TYPE`: Tipo do runner (`nomad`)
-- `MISE_CI_RUNNER_ADDR`: Endereço do Nomad
-- `MISE_CI_RUNNER_JOB_NAME`: Nome do job parametrizado
-- `MISE_CI_RUNNER_DEFAULT_IMAGE`: Imagem padrão do worker
+- `MISE_CI_SERVER_HTTP_ADDR`: Listen address (e.g., `:8080`)
+- `MISE_CI_JWT_SECRET`: JWT Secret
+- `MISE_CI_GITHUB_APP_ID`: GitHub App ID (Enables GitHub support)
+- `MISE_CI_GITHUB_PRIVATE_KEY`: Path to private key
+- `MISE_CI_GITHUB_WEBHOOK_SECRET`: Webhook secret
+- `MISE_CI_NOMAD_ADDR`: Nomad address (fallback to `NOMAD_ADDR`)
+- `MISE_CI_NOMAD_JOB_NAME`: Parameterized job name (Required to enable Runner)
+- `MISE_CI_NOMAD_DEFAULT_IMAGE`: Default worker image
 
-## Uso
+## Usage
 
-1. Inicie o agente (Matriz):
+1. Start the agent (Server):
    ```bash
    ./bin/mise-ci agent
    ```
 
-2. O worker é iniciado automaticamente pelo Nomad, mas pode ser rodado manualmente:
+2. The worker is started automatically by Nomad, but can be run manually:
    ```bash
    ./bin/mise-ci worker --callback "http://localhost:8080" --token "..."
    ```
 
-## Desenvolvimento
+## Development
 
-- `mise run ci`: Roda lint e tests
+- `mise run ci`: Run lint and tests

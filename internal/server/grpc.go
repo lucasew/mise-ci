@@ -9,24 +9,24 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"mise-ci/internal/matriz"
+	"mise-ci/internal/core"
 	pb "mise-ci/internal/proto"
 )
 
 type GrpcServer struct {
-	pb.UnimplementedMatrizServer
-	core   *matriz.Core
+	pb.UnimplementedServerServer
+	core   *core.Core
 	logger *slog.Logger
 }
 
-func NewGrpcServer(core *matriz.Core, logger *slog.Logger) *GrpcServer {
+func NewGrpcServer(core *core.Core, logger *slog.Logger) *GrpcServer {
 	return &GrpcServer{
 		core:   core,
 		logger: logger,
 	}
 }
 
-func (s *GrpcServer) Connect(stream pb.Matriz_ConnectServer) error {
+func (s *GrpcServer) Connect(stream pb.Server_ConnectServer) error {
 	// 1. Auth
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
@@ -57,7 +57,6 @@ func (s *GrpcServer) Connect(stream pb.Matriz_ConnectServer) error {
 	}
 	if info, ok := msg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
 		s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
-		// Store info if needed
 	} else {
 		return status.Error(codes.InvalidArgument, "expected RunnerInfo as first message")
 	}
@@ -73,8 +72,7 @@ func (s *GrpcServer) Connect(stream pb.Matriz_ConnectServer) error {
 				errCh <- err
 				return
 			}
-			if _, ok := cmd.Payload.(*pb.MatrizMessage_Close); ok {
-				// We sent close, so we can expect the worker to close connection
+			if _, ok := cmd.Payload.(*pb.ServerMessage_Close); ok {
 				return
 			}
 		}
@@ -93,7 +91,6 @@ func (s *GrpcServer) Connect(stream pb.Matriz_ConnectServer) error {
 				errCh <- err
 				return
 			}
-			// Forward to Core/Run logic
 			select {
 			case run.ResultCh <- msg:
 			case <-stream.Context().Done():

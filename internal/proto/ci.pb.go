@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.21.12
-// source: proto/ci.proto
+// source: internal/proto/ci.proto
 
 package proto
 
@@ -24,8 +24,8 @@ const (
 type Copy_Direction int32
 
 const (
-	Copy_TO_WORKER   Copy_Direction = 0 // matriz/remote -> worker
-	Copy_FROM_WORKER Copy_Direction = 1 // worker -> matriz
+	Copy_TO_WORKER   Copy_Direction = 0 // server/remote -> worker
+	Copy_FROM_WORKER Copy_Direction = 1 // worker -> server
 )
 
 // Enum value maps for Copy_Direction.
@@ -51,11 +51,11 @@ func (x Copy_Direction) String() string {
 }
 
 func (Copy_Direction) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_ci_proto_enumTypes[0].Descriptor()
+	return file_internal_proto_ci_proto_enumTypes[0].Descriptor()
 }
 
 func (Copy_Direction) Type() protoreflect.EnumType {
-	return &file_proto_ci_proto_enumTypes[0]
+	return &file_internal_proto_ci_proto_enumTypes[0]
 }
 
 func (x Copy_Direction) Number() protoreflect.EnumNumber {
@@ -64,7 +64,7 @@ func (x Copy_Direction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Copy_Direction.Descriptor instead.
 func (Copy_Direction) EnumDescriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{3, 0}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{3, 0}
 }
 
 type Output_Stream int32
@@ -97,11 +97,11 @@ func (x Output_Stream) String() string {
 }
 
 func (Output_Stream) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_ci_proto_enumTypes[1].Descriptor()
+	return file_internal_proto_ci_proto_enumTypes[1].Descriptor()
 }
 
 func (Output_Stream) Type() protoreflect.EnumType {
-	return &file_proto_ci_proto_enumTypes[1]
+	return &file_internal_proto_ci_proto_enumTypes[1]
 }
 
 func (x Output_Stream) Number() protoreflect.EnumNumber {
@@ -110,13 +110,13 @@ func (x Output_Stream) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Output_Stream.Descriptor instead.
 func (Output_Stream) EnumDescriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{7, 0}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{7, 0}
 }
 
-// Mensagens do worker para matriz
+// Messages from worker to server
 type WorkerMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // referencia comando da matriz (0 = sem comando associado)
+	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // references server command (0 = no associated command)
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*WorkerMessage_RunnerInfo
@@ -131,7 +131,7 @@ type WorkerMessage struct {
 
 func (x *WorkerMessage) Reset() {
 	*x = WorkerMessage{}
-	mi := &file_proto_ci_proto_msgTypes[0]
+	mi := &file_internal_proto_ci_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -143,7 +143,7 @@ func (x *WorkerMessage) String() string {
 func (*WorkerMessage) ProtoMessage() {}
 
 func (x *WorkerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[0]
+	mi := &file_internal_proto_ci_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -156,7 +156,7 @@ func (x *WorkerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkerMessage.ProtoReflect.Descriptor instead.
 func (*WorkerMessage) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{0}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *WorkerMessage) GetId() uint64 {
@@ -223,23 +223,23 @@ type isWorkerMessage_Payload interface {
 }
 
 type WorkerMessage_RunnerInfo struct {
-	RunnerInfo *RunnerInfo `protobuf:"bytes,2,opt,name=runner_info,json=runnerInfo,proto3,oneof"` // enviado uma vez no connect
+	RunnerInfo *RunnerInfo `protobuf:"bytes,2,opt,name=runner_info,json=runnerInfo,proto3,oneof"` // sent once on connect
 }
 
 type WorkerMessage_Output struct {
-	Output *Output `protobuf:"bytes,3,opt,name=output,proto3,oneof"` // stdout/stderr de comando em andamento
+	Output *Output `protobuf:"bytes,3,opt,name=output,proto3,oneof"` // stdout/stderr of running command
 }
 
 type WorkerMessage_Done struct {
-	Done *Done `protobuf:"bytes,4,opt,name=done,proto3,oneof"` // comando finalizado
+	Done *Done `protobuf:"bytes,4,opt,name=done,proto3,oneof"` // command finished
 }
 
 type WorkerMessage_FileChunk struct {
-	FileChunk *FileChunk `protobuf:"bytes,5,opt,name=file_chunk,json=fileChunk,proto3,oneof"` // chunk de arquivo sendo enviado
+	FileChunk *FileChunk `protobuf:"bytes,5,opt,name=file_chunk,json=fileChunk,proto3,oneof"` // file chunk being sent
 }
 
 type WorkerMessage_Error struct {
-	Error *Error `protobuf:"bytes,6,opt,name=error,proto3,oneof"` // erro no comando
+	Error *Error `protobuf:"bytes,6,opt,name=error,proto3,oneof"` // command error
 }
 
 func (*WorkerMessage_RunnerInfo) isWorkerMessage_Payload() {}
@@ -252,35 +252,35 @@ func (*WorkerMessage_FileChunk) isWorkerMessage_Payload() {}
 
 func (*WorkerMessage_Error) isWorkerMessage_Payload() {}
 
-// Mensagens da matriz para worker
-type MatrizMessage struct {
+// Messages from server to worker
+type ServerMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // id sequencial do comando
+	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // sequential command id
 	// Types that are valid to be assigned to Payload:
 	//
-	//	*MatrizMessage_Copy
-	//	*MatrizMessage_Run
-	//	*MatrizMessage_Close
-	Payload       isMatrizMessage_Payload `protobuf_oneof:"payload"`
+	//	*ServerMessage_Copy
+	//	*ServerMessage_Run
+	//	*ServerMessage_Close
+	Payload       isServerMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MatrizMessage) Reset() {
-	*x = MatrizMessage{}
-	mi := &file_proto_ci_proto_msgTypes[1]
+func (x *ServerMessage) Reset() {
+	*x = ServerMessage{}
+	mi := &file_internal_proto_ci_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MatrizMessage) String() string {
+func (x *ServerMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MatrizMessage) ProtoMessage() {}
+func (*ServerMessage) ProtoMessage() {}
 
-func (x *MatrizMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[1]
+func (x *ServerMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_ci_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -291,75 +291,75 @@ func (x *MatrizMessage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatrizMessage.ProtoReflect.Descriptor instead.
-func (*MatrizMessage) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{1}
+// Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
+func (*ServerMessage) Descriptor() ([]byte, []int) {
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *MatrizMessage) GetId() uint64 {
+func (x *ServerMessage) GetId() uint64 {
 	if x != nil {
 		return x.Id
 	}
 	return 0
 }
 
-func (x *MatrizMessage) GetPayload() isMatrizMessage_Payload {
+func (x *ServerMessage) GetPayload() isServerMessage_Payload {
 	if x != nil {
 		return x.Payload
 	}
 	return nil
 }
 
-func (x *MatrizMessage) GetCopy() *Copy {
+func (x *ServerMessage) GetCopy() *Copy {
 	if x != nil {
-		if x, ok := x.Payload.(*MatrizMessage_Copy); ok {
+		if x, ok := x.Payload.(*ServerMessage_Copy); ok {
 			return x.Copy
 		}
 	}
 	return nil
 }
 
-func (x *MatrizMessage) GetRun() *Run {
+func (x *ServerMessage) GetRun() *Run {
 	if x != nil {
-		if x, ok := x.Payload.(*MatrizMessage_Run); ok {
+		if x, ok := x.Payload.(*ServerMessage_Run); ok {
 			return x.Run
 		}
 	}
 	return nil
 }
 
-func (x *MatrizMessage) GetClose() *Close {
+func (x *ServerMessage) GetClose() *Close {
 	if x != nil {
-		if x, ok := x.Payload.(*MatrizMessage_Close); ok {
+		if x, ok := x.Payload.(*ServerMessage_Close); ok {
 			return x.Close
 		}
 	}
 	return nil
 }
 
-type isMatrizMessage_Payload interface {
-	isMatrizMessage_Payload()
+type isServerMessage_Payload interface {
+	isServerMessage_Payload()
 }
 
-type MatrizMessage_Copy struct {
+type ServerMessage_Copy struct {
 	Copy *Copy `protobuf:"bytes,2,opt,name=copy,proto3,oneof"`
 }
 
-type MatrizMessage_Run struct {
+type ServerMessage_Run struct {
 	Run *Run `protobuf:"bytes,3,opt,name=run,proto3,oneof"`
 }
 
-type MatrizMessage_Close struct {
+type ServerMessage_Close struct {
 	Close *Close `protobuf:"bytes,4,opt,name=close,proto3,oneof"`
 }
 
-func (*MatrizMessage_Copy) isMatrizMessage_Payload() {}
+func (*ServerMessage_Copy) isServerMessage_Payload() {}
 
-func (*MatrizMessage_Run) isMatrizMessage_Payload() {}
+func (*ServerMessage_Run) isServerMessage_Payload() {}
 
-func (*MatrizMessage_Close) isMatrizMessage_Payload() {}
+func (*ServerMessage_Close) isServerMessage_Payload() {}
 
-// Info do runner, enviado no connect
+// Runner info, sent on connect
 type RunnerInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
@@ -372,7 +372,7 @@ type RunnerInfo struct {
 
 func (x *RunnerInfo) Reset() {
 	*x = RunnerInfo{}
-	mi := &file_proto_ci_proto_msgTypes[2]
+	mi := &file_internal_proto_ci_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -384,7 +384,7 @@ func (x *RunnerInfo) String() string {
 func (*RunnerInfo) ProtoMessage() {}
 
 func (x *RunnerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[2]
+	mi := &file_internal_proto_ci_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -397,7 +397,7 @@ func (x *RunnerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunnerInfo.ProtoReflect.Descriptor instead.
 func (*RunnerInfo) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{2}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RunnerInfo) GetHostname() string {
@@ -428,20 +428,20 @@ func (x *RunnerInfo) GetExtra() map[string]string {
 	return nil
 }
 
-// Copia arquivos - bidirecional
+// Copy files - bidirectional
 type Copy struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Direction     Copy_Direction         `protobuf:"varint,1,opt,name=direction,proto3,enum=ci.Copy_Direction" json:"direction,omitempty"`
-	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // URL (git, http) ou path local
-	Dest          string                 `protobuf:"bytes,3,opt,name=dest,proto3" json:"dest,omitempty"`     // path destino
-	Creds         *Credentials           `protobuf:"bytes,4,opt,name=creds,proto3" json:"creds,omitempty"`   // opcional
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // URL (git, http) or local path
+	Dest          string                 `protobuf:"bytes,3,opt,name=dest,proto3" json:"dest,omitempty"`     // destination path
+	Creds         *Credentials           `protobuf:"bytes,4,opt,name=creds,proto3" json:"creds,omitempty"`   // optional
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Copy) Reset() {
 	*x = Copy{}
-	mi := &file_proto_ci_proto_msgTypes[3]
+	mi := &file_internal_proto_ci_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +453,7 @@ func (x *Copy) String() string {
 func (*Copy) ProtoMessage() {}
 
 func (x *Copy) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[3]
+	mi := &file_internal_proto_ci_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +466,7 @@ func (x *Copy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Copy.ProtoReflect.Descriptor instead.
 func (*Copy) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{3}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Copy) GetDirection() Copy_Direction {
@@ -510,7 +510,7 @@ type Credentials struct {
 
 func (x *Credentials) Reset() {
 	*x = Credentials{}
-	mi := &file_proto_ci_proto_msgTypes[4]
+	mi := &file_internal_proto_ci_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -522,7 +522,7 @@ func (x *Credentials) String() string {
 func (*Credentials) ProtoMessage() {}
 
 func (x *Credentials) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[4]
+	mi := &file_internal_proto_ci_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -535,7 +535,7 @@ func (x *Credentials) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Credentials.ProtoReflect.Descriptor instead.
 func (*Credentials) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{4}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Credentials) GetAuth() isCredentials_Auth {
@@ -589,7 +589,7 @@ type BasicAuth struct {
 
 func (x *BasicAuth) Reset() {
 	*x = BasicAuth{}
-	mi := &file_proto_ci_proto_msgTypes[5]
+	mi := &file_internal_proto_ci_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +601,7 @@ func (x *BasicAuth) String() string {
 func (*BasicAuth) ProtoMessage() {}
 
 func (x *BasicAuth) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[5]
+	mi := &file_internal_proto_ci_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +614,7 @@ func (x *BasicAuth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BasicAuth.ProtoReflect.Descriptor instead.
 func (*BasicAuth) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{5}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *BasicAuth) GetUsername() string {
@@ -631,7 +631,7 @@ func (x *BasicAuth) GetPassword() string {
 	return ""
 }
 
-// Executa comando
+// Execute command
 type Run struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Cmd           string                 `protobuf:"bytes,1,opt,name=cmd,proto3" json:"cmd,omitempty"`
@@ -644,7 +644,7 @@ type Run struct {
 
 func (x *Run) Reset() {
 	*x = Run{}
-	mi := &file_proto_ci_proto_msgTypes[6]
+	mi := &file_internal_proto_ci_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -656,7 +656,7 @@ func (x *Run) String() string {
 func (*Run) ProtoMessage() {}
 
 func (x *Run) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[6]
+	mi := &file_internal_proto_ci_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -669,7 +669,7 @@ func (x *Run) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Run.ProtoReflect.Descriptor instead.
 func (*Run) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{6}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Run) GetCmd() string {
@@ -700,7 +700,7 @@ func (x *Run) GetWorkdir() string {
 	return ""
 }
 
-// Stream de output
+// Output stream
 type Output struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Stream        Output_Stream          `protobuf:"varint,1,opt,name=stream,proto3,enum=ci.Output_Stream" json:"stream,omitempty"`
@@ -711,7 +711,7 @@ type Output struct {
 
 func (x *Output) Reset() {
 	*x = Output{}
-	mi := &file_proto_ci_proto_msgTypes[7]
+	mi := &file_internal_proto_ci_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -723,7 +723,7 @@ func (x *Output) String() string {
 func (*Output) ProtoMessage() {}
 
 func (x *Output) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[7]
+	mi := &file_internal_proto_ci_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -736,7 +736,7 @@ func (x *Output) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Output.ProtoReflect.Descriptor instead.
 func (*Output) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{7}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Output) GetStream() Output_Stream {
@@ -753,7 +753,7 @@ func (x *Output) GetData() []byte {
 	return nil
 }
 
-// Comando finalizado
+// Command finished
 type Done struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExitCode      int32                  `protobuf:"varint,1,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`
@@ -763,7 +763,7 @@ type Done struct {
 
 func (x *Done) Reset() {
 	*x = Done{}
-	mi := &file_proto_ci_proto_msgTypes[8]
+	mi := &file_internal_proto_ci_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +775,7 @@ func (x *Done) String() string {
 func (*Done) ProtoMessage() {}
 
 func (x *Done) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[8]
+	mi := &file_internal_proto_ci_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +788,7 @@ func (x *Done) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Done.ProtoReflect.Descriptor instead.
 func (*Done) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{8}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Done) GetExitCode() int32 {
@@ -798,7 +798,7 @@ func (x *Done) GetExitCode() int32 {
 	return 0
 }
 
-// Chunk de arquivo (pra transferências grandes)
+// File chunk (for large transfers)
 type FileChunk struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -809,7 +809,7 @@ type FileChunk struct {
 
 func (x *FileChunk) Reset() {
 	*x = FileChunk{}
-	mi := &file_proto_ci_proto_msgTypes[9]
+	mi := &file_internal_proto_ci_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -821,7 +821,7 @@ func (x *FileChunk) String() string {
 func (*FileChunk) ProtoMessage() {}
 
 func (x *FileChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[9]
+	mi := &file_internal_proto_ci_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -834,7 +834,7 @@ func (x *FileChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChunk.ProtoReflect.Descriptor instead.
 func (*FileChunk) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{9}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FileChunk) GetData() []byte {
@@ -851,7 +851,7 @@ func (x *FileChunk) GetEof() bool {
 	return false
 }
 
-// Erro
+// Error
 type Error struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -861,7 +861,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_proto_ci_proto_msgTypes[10]
+	mi := &file_internal_proto_ci_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -873,7 +873,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[10]
+	mi := &file_internal_proto_ci_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -886,7 +886,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{10}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Error) GetMessage() string {
@@ -896,7 +896,7 @@ func (x *Error) GetMessage() string {
 	return ""
 }
 
-// Fecha conexão
+// Close connection
 type Close struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -905,7 +905,7 @@ type Close struct {
 
 func (x *Close) Reset() {
 	*x = Close{}
-	mi := &file_proto_ci_proto_msgTypes[11]
+	mi := &file_internal_proto_ci_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -917,7 +917,7 @@ func (x *Close) String() string {
 func (*Close) ProtoMessage() {}
 
 func (x *Close) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_ci_proto_msgTypes[11]
+	mi := &file_internal_proto_ci_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -930,14 +930,14 @@ func (x *Close) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Close.ProtoReflect.Descriptor instead.
 func (*Close) Descriptor() ([]byte, []int) {
-	return file_proto_ci_proto_rawDescGZIP(), []int{11}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{11}
 }
 
-var File_proto_ci_proto protoreflect.FileDescriptor
+var File_internal_proto_ci_proto protoreflect.FileDescriptor
 
-const file_proto_ci_proto_rawDesc = "" +
+const file_internal_proto_ci_proto_rawDesc = "" +
 	"\n" +
-	"\x0eproto/ci.proto\x12\x02ci\"\xf6\x01\n" +
+	"\x17internal/proto/ci.proto\x12\x02ci\"\xf6\x01\n" +
 	"\rWorkerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x121\n" +
 	"\vrunner_info\x18\x02 \x01(\v2\x0e.ci.RunnerInfoH\x00R\n" +
@@ -949,7 +949,7 @@ const file_proto_ci_proto_rawDesc = "" +
 	"file_chunk\x18\x05 \x01(\v2\r.ci.FileChunkH\x00R\tfileChunk\x12!\n" +
 	"\x05error\x18\x06 \x01(\v2\t.ci.ErrorH\x00R\x05errorB\t\n" +
 	"\apayload\"\x8a\x01\n" +
-	"\rMatrizMessage\x12\x0e\n" +
+	"\rServerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x1e\n" +
 	"\x04copy\x18\x02 \x01(\v2\b.ci.CopyH\x00R\x04copy\x12\x1b\n" +
 	"\x03run\x18\x03 \x01(\v2\a.ci.RunH\x00R\x03run\x12!\n" +
@@ -1004,28 +1004,28 @@ const file_proto_ci_proto_rawDesc = "" +
 	"\x05Error\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"\a\n" +
 	"\x05Close2=\n" +
-	"\x06Matriz\x123\n" +
-	"\aConnect\x12\x11.ci.WorkerMessage\x1a\x11.ci.MatrizMessage(\x010\x01B\x10Z\x0einternal/protob\x06proto3"
+	"\x06Server\x123\n" +
+	"\aConnect\x12\x11.ci.WorkerMessage\x1a\x11.ci.ServerMessage(\x010\x01B\x10Z\x0einternal/protob\x06proto3"
 
 var (
-	file_proto_ci_proto_rawDescOnce sync.Once
-	file_proto_ci_proto_rawDescData []byte
+	file_internal_proto_ci_proto_rawDescOnce sync.Once
+	file_internal_proto_ci_proto_rawDescData []byte
 )
 
-func file_proto_ci_proto_rawDescGZIP() []byte {
-	file_proto_ci_proto_rawDescOnce.Do(func() {
-		file_proto_ci_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_ci_proto_rawDesc), len(file_proto_ci_proto_rawDesc)))
+func file_internal_proto_ci_proto_rawDescGZIP() []byte {
+	file_internal_proto_ci_proto_rawDescOnce.Do(func() {
+		file_internal_proto_ci_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_proto_ci_proto_rawDesc), len(file_internal_proto_ci_proto_rawDesc)))
 	})
-	return file_proto_ci_proto_rawDescData
+	return file_internal_proto_ci_proto_rawDescData
 }
 
-var file_proto_ci_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
-var file_proto_ci_proto_goTypes = []any{
+var file_internal_proto_ci_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_internal_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_internal_proto_ci_proto_goTypes = []any{
 	(Copy_Direction)(0),   // 0: ci.Copy.Direction
 	(Output_Stream)(0),    // 1: ci.Output.Stream
 	(*WorkerMessage)(nil), // 2: ci.WorkerMessage
-	(*MatrizMessage)(nil), // 3: ci.MatrizMessage
+	(*ServerMessage)(nil), // 3: ci.ServerMessage
 	(*RunnerInfo)(nil),    // 4: ci.RunnerInfo
 	(*Copy)(nil),          // 5: ci.Copy
 	(*Credentials)(nil),   // 6: ci.Credentials
@@ -1039,23 +1039,23 @@ var file_proto_ci_proto_goTypes = []any{
 	nil,                   // 14: ci.RunnerInfo.ExtraEntry
 	nil,                   // 15: ci.Run.EnvEntry
 }
-var file_proto_ci_proto_depIdxs = []int32{
+var file_internal_proto_ci_proto_depIdxs = []int32{
 	4,  // 0: ci.WorkerMessage.runner_info:type_name -> ci.RunnerInfo
 	9,  // 1: ci.WorkerMessage.output:type_name -> ci.Output
 	10, // 2: ci.WorkerMessage.done:type_name -> ci.Done
 	11, // 3: ci.WorkerMessage.file_chunk:type_name -> ci.FileChunk
 	12, // 4: ci.WorkerMessage.error:type_name -> ci.Error
-	5,  // 5: ci.MatrizMessage.copy:type_name -> ci.Copy
-	8,  // 6: ci.MatrizMessage.run:type_name -> ci.Run
-	13, // 7: ci.MatrizMessage.close:type_name -> ci.Close
+	5,  // 5: ci.ServerMessage.copy:type_name -> ci.Copy
+	8,  // 6: ci.ServerMessage.run:type_name -> ci.Run
+	13, // 7: ci.ServerMessage.close:type_name -> ci.Close
 	14, // 8: ci.RunnerInfo.extra:type_name -> ci.RunnerInfo.ExtraEntry
 	0,  // 9: ci.Copy.direction:type_name -> ci.Copy.Direction
 	6,  // 10: ci.Copy.creds:type_name -> ci.Credentials
 	7,  // 11: ci.Credentials.basic:type_name -> ci.BasicAuth
 	15, // 12: ci.Run.env:type_name -> ci.Run.EnvEntry
 	1,  // 13: ci.Output.stream:type_name -> ci.Output.Stream
-	2,  // 14: ci.Matriz.Connect:input_type -> ci.WorkerMessage
-	3,  // 15: ci.Matriz.Connect:output_type -> ci.MatrizMessage
+	2,  // 14: ci.Server.Connect:input_type -> ci.WorkerMessage
+	3,  // 15: ci.Server.Connect:output_type -> ci.ServerMessage
 	15, // [15:16] is the sub-list for method output_type
 	14, // [14:15] is the sub-list for method input_type
 	14, // [14:14] is the sub-list for extension type_name
@@ -1063,24 +1063,24 @@ var file_proto_ci_proto_depIdxs = []int32{
 	0,  // [0:14] is the sub-list for field type_name
 }
 
-func init() { file_proto_ci_proto_init() }
-func file_proto_ci_proto_init() {
-	if File_proto_ci_proto != nil {
+func init() { file_internal_proto_ci_proto_init() }
+func file_internal_proto_ci_proto_init() {
+	if File_internal_proto_ci_proto != nil {
 		return
 	}
-	file_proto_ci_proto_msgTypes[0].OneofWrappers = []any{
+	file_internal_proto_ci_proto_msgTypes[0].OneofWrappers = []any{
 		(*WorkerMessage_RunnerInfo)(nil),
 		(*WorkerMessage_Output)(nil),
 		(*WorkerMessage_Done)(nil),
 		(*WorkerMessage_FileChunk)(nil),
 		(*WorkerMessage_Error)(nil),
 	}
-	file_proto_ci_proto_msgTypes[1].OneofWrappers = []any{
-		(*MatrizMessage_Copy)(nil),
-		(*MatrizMessage_Run)(nil),
-		(*MatrizMessage_Close)(nil),
+	file_internal_proto_ci_proto_msgTypes[1].OneofWrappers = []any{
+		(*ServerMessage_Copy)(nil),
+		(*ServerMessage_Run)(nil),
+		(*ServerMessage_Close)(nil),
 	}
-	file_proto_ci_proto_msgTypes[4].OneofWrappers = []any{
+	file_internal_proto_ci_proto_msgTypes[4].OneofWrappers = []any{
 		(*Credentials_Token)(nil),
 		(*Credentials_Basic)(nil),
 	}
@@ -1088,18 +1088,18 @@ func file_proto_ci_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_ci_proto_rawDesc), len(file_proto_ci_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_ci_proto_rawDesc), len(file_internal_proto_ci_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_ci_proto_goTypes,
-		DependencyIndexes: file_proto_ci_proto_depIdxs,
-		EnumInfos:         file_proto_ci_proto_enumTypes,
-		MessageInfos:      file_proto_ci_proto_msgTypes,
+		GoTypes:           file_internal_proto_ci_proto_goTypes,
+		DependencyIndexes: file_internal_proto_ci_proto_depIdxs,
+		EnumInfos:         file_internal_proto_ci_proto_enumTypes,
+		MessageInfos:      file_internal_proto_ci_proto_msgTypes,
 	}.Build()
-	File_proto_ci_proto = out.File
-	file_proto_ci_proto_goTypes = nil
-	file_proto_ci_proto_depIdxs = nil
+	File_internal_proto_ci_proto = out.File
+	file_internal_proto_ci_proto_goTypes = nil
+	file_internal_proto_ci_proto_depIdxs = nil
 }

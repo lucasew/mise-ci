@@ -5,16 +5,16 @@ import (
 	"net"
 	"net/http"
 
-	"mise-ci/internal/matriz"
+	"mise-ci/internal/core"
 )
 
 type HttpServer struct {
 	addr    string
-	service *matriz.Service
+	service *core.Service
 	logger  *slog.Logger
 }
 
-func NewHttpServer(addr string, service *matriz.Service, logger *slog.Logger) *HttpServer {
+func NewHttpServer(addr string, service *core.Service, logger *slog.Logger) *HttpServer {
 	return &HttpServer{
 		addr:    addr,
 		service: service,

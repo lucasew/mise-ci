@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package ci;
+
+option go_package = "internal/proto";
+
+// Worker connects to the server and opens a bidirectional stream
+service Server {
+  rpc Connect(stream WorkerMessage) returns (stream ServerMessage);
+}
+
+// Messages from worker to server
+message WorkerMessage {
+  uint64 id = 1; // references server command (0 = no associated command)
+
+  oneof payload {
+    RunnerInfo runner_info = 2;    // sent once on connect
+    Output output = 3;             // stdout/stderr of running command
+    Done done = 4;                 // command finished
+    FileChunk file_chunk = 5;      // file chunk being sent
+    Error error = 6;               // command error
+  }
+}
+
+// Messages from server to worker
+message ServerMessage {
+  uint64 id = 1; // sequential command id
+
+  oneof payload {
+    Copy copy = 2;
+    Run run = 3;
+    Close close = 4;
+  }
+}
+
+// Runner info, sent on connect
+message RunnerInfo {
+  string hostname = 1;
+  string os = 2;
+  string arch = 3;
+  map<string, string> extra = 4;
+}
+
+// Copy files - bidirectional
+message Copy {
+  Direction direction = 1;
+  string source = 2;       // URL (git, http) or local path
+  string dest = 3;         // destination path
+  Credentials creds = 4;   // optional
+
+  enum Direction {
+    TO_WORKER = 0;    // server/remote -> worker
+    FROM_WORKER = 1;  // worker -> server
+  }
+}
+
+message Credentials {
+  oneof auth {
+    string token = 1;
+    BasicAuth basic = 2;
+  }
+}
+
+message BasicAuth {
+  string username = 1;
+  string password = 2;
+}
+
+// Execute command
+message Run {
+  string cmd = 1;
+  repeated string args = 2;
+  map<string, string> env = 3;
+  string workdir = 4;
+}
+
+// Output stream
+message Output {
+  Stream stream = 1;
+  bytes data = 2;
+
+  enum Stream {
+    STDOUT = 0;
+    STDERR = 1;
+  }
+}
+
+// Command finished
+message Done {
+  int32 exit_code = 1;
+}
+
+// File chunk (for large transfers)
+message FileChunk {
+  bytes data = 1;
+  bool eof = 2;
+}
+
+// Error
+message Error {
+  string message = 1;
+}
+
+// Close connection
+message Close {}

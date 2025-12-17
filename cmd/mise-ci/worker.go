@@ -30,7 +30,7 @@ var workerCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(workerCmd)
-	workerCmd.Flags().String("callback", "", "Matriz callback URL")
+	workerCmd.Flags().String("callback", "", "Server callback URL")
 	workerCmd.Flags().String("token", "", "Authentication token")
 	_ = viper.BindPFlag("callback", workerCmd.Flags().Lookup("callback"))
 	_ = viper.BindPFlag("token", workerCmd.Flags().Lookup("token"))
@@ -53,15 +53,15 @@ func startWorker() error {
 		target = u.Host
 	}
 
-	logger.Info("connecting to matriz", "target", target)
+	logger.Info("connecting to server", "target", target)
 
 	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("failed to connect to matriz: %w", err)
+		return fmt.Errorf("failed to connect to server: %w", err)
 	}
 	defer conn.Close()
 
-	client := pb.NewMatrizClient(conn)
+	client := pb.NewServerClient(conn)
 
 	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer "+token)
 
@@ -111,21 +111,21 @@ func startWorker() error {
 		mu.Unlock()
 
 		switch payload := msg.Payload.(type) {
-		case *pb.MatrizMessage_Copy:
+		case *pb.ServerMessage_Copy:
 			go func() {
 				defer cancel()
 				if err := handleCopy(opCtx, stream, msg.Id, payload.Copy, logger); err != nil {
 					sendError(stream, msg.Id, err)
 				}
 			}()
-		case *pb.MatrizMessage_Run:
+		case *pb.ServerMessage_Run:
 			go func() {
 				defer cancel()
 				if err := handleRun(opCtx, stream, msg.Id, payload.Run, logger); err != nil {
 					sendError(stream, msg.Id, err)
 				}
 			}()
-		case *pb.MatrizMessage_Close:
+		case *pb.ServerMessage_Close:
 			logger.Info("received close")
 			cancel()
 			return nil
@@ -140,13 +140,13 @@ func startWorker() error {
 // We need a mutex for sending to stream to be safe
 var sendMu sync.Mutex
 
-func safeSend(stream pb.Matriz_ConnectClient, msg *pb.WorkerMessage) error {
+func safeSend(stream pb.Server_ConnectClient, msg *pb.WorkerMessage) error {
 	sendMu.Lock()
 	defer sendMu.Unlock()
 	return stream.Send(msg)
 }
 
-func sendError(stream pb.Matriz_ConnectClient, id uint64, err error) {
+func sendError(stream pb.Server_ConnectClient, id uint64, err error) {
 	_ = safeSend(stream, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_Error{
@@ -157,7 +157,7 @@ func sendError(stream pb.Matriz_ConnectClient, id uint64, err error) {
 	})
 }
 
-func handleCopy(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
+func handleCopy(ctx context.Context, stream pb.Server_ConnectClient, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
 	logger.Info("handling copy", "direction", cmd.Direction, "source", cmd.Source, "dest", cmd.Dest)
 
 	if cmd.Direction == pb.Copy_TO_WORKER {
@@ -194,7 +194,7 @@ func gitClone(ctx context.Context, cmd *pb.Copy, logger *slog.Logger) error {
 	return nil
 }
 
-func sendFile(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, path string, logger *slog.Logger) error {
+func sendFile(ctx context.Context, stream pb.Server_ConnectClient, id uint64, path string, logger *slog.Logger) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -242,7 +242,7 @@ func sendFile(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, pa
 	})
 }
 
-func handleRun(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, cmd *pb.Run, logger *slog.Logger) error {
+func handleRun(ctx context.Context, stream pb.Server_ConnectClient, id uint64, cmd *pb.Run, logger *slog.Logger) error {
 	logger.Info("handling run", "cmd", cmd.Cmd, "args", cmd.Args)
 
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
@@ -301,7 +301,7 @@ func handleRun(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, c
 	})
 }
 
-func streamOutput(ctx context.Context, stream pb.Matriz_ConnectClient, id uint64, r io.Reader, type_ pb.Output_Stream) {
+func streamOutput(ctx context.Context, stream pb.Server_ConnectClient, id uint64, r io.Reader, type_ pb.Output_Stream) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		select {
