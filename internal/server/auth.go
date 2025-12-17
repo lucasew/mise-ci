@@ -82,9 +82,10 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 // RequireBasicAuth protects admin endpoints (e.g. /ui/)
 func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// If no credentials configured, allow access (graceful degradation)
+		// If no credentials configured, deny access (always secure by default)
 		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
-			next(w, r)
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
 			return
 		}
 
