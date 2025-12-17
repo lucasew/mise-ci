@@ -78,10 +78,6 @@ func HandleBidiStream[TSend, TRecv any](
 			case recvCh <- msg:
 			case <-ctx.Done():
 				return
-			default:
-				if cfg.Logger != nil {
-					cfg.Logger.Warn("receive channel full, dropping message")
-				}
 			}
 		}
 	}()
