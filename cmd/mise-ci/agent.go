@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,20 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
 
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/forge/github"
-	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/runner/nomad"
 	"github.com/lucasew/mise-ci/internal/server"
-
-	"io"
 )
 
 var agentCmd = &cobra.Command{
@@ -86,30 +82,17 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	appCore := core.NewCore(logger, cfg.JWT.Secret)
 	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
-	grpcSrv := server.NewGrpcServer(appCore, logger)
-	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, logger)
+	wsSrv := server.NewWebSocketServer(appCore, logger)
+	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, logger)
 
-	// Multiplex
+	// Simple HTTP listener (no multiplexing needed!)
 	lis, err := net.Listen("tcp", cfg.Server.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 
-	m := cmux.New(lis)
-	grpcL := m.Match(cmux.HTTP2HeaderField("content-type", "application/grpc"))
-	httpL := m.Match(cmux.Any())
-
-	s := grpc.NewServer()
-	pb.RegisterServerServer(s, grpcSrv)
-
 	go func() {
-		if err := s.Serve(grpcL); err != nil {
-			logger.Error("grpc serve error", "error", err)
-		}
-	}()
-
-	go func() {
-		if err := httpSrv.Serve(httpL); err != nil {
+		if err := httpSrv.Serve(lis); err != nil {
 			logger.Error("http serve error", "error", err)
 		}
 	}()
@@ -138,16 +121,15 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
+	logger.Info("websocket", "endpoint", "/ws")
 	logger.Info("=================================")
 	logger.Info("agent listening", "addr", cfg.Server.HTTPAddr)
 
 	// Validate public URL accessibility in background
 	go validatePublicURL(&cfg, logger)
 
-	if err := m.Serve(); err != nil {
-		return fmt.Errorf("cmux serve error: %w", err)
-	}
-	return nil
+	// Block forever (server runs in goroutine)
+	select {}
 }
 
 func validatePublicURL(cfg *config.Config, logger *slog.Logger) {

@@ -26,16 +26,18 @@ func getInstanceID() string {
 }
 
 type HttpServer struct {
-	addr    string
-	service *core.Service
-	logger  *slog.Logger
+	addr      string
+	service   *core.Service
+	wsServer  *WebSocketServer
+	logger    *slog.Logger
 }
 
-func NewHttpServer(addr string, service *core.Service, logger *slog.Logger) *HttpServer {
+func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, logger *slog.Logger) *HttpServer {
 	return &HttpServer{
-		addr:    addr,
-		service: service,
-		logger:  logger,
+		addr:     addr,
+		service:  service,
+		wsServer: wsServer,
+		logger:   logger,
 	}
 }
 
@@ -43,6 +45,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/validate", s.handleValidate)
+	mux.HandleFunc("/ws", s.wsServer.HandleConnect)
 	mux.HandleFunc("/webhook", s.service.HandleWebhook)
 	mux.HandleFunc("/test/dispatch", s.service.HandleTestDispatch)
 

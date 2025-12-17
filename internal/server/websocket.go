@@ -1,0 +1,145 @@
+package server
+
+import (
+	"log/slog"
+	"net/http"
+	"strings"
+
+	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/lucasew/mise-ci/internal/core"
+	pb "github.com/lucasew/mise-ci/internal/proto"
+)
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins for now
+	},
+}
+
+type WebSocketServer struct {
+	core   *core.Core
+	logger *slog.Logger
+}
+
+func NewWebSocketServer(core *core.Core, logger *slog.Logger) *WebSocketServer {
+	return &WebSocketServer{
+		core:   core,
+		logger: logger,
+	}
+}
+
+func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
+	// 1. Auth - get token from Authorization header
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		http.Error(w, "missing authorization header", http.StatusUnauthorized)
+		return
+	}
+
+	token := strings.TrimPrefix(auth, "Bearer ")
+	runID, err := s.core.ValidateToken(token)
+	if err != nil {
+		s.logger.Error("invalid token", "error", err)
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	run, ok := s.core.GetRun(runID)
+	if !ok {
+		s.logger.Error("run not found", "run_id", runID)
+		http.Error(w, "run not found", http.StatusNotFound)
+		return
+	}
+
+	// 2. Upgrade to WebSocket
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		s.logger.Error("failed to upgrade connection", "error", err)
+		return
+	}
+	defer conn.Close()
+
+	s.logger.Info("worker connected", "run_id", runID)
+
+	// 3. Handshake - receive RunnerInfo
+	_, msgData, err := conn.ReadMessage()
+	if err != nil {
+		s.logger.Error("failed to read handshake", "error", err)
+		return
+	}
+
+	var workerMsg pb.WorkerMessage
+	if err := proto.Unmarshal(msgData, &workerMsg); err != nil {
+		s.logger.Error("failed to unmarshal handshake", "error", err)
+		return
+	}
+
+	if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
+		s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
+	} else {
+		s.logger.Error("expected RunnerInfo as first message")
+		return
+	}
+
+	// 4. Bidirectional communication
+	errCh := make(chan error, 2)
+
+	// Sender: reads from run.CommandCh and sends to WebSocket
+	go func() {
+		for cmd := range run.CommandCh {
+			data, err := proto.Marshal(cmd)
+			if err != nil {
+				s.logger.Error("failed to marshal command", "error", err)
+				errCh <- err
+				return
+			}
+
+			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				s.logger.Error("failed to send command", "error", err)
+				errCh <- err
+				return
+			}
+
+			if _, ok := cmd.Payload.(*pb.ServerMessage_Close); ok {
+				errCh <- nil
+				return
+			}
+		}
+	}()
+
+	// Receiver: reads from WebSocket and sends to run.ResultCh
+	go func() {
+		for {
+			_, msgData, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					errCh <- nil
+				} else {
+					s.logger.Error("failed to receive message", "error", err)
+					errCh <- err
+				}
+				return
+			}
+
+			var workerMsg pb.WorkerMessage
+			if err := proto.Unmarshal(msgData, &workerMsg); err != nil {
+				s.logger.Error("failed to unmarshal message", "error", err)
+				continue
+			}
+
+			select {
+			case run.ResultCh <- &workerMsg:
+			case <-r.Context().Done():
+				return
+			}
+		}
+	}()
+
+	// Wait for either goroutine to finish
+	<-errCh
+	s.logger.Info("worker disconnected", "run_id", runID)
+}

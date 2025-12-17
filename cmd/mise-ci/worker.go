@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -13,11 +14,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
 	pb "github.com/lucasew/mise-ci/internal/proto"
 )
@@ -48,28 +48,34 @@ func startWorker() error {
 		return fmt.Errorf("callback and token must be set (via flags or env MISE_CI_CALLBACK/MISE_CI_TOKEN)")
 	}
 
-	target := callback
-	if u, err := url.Parse(callback); err == nil && u.Host != "" {
-		target = u.Host
+	// Build WebSocket URL
+	wsURL := callback
+	if u, err := url.Parse(callback); err == nil {
+		// Convert http:// to ws:// and https:// to wss://
+		if u.Scheme == "http" {
+			u.Scheme = "ws"
+		} else if u.Scheme == "https" {
+			u.Scheme = "wss"
+		} else if u.Scheme == "" {
+			u.Scheme = "ws"
+		}
+		u.Path = "/ws"
+		wsURL = u.String()
 	}
 
-	logger.Info("connecting to server", "target", target)
+	logger.Info("connecting to server", "url", wsURL)
 
-	conn, err := grpc.Dial(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Connect to WebSocket with auth header
+	headers := http.Header{}
+	headers.Add("Authorization", "Bearer "+token)
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
 	defer conn.Close()
 
-	client := pb.NewServerClient(conn)
-
-	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer "+token)
-
-	stream, err := client.Connect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to open stream: %w", err)
-	}
-
+	// Send handshake
 	hostname, _ := os.Hostname()
 	info := &pb.WorkerMessage{
 		Payload: &pb.WorkerMessage_RunnerInfo{
@@ -80,7 +86,7 @@ func startWorker() error {
 			},
 		},
 	}
-	if err := safeSend(stream, info); err != nil {
+	if err := wsafeSend(conn, info); err != nil {
 		return fmt.Errorf("failed to send runner info: %w", err)
 	}
 
@@ -92,12 +98,17 @@ func startWorker() error {
 	)
 
 	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+		_, msgData, err := conn.ReadMessage()
 		if err != nil {
-			return fmt.Errorf("stream error: %w", err)
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				break
+			}
+			return fmt.Errorf("read error: %w", err)
+		}
+
+		var msg pb.ServerMessage
+		if err := proto.Unmarshal(msgData, &msg); err != nil {
+			return fmt.Errorf("unmarshal error: %w", err)
 		}
 
 		// Cancel previous operation if any
@@ -114,15 +125,15 @@ func startWorker() error {
 		case *pb.ServerMessage_Copy:
 			go func() {
 				defer cancel()
-				if err := handleCopy(opCtx, stream, msg.Id, payload.Copy, logger); err != nil {
-					sendError(stream, msg.Id, err)
+				if err := handleCopy(opCtx, conn, msg.Id, payload.Copy, logger); err != nil {
+					wsendError(conn, msg.Id, err)
 				}
 			}()
 		case *pb.ServerMessage_Run:
 			go func() {
 				defer cancel()
-				if err := handleRun(opCtx, stream, msg.Id, payload.Run, logger); err != nil {
-					sendError(stream, msg.Id, err)
+				if err := handleRun(opCtx, conn, msg.Id, payload.Run, logger); err != nil {
+					wsendError(conn, msg.Id, err)
 				}
 			}()
 		case *pb.ServerMessage_Close:
@@ -137,17 +148,22 @@ func startWorker() error {
 	return nil
 }
 
-// We need a mutex for sending to stream to be safe
+// We need a mutex for sending to WebSocket to be safe
 var sendMu sync.Mutex
 
-func safeSend(stream pb.Server_ConnectClient, msg *pb.WorkerMessage) error {
+func wsafeSend(conn *websocket.Conn, msg *pb.WorkerMessage) error {
 	sendMu.Lock()
 	defer sendMu.Unlock()
-	return stream.Send(msg)
+
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return conn.WriteMessage(websocket.BinaryMessage, data)
 }
 
-func sendError(stream pb.Server_ConnectClient, id uint64, err error) {
-	_ = safeSend(stream, &pb.WorkerMessage{
+func wsendError(conn *websocket.Conn, id uint64, err error) {
+	_ = wsafeSend(conn, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_Error{
 			Error: &pb.Error{
@@ -157,7 +173,7 @@ func sendError(stream pb.Server_ConnectClient, id uint64, err error) {
 	})
 }
 
-func handleCopy(ctx context.Context, stream pb.Server_ConnectClient, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
+func handleCopy(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
 	logger.Info("handling copy", "direction", cmd.Direction, "source", cmd.Source, "dest", cmd.Dest)
 
 	if cmd.Direction == pb.Copy_TO_WORKER {
@@ -166,7 +182,7 @@ func handleCopy(ctx context.Context, stream pb.Server_ConnectClient, id uint64, 
 		}
 		return fmt.Errorf("only git clone supported for now")
 	} else if cmd.Direction == pb.Copy_FROM_WORKER {
-		return sendFile(ctx, stream, id, cmd.Source, logger)
+		return sendFile(ctx, conn, id, cmd.Source, logger)
 	}
 	return nil
 }
@@ -194,7 +210,7 @@ func gitClone(ctx context.Context, cmd *pb.Copy, logger *slog.Logger) error {
 	return nil
 }
 
-func sendFile(ctx context.Context, stream pb.Server_ConnectClient, id uint64, path string, logger *slog.Logger) error {
+func sendFile(ctx context.Context, conn *websocket.Conn, id uint64, path string, logger *slog.Logger) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -211,7 +227,7 @@ func sendFile(ctx context.Context, stream pb.Server_ConnectClient, id uint64, pa
 
 		n, err := f.Read(buf)
 		if n > 0 {
-			if err := safeSend(stream, &pb.WorkerMessage{
+			if err := wsafeSend(conn, &pb.WorkerMessage{
 				Id: id,
 				Payload: &pb.WorkerMessage_FileChunk{
 					FileChunk: &pb.FileChunk{
@@ -231,7 +247,7 @@ func sendFile(ctx context.Context, stream pb.Server_ConnectClient, id uint64, pa
 		}
 	}
 
-	return safeSend(stream, &pb.WorkerMessage{
+	return wsafeSend(conn, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_FileChunk{
 			FileChunk: &pb.FileChunk{
@@ -242,7 +258,7 @@ func sendFile(ctx context.Context, stream pb.Server_ConnectClient, id uint64, pa
 	})
 }
 
-func handleRun(ctx context.Context, stream pb.Server_ConnectClient, id uint64, cmd *pb.Run, logger *slog.Logger) error {
+func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run, logger *slog.Logger) error {
 	logger.Info("handling run", "cmd", cmd.Cmd, "args", cmd.Args)
 
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
@@ -269,11 +285,11 @@ func handleRun(ctx context.Context, stream pb.Server_ConnectClient, id uint64, c
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		streamOutput(ctx, stream, id, stdout, pb.Output_STDOUT)
+		streamOutput(ctx, conn, id, stdout, pb.Output_STDOUT)
 	}()
 	go func() {
 		defer wg.Done()
-		streamOutput(ctx, stream, id, stderr, pb.Output_STDERR)
+		streamOutput(ctx, conn, id, stderr, pb.Output_STDERR)
 	}()
 
 	err = c.Wait()
@@ -291,7 +307,7 @@ func handleRun(ctx context.Context, stream pb.Server_ConnectClient, id uint64, c
 		}
 	}
 
-	return safeSend(stream, &pb.WorkerMessage{
+	return wsafeSend(conn, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_Done{
 			Done: &pb.Done{
@@ -301,7 +317,7 @@ func handleRun(ctx context.Context, stream pb.Server_ConnectClient, id uint64, c
 	})
 }
 
-func streamOutput(ctx context.Context, stream pb.Server_ConnectClient, id uint64, r io.Reader, type_ pb.Output_Stream) {
+func streamOutput(ctx context.Context, conn *websocket.Conn, id uint64, r io.Reader, type_ pb.Output_Stream) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		select {
@@ -315,7 +331,7 @@ func streamOutput(ctx context.Context, stream pb.Server_ConnectClient, id uint64
 		copy(b, data)
 		b[len(data)] = '\n'
 
-		_ = safeSend(stream, &pb.WorkerMessage{
+		_ = wsafeSend(conn, &pb.WorkerMessage{
 			Id: id,
 			Payload: &pb.WorkerMessage_Output{
 				Output: &pb.Output{
