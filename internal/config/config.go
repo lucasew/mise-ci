@@ -10,8 +10,8 @@ import (
 type Config struct {
 	Server ServerConfig `yaml:"server" mapstructure:"server"`
 	JWT    JWTConfig    `yaml:"jwt" mapstructure:"jwt"`
-	Forge  ForgeConfig  `yaml:"forge" mapstructure:"forge"`
-	Runner RunnerConfig `yaml:"runner" mapstructure:"runner"`
+	GitHub GitHubConfig `yaml:"github" mapstructure:"github"`
+	Nomad  NomadConfig  `yaml:"nomad" mapstructure:"nomad"`
 }
 
 type ServerConfig struct {
@@ -23,15 +23,13 @@ type JWTConfig struct {
 	Secret string `yaml:"secret" mapstructure:"secret"`
 }
 
-type ForgeConfig struct {
-	Type          string `yaml:"type" mapstructure:"type"`
+type GitHubConfig struct {
 	AppID         int64  `yaml:"app_id" mapstructure:"app_id"`
 	PrivateKey    string `yaml:"private_key" mapstructure:"private_key"`
 	WebhookSecret string `yaml:"webhook_secret" mapstructure:"webhook_secret"`
 }
 
-type RunnerConfig struct {
-	Type         string `yaml:"type" mapstructure:"type"`
+type NomadConfig struct {
 	Addr         string `yaml:"addr" mapstructure:"addr"`
 	JobName      string `yaml:"job_name" mapstructure:"job_name"`
 	DefaultImage string `yaml:"default_image" mapstructure:"default_image"`

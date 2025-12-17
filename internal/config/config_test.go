@@ -9,14 +9,12 @@ func TestLoad(t *testing.T) {
 	content := `
 server:
   http_addr: ":8080"
-  grpc_addr: ":9090"
 jwt:
   secret: "test"
-forge:
-  type: github
+github:
   app_id: 1
-runner:
-  type: nomad
+nomad:
+  job_name: "test"
 `
 	tmp, err := os.CreateTemp("", "config.yaml")
 	if err != nil {
@@ -39,5 +37,8 @@ runner:
 	}
 	if cfg.JWT.Secret != "test" {
 		t.Errorf("expected test, got %s", cfg.JWT.Secret)
+	}
+	if cfg.GitHub.AppID != 1 {
+		t.Errorf("expected 1, got %d", cfg.GitHub.AppID)
 	}
 }
