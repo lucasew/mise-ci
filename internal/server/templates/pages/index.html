@@ -32,7 +32,12 @@
 
     <script>
         // Connect to status stream
-        const eventSource = new EventSource('/ui/status-stream');
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const statusURL = token
+            ? `/ui/status-stream?token=${encodeURIComponent(token)}`
+            : `/ui/status-stream`;
+        const eventSource = new EventSource(statusURL);
 
         let reloadTimeout = null;
 
