@@ -174,7 +174,7 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 			},
 		},
 	}
-	if !s.waitForDone(run, "copy output.txt") {
+	if !s.receiveFile(run, outputPath, "copy output.txt") {
 		s.Logger.Error("failed to copy output.txt")
 		return
 	}
@@ -331,6 +331,43 @@ func (s *Service) waitForDone(run *Run, context string) bool {
 			return false
 		case *pb.WorkerMessage_Output:
 			// log
+		case *pb.WorkerMessage_FileChunk:
+			// Ignore file chunks here - they should be handled by receiveFile
+			s.Logger.Warn("unexpected file chunk in waitForDone", "context", context)
+		}
+	}
+	return false
+}
+
+func (s *Service) receiveFile(run *Run, destPath string, context string) bool {
+	f, err := os.Create(destPath)
+	if err != nil {
+		s.Logger.Error("failed to create file", "error", err, "path", destPath)
+		return false
+	}
+	defer f.Close()
+
+	for msg := range run.ResultCh {
+		switch payload := msg.Payload.(type) {
+		case *pb.WorkerMessage_FileChunk:
+			if len(payload.FileChunk.Data) > 0 {
+				if _, err := f.Write(payload.FileChunk.Data); err != nil {
+					s.Logger.Error("failed to write chunk", "error", err)
+					return false
+				}
+			}
+			if payload.FileChunk.Eof {
+				s.Logger.Info("file received successfully", "path", destPath)
+				return true
+			}
+		case *pb.WorkerMessage_Error:
+			s.Logger.Error("worker error", "context", context, "message", payload.Error.Message)
+			return false
+		case *pb.WorkerMessage_Done:
+			// File transfer complete
+			return true
+		case *pb.WorkerMessage_Output:
+			// Ignore output during file transfer
 		}
 	}
 	return false
