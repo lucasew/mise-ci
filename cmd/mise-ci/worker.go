@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
-	pb "mise-ci/internal/proto"
+	pb "github.com/lucasew/mise-ci/internal/proto"
 )
 
 var workerCmd = &cobra.Command{

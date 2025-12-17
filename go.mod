@@ -1,4 +1,4 @@
-module mise-ci
+module github.com/lucasew/mise-ci
 
 go 1.24.3
 

@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"mise-ci/internal/config"
-	"mise-ci/internal/forge"
-	pb "mise-ci/internal/proto"
-	"mise-ci/internal/runner"
+	"github.com/lucasew/mise-ci/internal/config"
+	"github.com/lucasew/mise-ci/internal/forge"
+	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/runner"
 )
 
 //go:embed testdata/mise.toml

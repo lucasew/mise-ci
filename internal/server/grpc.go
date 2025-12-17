@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"mise-ci/internal/core"
-	pb "mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/core"
+	pb "github.com/lucasew/mise-ci/internal/proto"
 )
 
 type GrpcServer struct {

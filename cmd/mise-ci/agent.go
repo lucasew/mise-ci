@@ -10,13 +10,13 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 
-	"mise-ci/internal/config"
-	"mise-ci/internal/core"
-	"mise-ci/internal/forge"
-	"mise-ci/internal/forge/github"
-	pb "mise-ci/internal/proto"
-	"mise-ci/internal/runner/nomad"
-	"mise-ci/internal/server"
+	"github.com/lucasew/mise-ci/internal/config"
+	"github.com/lucasew/mise-ci/internal/core"
+	"github.com/lucasew/mise-ci/internal/forge"
+	"github.com/lucasew/mise-ci/internal/forge/github"
+	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/runner/nomad"
+	"github.com/lucasew/mise-ci/internal/server"
 )
 
 var agentCmd = &cobra.Command{

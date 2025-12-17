@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/golang-jwt/jwt/v5"
-	pb "mise-ci/internal/proto"
+	pb "github.com/lucasew/mise-ci/internal/proto"
 )
 
 type Core struct {

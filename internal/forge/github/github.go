@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-github/v66/github"
-	"mise-ci/internal/forge"
+	"github.com/lucasew/mise-ci/internal/forge"
 )
 
 type GitHubForge struct {

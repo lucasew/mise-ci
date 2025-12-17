@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/nomad/api"
-	"mise-ci/internal/runner"
+	"github.com/lucasew/mise-ci/internal/runner"
 )
 
 type NomadRunner struct {

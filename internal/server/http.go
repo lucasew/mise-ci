@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"mise-ci/internal/core"
+	"github.com/lucasew/mise-ci/internal/core"
 )
 
 type HttpServer struct {
