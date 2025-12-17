@@ -1,0 +1,92 @@
+{{define "content"}}
+    <h1>mise-ci</h1>
+
+    <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+
+    <h2>Runs</h2>
+
+    {{if .Runs}}
+    <table>
+        <thead>
+            <tr>
+                <th>Run ID</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Duration</th>
+            </tr>
+        </thead>
+        <tbody id="runs-table">
+            {{range .Runs}}
+            <tr data-run-id="{{.ID}}" data-status="{{.Status}}" data-started="{{.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .FinishedAt}}{{.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
+                <td><a href="/ui/run/{{.ID}}">{{.ID}}</a></td>
+                <td><span class="status-badge {{statusClass .Status}}">{{.Status}}</span></td>
+                <td>{{formatTime .StartedAt}}</td>
+                <td class="duration">{{formatDuration .StartedAt .FinishedAt}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p id="no-runs">No runs yet.</p>
+    {{end}}
+
+    <script>
+        // Connect to status stream
+        const eventSource = new EventSource('/ui/status-stream');
+
+        let reloadTimeout = null;
+
+        eventSource.onmessage = function(event) {
+            // Debounce reload to avoid multiple rapid reloads
+            if (reloadTimeout) {
+                clearTimeout(reloadTimeout);
+            }
+            reloadTimeout = setTimeout(function() {
+                location.reload();
+            }, 500); // Wait 500ms before reloading
+        };
+
+        eventSource.onerror = function(error) {
+            console.error('SSE error:', error);
+            // Try to reconnect after error
+            if (eventSource.readyState === EventSource.CLOSED) {
+                setTimeout(function() {
+                    location.reload();
+                }, 2000);
+            }
+        };
+
+        // Update duration optimistically every second
+        function formatDuration(startStr, endStr) {
+            const start = new Date(startStr);
+            const end = endStr ? new Date(endStr) : new Date();
+            const diffMs = end - start;
+            const seconds = Math.floor(diffMs / 1000);
+            if (seconds < 60) return seconds + 's';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ' + (seconds % 60) + 's';
+            const hours = Math.floor(minutes / 60);
+            return hours + 'h ' + (minutes % 60) + 'm';
+        }
+
+        function updateDurations() {
+            const rows = document.querySelectorAll('#runs-table tr[data-run-id]');
+            rows.forEach(row => {
+                const status = row.getAttribute('data-status');
+                const startedAt = row.getAttribute('data-started');
+                const finishedAt = row.getAttribute('data-finished');
+
+                // Only update if running or scheduled (not finished)
+                if ((status === 'running' || status === 'scheduled') && !finishedAt) {
+                    const durationCell = row.querySelector('.duration');
+                    if (durationCell && startedAt) {
+                        durationCell.textContent = formatDuration(startedAt, null);
+                    }
+                }
+            });
+        }
+
+        // Update every second
+        setInterval(updateDurations, 1000);
+    </script>
+{{end}}
