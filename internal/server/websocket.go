@@ -146,7 +146,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 		s.logger.Error("worker connection error", "run_id", runID, "error", err)
 		// Only log to system log if it's not a normal close/EOF that might be wrapped
-		if !strings.Contains(err.Error(), "closed") && !errors.Is(err, net.ErrClosed) {
+    if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 			s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
 			s.core.UpdateStatus(runID, core.StatusError, nil)
 		}
