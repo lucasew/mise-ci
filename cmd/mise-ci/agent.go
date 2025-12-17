@@ -82,9 +82,14 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	appCore := core.NewCore(logger, cfg.JWT.Secret)
 	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
+	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{
+		AdminUsername: cfg.Auth.AdminUsername,
+		AdminPassword: cfg.Auth.AdminPassword,
+	})
+
 	wsSrv := server.NewWebSocketServer(appCore, logger)
 	uiSrv := server.NewUIServer(appCore, logger)
-	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, uiSrv, logger)
+	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, uiSrv, authMiddleware, logger)
 
 	// Simple HTTP listener (no multiplexing needed!)
 	lis, err := net.Listen("tcp", cfg.Server.HTTPAddr)
@@ -122,6 +127,17 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
+	
+	authConfigured := cfg.Auth.AdminUsername != "" && cfg.Auth.AdminPassword != ""
+	if !authConfigured {
+		logger.Warn("admin credentials not configured - /ui/ endpoint will be unprotected")
+		logger.Warn("set MISE_CI_AUTH_ADMIN_USERNAME and MISE_CI_AUTH_ADMIN_PASSWORD")
+	}
+
+	logger.Info("authentication",
+		"admin_auth_enabled", authConfigured,
+		"ui_tokens_enabled", true)
+		
 	logger.Info("websocket", "endpoint", "/ws")
 	logger.Info("webui", "url", fmt.Sprintf("http://%s/ui/", cfg.Server.HTTPAddr))
 	logger.Info("=================================")

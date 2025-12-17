@@ -71,18 +71,19 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	s.Logger.Info("test dispatch", "run_id", runID)
 
 	run := s.Core.CreateRun(runID)
-	token, err := s.Core.GenerateToken(runID)
+	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
 	}
 
-	callback := s.Config.Server.PublicURL
-	if callback == "" {
-		callback = s.Config.Server.HTTPAddr
+	publicURL := s.Config.Server.PublicURL
+	if publicURL == "" {
+		publicURL = s.Config.Server.HTTPAddr
 	}
 
+	callback := publicURL
 	params := runner.RunParams{
 		CallbackURL: callback,
 		Token:       token,
@@ -196,7 +197,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 
 	run := s.Core.CreateRun(runID)
-	token, err := s.Core.GenerateToken(runID)
+	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
 		return

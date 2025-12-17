@@ -20,6 +20,13 @@ const (
 	StatusError     RunStatus = "error"
 )
 
+type TokenType string
+
+const (
+	TokenTypeWorker TokenType = "worker"
+	TokenTypeUI     TokenType = "ui"
+)
+
 type LogEntry struct {
 	Timestamp time.Time
 	Stream    string // "stdout", "stderr", "system"
@@ -33,6 +40,7 @@ type RunInfo struct {
 	FinishedAt *time.Time
 	Logs       []LogEntry
 	ExitCode   *int32
+	UIToken    string
 }
 
 type Core struct {
@@ -77,11 +85,18 @@ func (c *Core) CreateRun(id string) *Run {
 	}
 	c.runs[id] = run
 
+	uiToken, err := c.generateToken(id, TokenTypeUI)
+	if err != nil {
+		c.logger.Error("failed to generate UI token", "error", err, "run_id", id)
+		// We continue without a token, but this shouldn't happen
+	}
+
 	info := &RunInfo{
 		ID:        id,
 		Status:    StatusScheduled,
 		StartedAt: time.Now(),
 		Logs:      make([]LogEntry, 0),
+		UIToken:   uiToken,
 	}
 	c.runInfo[id] = info
 
@@ -100,7 +115,7 @@ func (c *Core) GetRun(id string) (*Run, bool) {
 	return run, ok
 }
 
-func (c *Core) ValidateToken(tokenString string) (string, error) {
+func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -109,24 +124,61 @@ func (c *Core) ValidateToken(tokenString string) (string, error) {
 	})
 
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if runID, ok := claims["run_id"].(string); ok {
-			return runID, nil
+		runID, ok := claims["run_id"].(string)
+		if !ok {
+			return "", "", fmt.Errorf("run_id claim missing or invalid")
 		}
-		return "", fmt.Errorf("run_id claim missing or invalid")
+
+		tokenTypeStr, ok := claims["type"].(string)
+		var tokenType TokenType
+		if !ok {
+			// Backwards compatibility: assume worker token if type is missing
+			tokenType = TokenTypeWorker
+		} else {
+			tokenType = TokenType(tokenTypeStr)
+		}
+
+		return runID, tokenType, nil
 	}
 
-	return "", fmt.Errorf("invalid token")
+	return "", "", fmt.Errorf("invalid token")
 }
 
-func (c *Core) GenerateToken(runID string) (string, error) {
+func (c *Core) GenerateWorkerToken(runID string) (string, error) {
+	return c.generateToken(runID, TokenTypeWorker)
+}
+
+func (c *Core) GenerateUIToken(runID string) (string, error) {
+	return c.generateToken(runID, TokenTypeUI)
+}
+
+func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"run_id": runID,
+		"type":   tokenType,
 	})
 	return token.SignedString(c.jwtSecret)
+}
+
+func (c *Core) GetRunUIURL(runID string, baseURL string) string {
+	c.mu.RLock()
+	info, ok := c.runInfo[runID]
+	c.mu.RUnlock()
+
+	if !ok || info.UIToken == "" {
+		return ""
+	}
+
+	// Remove trailing slash if present
+	if len(baseURL) > 0 && baseURL[len(baseURL)-1] == '/' {
+		baseURL = baseURL[:len(baseURL)-1]
+	}
+
+	return fmt.Sprintf("%s/ui/run/%s?token=%s", baseURL, runID, info.UIToken)
 }
 
 func (c *Core) AddLog(runID string, stream string, data string) {

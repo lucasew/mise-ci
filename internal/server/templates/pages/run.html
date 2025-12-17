@@ -37,8 +37,15 @@
         const logsContainer = document.getElementById('logs');
         const runID = '{{.Run.ID}}';
 
+        // Extract token from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+
         // Connect to logs SSE endpoint
-        const logsEventSource = new EventSource(`/ui/logs/${runID}`);
+        const logsURL = token
+            ? `/ui/logs/${runID}?token=${encodeURIComponent(token)}`
+            : `/ui/logs/${runID}`;
+        const logsEventSource = new EventSource(logsURL);
 
         logsEventSource.onmessage = function(event) {
             const log = JSON.parse(event.data);
@@ -66,7 +73,10 @@
         };
 
         // Connect to status stream to update status in real-time
-        const statusEventSource = new EventSource('/ui/status-stream');
+        const statusURL = token
+            ? `/ui/status-stream?token=${encodeURIComponent(token)}`
+            : `/ui/status-stream`;
+        const statusEventSource = new EventSource(statusURL);
 
         statusEventSource.onmessage = function(event) {
             const status = JSON.parse(event.data);

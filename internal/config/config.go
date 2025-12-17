@@ -12,6 +12,12 @@ type Config struct {
 	JWT    JWTConfig    `yaml:"jwt" mapstructure:"jwt"`
 	GitHub GitHubConfig `yaml:"github" mapstructure:"github"`
 	Nomad  NomadConfig  `yaml:"nomad" mapstructure:"nomad"`
+	Auth   AuthConfig   `yaml:"auth" mapstructure:"auth"`
+}
+
+type AuthConfig struct {
+	AdminUsername string `yaml:"admin_username" mapstructure:"admin_username"`
+	AdminPassword string `yaml:"admin_password" mapstructure:"admin_password"`
 }
 
 type ServerConfig struct {

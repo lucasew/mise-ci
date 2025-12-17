@@ -26,20 +26,22 @@ func getInstanceID() string {
 }
 
 type HttpServer struct {
-	addr      string
-	service   *core.Service
-	wsServer  *WebSocketServer
-	uiServer  *UIServer
-	logger    *slog.Logger
+	addr           string
+	service        *core.Service
+	wsServer       *WebSocketServer
+	uiServer       *UIServer
+	authMiddleware *AuthMiddleware
+	logger         *slog.Logger
 }
 
-func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, uiServer *UIServer, logger *slog.Logger) *HttpServer {
+func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, uiServer *UIServer, authMiddleware *AuthMiddleware, logger *slog.Logger) *HttpServer {
 	return &HttpServer{
-		addr:     addr,
-		service:  service,
-		wsServer: wsServer,
-		uiServer: uiServer,
-		logger:   logger,
+		addr:           addr,
+		service:        service,
+		wsServer:       wsServer,
+		uiServer:       uiServer,
+		authMiddleware: authMiddleware,
+		logger:         logger,
 	}
 }
 
@@ -52,10 +54,10 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/test/dispatch", s.service.HandleTestDispatch)
 
 	// UI routes
-	mux.HandleFunc("/ui/", s.uiServer.HandleIndex)
-	mux.HandleFunc("/ui/run/", s.uiServer.HandleRun)
-	mux.HandleFunc("/ui/logs/", s.uiServer.HandleLogs)
-	mux.HandleFunc("/ui/status-stream", s.uiServer.HandleStatusStream)
+	mux.HandleFunc("/ui/", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleIndex))
+	mux.HandleFunc("/ui/run/", s.authMiddleware.RequireRunToken(s.uiServer.HandleRun))
+	mux.HandleFunc("/ui/logs/", s.authMiddleware.RequireRunToken(s.uiServer.HandleLogs))
+	mux.HandleFunc("/ui/status-stream", s.authMiddleware.RequireStatusStreamAuth(s.uiServer.HandleStatusStream))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/ui/", http.StatusFound)

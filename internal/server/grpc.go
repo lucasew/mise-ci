@@ -53,9 +53,13 @@ func (s *GrpcServer) Connect(serverStream pb.Server_ConnectServer) error {
 	}
 
 	token := strings.TrimPrefix(auth[0], "Bearer ")
-	runID, err := s.core.ValidateToken(token)
+	runID, tokenType, err := s.core.ValidateToken(token)
 	if err != nil {
 		return status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
+	}
+
+	if tokenType != core.TokenTypeWorker {
+		return status.Errorf(codes.Unauthenticated, "invalid token type: %s", tokenType)
 	}
 
 	run, ok := s.core.GetRun(runID)

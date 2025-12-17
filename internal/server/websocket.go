@@ -72,10 +72,16 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 	}
 
 	token := strings.TrimPrefix(auth, "Bearer ")
-	runID, err := s.core.ValidateToken(token)
+	runID, tokenType, err := s.core.ValidateToken(token)
 	if err != nil {
 		s.logger.Error("invalid token", "error", err)
 		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+
+	if tokenType != core.TokenTypeWorker {
+		s.logger.Error("invalid token type for worker connection", "type", tokenType)
+		http.Error(w, "invalid token type", http.StatusForbidden)
 		return
 	}
 
@@ -133,11 +139,11 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 	if err != nil {
 		// Normal closure
-		var closeErr *websocket.CloseError
-		if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {
-			s.logger.Info("worker closed connection normally", "run_id", runID)
-			return
-		}
+    var closeErr *websocket.CloseError
+    if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {
+      s.logger.Info("worker closed connection normally", "run_id", runID)
+      return
+    }
 
 		// Connection closed by us (after sending Close message)
 		var netErr *net.OpError
@@ -148,7 +154,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 		s.logger.Error("worker connection error", "run_id", runID, "error", err)
 		// Only log to system log if it's not a normal close/EOF that might be wrapped
-		if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
+    if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 			s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
 			s.core.UpdateStatus(runID, core.StatusError, nil)
 		}

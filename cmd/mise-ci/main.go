@@ -55,6 +55,8 @@ func initConfig() {
 	viper.BindEnv("nomad.addr")
 	viper.BindEnv("nomad.job_name")
 	viper.BindEnv("nomad.default_image")
+	viper.BindEnv("auth.admin_username")
+	viper.BindEnv("auth.admin_password")
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("using config file", "file", viper.ConfigFileUsed())
