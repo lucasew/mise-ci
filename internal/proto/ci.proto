@@ -44,13 +44,14 @@ message RunnerInfo {
 // Copy files - bidirectional
 message Copy {
   Direction direction = 1;
-  string source = 2;       // URL (git, http) or local path
+  string source = 2;       // source path (for FROM_WORKER) or filename (for TO_WORKER)
   string dest = 3;         // destination path
-  Credentials creds = 4;   // optional
+  bytes data = 4;          // file data (for TO_WORKER, small files)
+  Credentials creds = 5;   // optional (deprecated, use Run with git)
 
   enum Direction {
-    TO_WORKER = 0;    // server/remote -> worker
-    FROM_WORKER = 1;  // worker -> server
+    TO_WORKER = 0;    // server -> worker (data sent inline)
+    FROM_WORKER = 1;  // worker -> server (data sent as FileChunks)
   }
 }
 

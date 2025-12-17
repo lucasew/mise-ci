@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -126,13 +127,20 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 
 	// 1. Send mise.toml to worker
 	s.Logger.Info("sending mise.toml to worker")
+	miseTomlData, err := os.ReadFile(miseTomlPath)
+	if err != nil {
+		s.Logger.Error("failed to read mise.toml", "error", err)
+		return
+	}
+
 	run.CommandCh <- &pb.ServerMessage{
 		Id: 1,
 		Payload: &pb.ServerMessage_Copy{
 			Copy: &pb.Copy{
 				Direction: pb.Copy_TO_WORKER,
-				Source:    miseTomlPath,
+				Source:    "mise.toml",
 				Dest:      "mise.toml",
+				Data:      miseTomlData,
 			},
 		},
 	}
@@ -258,24 +266,18 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	s.Logger.Info("sending copy (clone)")
-	run.CommandCh <- &pb.ServerMessage{
-		Id: 1,
-		Payload: &pb.ServerMessage_Copy{
-			Copy: &pb.Copy{
-				Direction: pb.Copy_TO_WORKER,
-				Source:    event.Clone,
-				Dest:      ".",
-				Creds: &pb.Credentials{
-					Auth: &pb.Credentials_Token{
-						Token: creds.Token,
-					},
-				},
-			},
-		},
+	// Build git clone URL with credentials
+	cloneURL := event.Clone
+	if creds.Token != "" {
+		// Parse URL and add token
+		if u, err := url.Parse(event.Clone); err == nil {
+			u.User = url.UserPassword("x-access-token", creds.Token)
+			cloneURL = u.String()
+		}
 	}
 
-	if !s.waitForDone(run, "clone") {
+	s.Logger.Info("cloning repository")
+	if !s.runCommand(run, 1, "git", "clone", cloneURL, ".") {
 		return false
 	}
 

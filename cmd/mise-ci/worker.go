@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -177,10 +176,18 @@ func handleCopy(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Co
 	logger.Info("handling copy", "direction", cmd.Direction, "source", cmd.Source, "dest", cmd.Dest)
 
 	if cmd.Direction == pb.Copy_TO_WORKER {
-		if strings.HasSuffix(cmd.Source, ".git") {
-			return gitClone(ctx, cmd, logger)
+		// Receive file data from server (sent inline in Copy message)
+		if err := os.WriteFile(cmd.Dest, cmd.Data, 0644); err != nil {
+			return fmt.Errorf("failed to write file: %w", err)
 		}
-		return fmt.Errorf("only git clone supported for now")
+		logger.Info("file received", "dest", cmd.Dest, "size", len(cmd.Data))
+
+		return wsafeSend(conn, &pb.WorkerMessage{
+			Id: id,
+			Payload: &pb.WorkerMessage_Done{
+				Done: &pb.Done{ExitCode: 0},
+			},
+		})
 	} else if cmd.Direction == pb.Copy_FROM_WORKER {
 		return sendFile(ctx, conn, id, cmd.Source, logger)
 	}

@@ -24,8 +24,8 @@ const (
 type Copy_Direction int32
 
 const (
-	Copy_TO_WORKER   Copy_Direction = 0 // server/remote -> worker
-	Copy_FROM_WORKER Copy_Direction = 1 // worker -> server
+	Copy_TO_WORKER   Copy_Direction = 0 // server -> worker (data sent inline)
+	Copy_FROM_WORKER Copy_Direction = 1 // worker -> server (data sent as FileChunks)
 )
 
 // Enum value maps for Copy_Direction.
@@ -432,9 +432,10 @@ func (x *RunnerInfo) GetExtra() map[string]string {
 type Copy struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Direction     Copy_Direction         `protobuf:"varint,1,opt,name=direction,proto3,enum=ci.Copy_Direction" json:"direction,omitempty"`
-	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // URL (git, http) or local path
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"` // source path (for FROM_WORKER) or filename (for TO_WORKER)
 	Dest          string                 `protobuf:"bytes,3,opt,name=dest,proto3" json:"dest,omitempty"`     // destination path
-	Creds         *Credentials           `protobuf:"bytes,4,opt,name=creds,proto3" json:"creds,omitempty"`   // optional
+	Data          []byte                 `protobuf:"bytes,4,opt,name=data,proto3" json:"data,omitempty"`     // file data (for TO_WORKER, small files)
+	Creds         *Credentials           `protobuf:"bytes,5,opt,name=creds,proto3" json:"creds,omitempty"`   // optional (deprecated, use Run with git)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -488,6 +489,13 @@ func (x *Copy) GetDest() string {
 		return x.Dest
 	}
 	return ""
+}
+
+func (x *Copy) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
 }
 
 func (x *Copy) GetCreds() *Credentials {
@@ -964,12 +972,13 @@ const file_internal_proto_ci_proto_rawDesc = "" +
 	"\n" +
 	"ExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb8\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcc\x01\n" +
 	"\x04Copy\x120\n" +
 	"\tdirection\x18\x01 \x01(\x0e2\x12.ci.Copy.DirectionR\tdirection\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x12\n" +
-	"\x04dest\x18\x03 \x01(\tR\x04dest\x12%\n" +
-	"\x05creds\x18\x04 \x01(\v2\x0f.ci.CredentialsR\x05creds\"+\n" +
+	"\x04dest\x18\x03 \x01(\tR\x04dest\x12\x12\n" +
+	"\x04data\x18\x04 \x01(\fR\x04data\x12%\n" +
+	"\x05creds\x18\x05 \x01(\v2\x0f.ci.CredentialsR\x05creds\"+\n" +
 	"\tDirection\x12\r\n" +
 	"\tTO_WORKER\x10\x00\x12\x0f\n" +
 	"\vFROM_WORKER\x10\x01\"T\n" +
