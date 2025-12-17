@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -102,7 +103,21 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	// Run test orchestration in background
 	go s.TestOrchestrate(ctx, run)
 
-	httputil.WriteText(w, http.StatusOK, fmt.Sprintf("dispatched: run_id=%s job_id=%s", runID, jobID))
+	// Generate UI URL
+	// reusing publicURL defined earlier
+	uiURL := s.Core.GetRunUIURL(runID, publicURL)
+
+	// Return JSON response with run details
+	response := map[string]string{
+		"run_id": runID,
+		"job_id": jobID,
+		"ui_url": uiURL,
+		"status": "dispatched",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
@@ -186,28 +201,31 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("starting run", "run_id", runID)
 
+	run := s.Core.CreateRun(runID)
+
+	publicURL := s.Config.Server.PublicURL
+	if publicURL == "" {
+		publicURL = s.Config.Server.HTTPAddr
+	}
+	targetURL := s.Core.GetRunUIURL(runID, publicURL)
+
 	status := forge.Status{
 		State:       forge.StatePending,
 		Context:     "mise-ci",
 		Description: "Run started",
-		TargetURL:   "",
+		TargetURL:   targetURL,
 	}
 	if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
 		s.Logger.Error("update status pending", "error", err)
 	}
 
-	run := s.Core.CreateRun(runID)
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
 		return
 	}
 
-	callback := s.Config.Server.PublicURL
-	if callback == "" {
-		callback = s.Config.Server.HTTPAddr
-	}
-
+	callback := publicURL
 	params := runner.RunParams{
 		CallbackURL: callback,
 		Token:       token,

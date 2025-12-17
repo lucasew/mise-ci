@@ -37,9 +37,8 @@
         const logsContainer = document.getElementById('logs');
         const runID = '{{.Run.ID}}';
 
-        // Extract token from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        // Get token from template (server-generated) or URL
+        const token = '{{.Token}}';
 
         // Connect to logs SSE endpoint
         const logsURL = token
