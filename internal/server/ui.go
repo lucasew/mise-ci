@@ -71,9 +71,22 @@ func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
 		return runs[i].StartedAt.After(runs[j].StartedAt)
 	})
 
+	// Ensure we have a token for the status stream
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		// Generate a token for the dashboard
+		// The runID "admin-dashboard" is arbitrary but valid for the status stream
+		var err error
+		token, err = s.core.GenerateUIToken("admin-dashboard")
+		if err != nil {
+			s.logger.Error("failed to generate dashboard token", "error", err)
+		}
+	}
+
 	data := map[string]interface{}{
 		"Title": "Runs",
 		"Runs":  runs,
+		"Token": token,
 	}
 
 	if err := s.engine.Render(w, "templates/pages/index.html", data); err != nil {
@@ -95,9 +108,21 @@ func (s *UIServer) HandleRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure we have a token for the logs/status stream
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		// Generate a token for this run
+		var err error
+		token, err = s.core.GenerateUIToken(runID)
+		if err != nil {
+			s.logger.Error("failed to generate run token", "error", err)
+		}
+	}
+
 	data := map[string]interface{}{
 		"Title": fmt.Sprintf("Run %s", info.ID),
 		"Run":   info,
+		"Token": token,
 	}
 
 	if err := s.engine.Render(w, "templates/pages/run.html", data); err != nil {

@@ -32,8 +32,7 @@
 
     <script>
         // Connect to status stream
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
+        const token = '{{.Token}}';
         const statusURL = token
             ? `/ui/status-stream?token=${encodeURIComponent(token)}`
             : `/ui/status-stream`;
