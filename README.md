@@ -4,8 +4,7 @@ Um sistema de CI minimalista baseado em mise tasks.
 
 ## Estrutura
 
-- `cmd/matriz`: Servidor central (gRPC + HTTP)
-- `cmd/worker`: Agente de execução
+- `cmd/mise-ci`: Binário único (agent + worker)
 - `internal/`: Lógica do sistema
 
 ## Setup
@@ -15,9 +14,9 @@ Um sistema de CI minimalista baseado em mise tasks.
    mise install
    ```
 
-2. Gere o código protobuf (se necessário):
+2. Gere o código protobuf:
    ```bash
-   mise run generate
+   mise run codegen:protobuf
    ```
 
 3. Compile:
@@ -27,17 +26,33 @@ Um sistema de CI minimalista baseado em mise tasks.
 
 ## Configuração
 
-Crie um arquivo `config.yaml` baseado em `exemplo.yaml`.
+O sistema é configurado preferencialmente via variáveis de ambiente com prefixo `MISE_CI_`.
+A estrutura segue o formato do arquivo de configuração (aninhamento separado por `_`).
+
+Exemplos:
+
+- `MISE_CI_SERVER_HTTP_ADDR`: Endereço de listen (ex: `:8080`)
+- `MISE_CI_JWT_SECRET`: Segredo JWT
+- `MISE_CI_FORGE_TYPE`: Tipo da forja (`github`)
+- `MISE_CI_FORGE_APP_ID`: App ID do GitHub
+- `MISE_CI_FORGE_PRIVATE_KEY`: Caminho para chave privada
+- `MISE_CI_FORGE_WEBHOOK_SECRET`: Segredo do webhook
+- `MISE_CI_RUNNER_TYPE`: Tipo do runner (`nomad`)
+- `MISE_CI_RUNNER_ADDR`: Endereço do Nomad
+- `MISE_CI_RUNNER_JOB_NAME`: Nome do job parametrizado
+- `MISE_CI_RUNNER_DEFAULT_IMAGE`: Imagem padrão do worker
 
 ## Uso
 
-1. Inicie a matriz:
+1. Inicie o agente (Matriz):
    ```bash
-   ./bin/matriz config.yaml
+   ./bin/mise-ci agent
    ```
 
-2. Configure o Webhook no GitHub apontando para `http://<seu-ip>:8080/webhook`.
-3. Configure o Job no Nomad usando `job.hcl`.
+2. O worker é iniciado automaticamente pelo Nomad, mas pode ser rodado manualmente:
+   ```bash
+   ./bin/mise-ci worker --callback "http://localhost:8080" --token "..."
+   ```
 
 ## Desenvolvimento
 

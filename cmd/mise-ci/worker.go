@@ -25,7 +25,7 @@ import (
 var workerCmd = &cobra.Command{
 	Use:   "worker",
 	Short: "Runs the worker agent",
-	Run:   runWorker,
+	RunE:  runWorker,
 }
 
 func init() {
@@ -36,11 +36,8 @@ func init() {
 	_ = viper.BindPFlag("token", workerCmd.Flags().Lookup("token"))
 }
 
-func runWorker(cmd *cobra.Command, args []string) {
-	if err := startWorker(); err != nil {
-		logger.Error("worker failed", "error", err)
-		os.Exit(1)
-	}
+func runWorker(cmd *cobra.Command, args []string) error {
+	return startWorker()
 }
 
 func startWorker() error {

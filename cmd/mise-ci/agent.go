@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"net"
 	"os"
 
@@ -22,7 +23,7 @@ import (
 var agentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Runs the Matriz server",
-	Run:   runAgent,
+	RunE:  runAgent,
 }
 
 func init() {
@@ -32,11 +33,10 @@ func init() {
 	_ = viper.BindPFlag("server.http_addr", agentCmd.Flags().Lookup("server.http_addr"))
 }
 
-func runAgent(cmd *cobra.Command, args []string) {
+func runAgent(cmd *cobra.Command, args []string) error {
 	var cfg config.Config
 	if err := viper.Unmarshal(&cfg); err != nil {
-		logger.Error("failed to unmarshal config", "error", err)
-		os.Exit(1)
+		return err
 	}
 
 	if cfg.JWT.Secret == "" {
@@ -51,13 +51,11 @@ func runAgent(cmd *cobra.Command, args []string) {
 	if cfg.Forge.Type == "github" {
 		key, err := os.ReadFile(cfg.Forge.PrivateKey)
 		if err != nil {
-			logger.Error("failed to read private key", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to read private key: %w", err)
 		}
 		f = github.NewGitHubForge(cfg.Forge.AppID, key, cfg.Forge.WebhookSecret)
 	} else {
-		logger.Error("unknown forge type", "type", cfg.Forge.Type)
-		os.Exit(1)
+		return fmt.Errorf("unknown forge type: %s", cfg.Forge.Type)
 	}
 
 	var r *nomad.NomadRunner
@@ -65,12 +63,10 @@ func runAgent(cmd *cobra.Command, args []string) {
 	if cfg.Runner.Type == "nomad" {
 		r, err = nomad.NewNomadRunner(cfg.Runner.Addr, cfg.Runner.JobName)
 		if err != nil {
-			logger.Error("failed to create runner", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to create runner: %w", err)
 		}
 	} else {
-		logger.Error("unknown runner type", "type", cfg.Runner.Type)
-		os.Exit(1)
+		return fmt.Errorf("unknown runner type: %s", cfg.Runner.Type)
 	}
 
 	core := matriz.NewCore(logger, cfg.JWT.Secret)
@@ -82,8 +78,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 	// Multiplex
 	lis, err := net.Listen("tcp", cfg.Server.HTTPAddr)
 	if err != nil {
-		logger.Error("failed to listen", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	m := cmux.New(lis)
@@ -107,6 +102,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 
 	logger.Info("agent listening", "addr", cfg.Server.HTTPAddr)
 	if err := m.Serve(); err != nil {
-		logger.Error("cmux serve error", "error", err)
+		return fmt.Errorf("cmux serve error: %w", err)
 	}
+	return nil
 }

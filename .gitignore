@@ -1,4 +1,3 @@
 bin/
-internal/proto/*.pb.go
 config.yaml
 *.pem
