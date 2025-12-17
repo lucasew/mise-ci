@@ -132,10 +132,11 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 	if err != nil {
 		// Normal closure
-		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-			s.logger.Info("worker closed connection normally", "run_id", runID)
-			return
-		}
+    var closeErr *websocket.CloseError
+    if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {
+      s.logger.Info("worker closed connection normally", "run_id", runID)
+      return
+    }
 
 		// Connection closed by us (after sending Close message)
 		var netErr *net.OpError
