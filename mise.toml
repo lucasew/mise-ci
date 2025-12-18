@@ -21,9 +21,10 @@ run = "golangci-lint run"
 run = "go test ./..."
 
 [tools]
-"github:sqlc-dev/sqlc" = "latest"
+"github:sqlc-dev/sqlc" = "1.30.0"
 go = "1.25.4"
 "go:golang.org/x/tools/gopls" = "latest"
+golangci-lint = "2.7.2"
 protoc = "33.2"
 protoc-gen-go = "1.36.11"
 protoc-gen-go-grpc = "1.6.0"
