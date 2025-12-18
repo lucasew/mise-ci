@@ -1,6 +1,8 @@
 job "mise-ci-run" {
   type = "batch"
 
+  priority = 0
+
   parameterized {
     payload       = "forbidden"
     meta_required = ["callback_url", "token"]
