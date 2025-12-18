@@ -133,8 +133,8 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 
 func (r *Repository) UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error {
 	var finishedAt sql.NullTime
-	// Finished states: success, failure, error
-	if status == "success" || status == "failure" || status == "error" {
+	// Finished states: success, failure, error, skipped
+	if status == "success" || status == "failure" || status == "error" || status == "skipped" {
 		finishedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	}
 
