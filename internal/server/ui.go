@@ -191,6 +191,44 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *UIServer) HandleRunLogsText(w http.ResponseWriter, r *http.Request) {
+	// Extract run ID using PathValue if available (Go 1.22+)
+	// But since we might be behind a prefix handler or middleware logic, let's be safe.
+	// If using mux.HandleFunc("/ui/run/{run_id}.log", ...), r.PathValue("run_id") would work.
+	// But let's check how it's called.
+	// For robustness with the auth middleware logic, we can grab it from path manually or assume path value works.
+	runID := r.PathValue("run_id")
+	if runID == "" {
+		// Fallback for prefix matching if not using wildcards correctly
+		path := strings.TrimPrefix(r.URL.Path, "/ui/run/")
+		runID = strings.TrimSuffix(path, ".log")
+	}
+
+	if runID == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Check if run exists
+	_, ok := s.core.GetRunInfo(runID)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	logs, err := s.core.GetLogsFromRepository(r.Context(), runID)
+	if err != nil {
+		s.logger.Error("failed to get logs", "error", err, "run_id", runID)
+		httputil.WriteError(w, http.StatusInternalServerError, "Failed to fetch logs")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	for _, log := range logs {
+		fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, log.Data)
+	}
+}
+
 func (s *UIServer) HandleStatusStream(w http.ResponseWriter, r *http.Request) {
 	sseutil.SetHeaders(w)
 

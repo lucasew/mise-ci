@@ -3,6 +3,10 @@
 
     <h1>Run: {{.Run.ID}}</h1>
 
+    <div style="margin-bottom: 20px;">
+        <a href="/ui/run/{{.Run.ID}}.log{{if .Token}}?token={{.Token}}{{end}}" target="_blank" class="button">Raw Logs</a>
+    </div>
+
     <div class="info-section" data-status="{{.Run.Status}}" data-started="{{.Run.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .Run.FinishedAt}}{{.Run.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
         <div class="info-item">
             <span class="info-label">Status:</span>
