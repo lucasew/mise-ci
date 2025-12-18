@@ -22,7 +22,7 @@ run = "go test ./..."
 
 [tools]
 "github:sqlc-dev/sqlc" = "1.30.0"
-go = "1.25.4"
+go = "1.25.5"
 "go:golang.org/x/tools/gopls" = "latest"
 golangci-lint = "2.7.2"
 protoc = "33.2"
