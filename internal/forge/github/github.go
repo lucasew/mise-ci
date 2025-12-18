@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -134,12 +135,74 @@ func (g *GitHubForge) UpdateStatus(ctx context.Context, repo, sha string, status
 	return err
 }
 
-func (g *GitHubForge) UploadArtifact(ctx context.Context, repo string, runID string, name string, data io.Reader) error {
-	return fmt.Errorf("not implemented")
-}
-
 func (g *GitHubForge) UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error {
-	return fmt.Errorf("not implemented")
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repo format: %s", repo)
+	}
+	owner, nameRepo := parts[0], parts[1]
+
+	// 1. Authenticate as installation
+	client, err := g.getAppClient()
+	if err != nil {
+		return fmt.Errorf("get app client: %w", err)
+	}
+
+	inst, _, err := client.Apps.FindRepositoryInstallation(ctx, owner, nameRepo)
+	if err != nil {
+		return fmt.Errorf("find installation: %w", err)
+	}
+
+	token, _, err := client.Apps.CreateInstallationToken(ctx, inst.GetID(), nil)
+	if err != nil {
+		return fmt.Errorf("create installation token: %w", err)
+	}
+
+	instClient := github.NewClient(nil).WithAuthToken(token.GetToken())
+
+	// 2. Find existing release by tag
+	release, _, err := instClient.Repositories.GetReleaseByTag(ctx, owner, nameRepo, tag)
+	if err != nil {
+		// Differentiate 404 from other errors if possible, or just wrap
+		// For now, we wrap. Note that we do NOT create releases.
+		return fmt.Errorf("get release by tag '%s': %w", tag, err)
+	}
+
+	// 3. Create a temporary file for the upload
+	// go-github requires an *os.File (or something stat-able?)
+	// Actually UploadReleaseAsset takes an *os.File usually or io.Reader?
+	// Checking the library source or docs is good, but based on common usage:
+	// UploadReleaseAsset(ctx, owner, repo, id, opts, file)
+	// 'file' is usually an *os.File. If it accepts io.Reader directly it might need size?
+	// Let's create a temp file to be safe and efficient with memory for large assets.
+
+	tmpFile, err := os.CreateTemp("", "mise-release-asset-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	if _, err := io.Copy(tmpFile, data); err != nil {
+		return fmt.Errorf("write to temp file: %w", err)
+	}
+
+	// Rewind file to beginning
+	if _, err := tmpFile.Seek(0, 0); err != nil {
+		return fmt.Errorf("seek temp file: %w", err)
+	}
+
+	// 4. Upload the asset
+	opts := &github.UploadOptions{
+		Name: name,
+	}
+
+	_, _, err = instClient.Repositories.UploadReleaseAsset(ctx, owner, nameRepo, release.GetID(), opts, tmpFile)
+	if err != nil {
+		return fmt.Errorf("upload release asset: %w", err)
+	}
+
+	return nil
 }
 
 func (g *GitHubForge) getAppClient() (*github.Client, error) {

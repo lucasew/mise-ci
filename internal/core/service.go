@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/lucasew/mise-ci/internal/artifacts"
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/httputil"
@@ -25,20 +26,22 @@ var testProjectMiseToml string
 
 
 type Service struct {
-	Core   *Core
-	Forges []forge.Forge
-	Runner runner.Runner
-	Config *config.Config
-	Logger *slog.Logger
+	Core            *Core
+	Forges          []forge.Forge
+	Runner          runner.Runner
+	ArtifactStorage artifacts.Storage
+	Config          *config.Config
+	Logger          *slog.Logger
 }
 
-func NewService(core *Core, forges []forge.Forge, r runner.Runner, cfg *config.Config, logger *slog.Logger) *Service {
+func NewService(core *Core, forges []forge.Forge, r runner.Runner, artifactStorage artifacts.Storage, cfg *config.Config, logger *slog.Logger) *Service {
 	return &Service{
-		Core:   core,
-		Forges: forges,
-		Runner: r,
-		Config: cfg,
-		Logger: logger,
+		Core:            core,
+		Forges:          forges,
+		Runner:          r,
+		ArtifactStorage: artifactStorage,
+		Config:          cfg,
+		Logger:          logger,
 	}
 }
 

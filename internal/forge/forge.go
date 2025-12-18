@@ -16,9 +16,6 @@ type Forge interface {
 	// UpdateStatus updates commit status
 	UpdateStatus(ctx context.Context, repo, sha string, status Status) error
 
-	// UploadArtifact uploads run artifact
-	UploadArtifact(ctx context.Context, repo string, runID string, name string, data io.Reader) error
-
 	// UploadReleaseAsset uploads asset to release
 	UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/lucasew/mise-ci/internal/artifacts"
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
@@ -101,8 +102,11 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	defer repo.Close()
 	logger.Info("repository initialized", "path", dbPath)
 
+	artifactStorage := artifacts.NewLocalStorage(filepath.Join(dataDir, "artifacts"))
+	logger.Info("artifact storage initialized", "path", filepath.Join(dataDir, "artifacts"))
+
 	appCore := core.NewCore(logger, cfg.JWT.Secret, repo)
-	svc := core.NewService(appCore, forges, r, &cfg, logger)
+	svc := core.NewService(appCore, forges, r, artifactStorage, &cfg, logger)
 
 	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{
 		AdminUsername: cfg.Auth.AdminUsername,
