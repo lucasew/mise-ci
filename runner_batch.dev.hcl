@@ -35,7 +35,7 @@ job "mise-ci-run" {
 
       resources {
         cpu    = 1000
-        memory = 1024
+        memory = 1024 # TODO: package from binary
       }
     }
   }
