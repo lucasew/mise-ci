@@ -107,6 +107,7 @@ func startWorker() error {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				break
 			}
+			logger.Error("failed to read message", "error", err)
 			return fmt.Errorf("read error: %w", err)
 		}
 
@@ -128,14 +129,40 @@ func startWorker() error {
 		switch payload := msg.Payload.(type) {
 		case *pb.ServerMessage_Copy:
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Error("panic in copy handler", "panic", r)
+						wsendError(conn, msg.Id, fmt.Errorf("panic: %v", r))
+					}
+				}()
 				defer cancel()
+
+				if payload.Copy == nil {
+					logger.Error("received copy message with nil payload")
+					wsendError(conn, msg.Id, fmt.Errorf("nil copy payload"))
+					return
+				}
+
 				if err := handleCopy(opCtx, conn, msg.Id, payload.Copy, logger); err != nil {
 					wsendError(conn, msg.Id, err)
 				}
 			}()
 		case *pb.ServerMessage_Run:
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						logger.Error("panic in run handler", "panic", r)
+						wsendError(conn, msg.Id, fmt.Errorf("panic: %v", r))
+					}
+				}()
 				defer cancel()
+
+				if payload.Run == nil {
+					logger.Error("received run message with nil payload")
+					wsendError(conn, msg.Id, fmt.Errorf("nil run payload"))
+					return
+				}
+
 				if err := handleRun(opCtx, conn, msg.Id, payload.Run, logger); err != nil {
 					wsendError(conn, msg.Id, err)
 				}
