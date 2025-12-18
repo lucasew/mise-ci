@@ -18,6 +18,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/orchestration"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/runner"
+	"strings"
 )
 
 //go:embed testdata/mise.toml
@@ -308,16 +309,40 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	if !s.runCommand(run, 4, env, "mise", "run", "ci") {
+	// Check if 'ci' task exists
+	tasksOutput, err := s.runCommandCapture(run, 4, env, "mise", "tasks")
+	if err != nil {
+		s.Logger.Error("failed to list tasks", "error", err)
+		// Don't fail the build if we can't list tasks, just try running CI?
+		// Or fail because something is wrong with mise?
+		// Assuming fail.
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
+	}
+
+	hasCITask := false
+	for _, line := range strings.Split(tasksOutput, "\n") {
+		if strings.TrimSpace(line) == "ci" {
+			hasCITask = true
+			break
+		}
+	}
+
+	if hasCITask {
+		if !s.runCommand(run, 5, env, "mise", "run", "ci") {
+			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
+			return false
+		}
+	} else {
+		s.Logger.Info("no 'ci' task found, skipping")
+		s.Core.AddLog(run.ID, "system", "No 'ci' task found in mise.toml, skipping CI step.")
 	}
 
 	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
 	s.Core.AddLog(run.ID, "system", "Build completed successfully")
 
 	run.CommandCh <- &pb.ServerMessage{
-		Id: 5,
+		Id: 6,
 		Payload: &pb.ServerMessage_Close{
 			Close: &pb.Close{},
 		},
@@ -339,6 +364,40 @@ func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd
 		return fmt.Errorf("command failed: %s", cmd)
 	}
 	return nil
+}
+
+// runCommandCapture executes a command and captures stdout, returning it as a string
+func (s *Service) runCommandCapture(run *Run, id uint64, env map[string]string, cmd string, args ...string) (string, error) {
+	s.Logger.Info("executing command capture", "cmd", cmd, "args", args)
+	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
+
+	var outputBuilder strings.Builder
+	success := false
+
+	// Custom loop to capture output
+	for msg := range run.ResultCh {
+		switch payload := msg.Payload.(type) {
+		case *pb.WorkerMessage_Done:
+			if payload.Done.ExitCode != 0 {
+				return outputBuilder.String(), fmt.Errorf("exit code %d", payload.Done.ExitCode)
+			}
+			success = true
+			goto Done
+		case *pb.WorkerMessage_Error:
+			return outputBuilder.String(), fmt.Errorf("worker error: %s", payload.Error.Message)
+		case *pb.WorkerMessage_Output:
+			if payload.Output.Stream == pb.Output_STDOUT {
+				outputBuilder.Write(payload.Output.Data)
+			}
+			// We don't log to user logs here to keep it clean, unless debugging is needed
+		}
+	}
+
+Done:
+	if success {
+		return outputBuilder.String(), nil
+	}
+	return outputBuilder.String(), fmt.Errorf("stream closed unexpectedly")
 }
 
 // copyFileToWorker sends a file to the worker
