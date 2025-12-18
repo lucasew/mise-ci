@@ -2,6 +2,7 @@
     <h1>mise-ci</h1>
 
     <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+    <button class="dispatch-btn" onclick="dispatchTestJob()">Dispatch Test Job</button>
 
     <h2>Runs</h2>
 
@@ -92,5 +93,36 @@
 
         // Update every second
         setInterval(updateDurations, 1000);
+
+        function dispatchTestJob() {
+            const btn = document.querySelector('.dispatch-btn');
+            const originalText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = 'Dispatching...';
+
+            fetch('/test/dispatch', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.ui_url) {
+                    window.location.href = data.ui_url;
+                } else {
+                    alert('Job dispatched but no UI URL returned');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to dispatch test job: ' + error.message);
+                btn.disabled = false;
+                btn.innerText = originalText;
+            });
+        }
     </script>
 {{end}}

@@ -51,7 +51,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/validate", s.handleValidate)
 	mux.HandleFunc("/ws", s.wsServer.HandleConnect)
 	mux.HandleFunc("/webhook", s.service.HandleWebhook)
-	mux.HandleFunc("/test/dispatch", s.service.HandleTestDispatch)
+	mux.HandleFunc("/test/dispatch", s.authMiddleware.RequireBasicAuth(s.service.HandleTestDispatch))
 
 	// UI routes
 	mux.HandleFunc("/ui/", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleIndex))
