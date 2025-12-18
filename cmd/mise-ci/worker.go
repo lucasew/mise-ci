@@ -51,11 +51,12 @@ func startWorker() error {
 	wsURL := callback
 	if u, err := url.Parse(callback); err == nil {
 		// Convert http:// to ws:// and https:// to wss://
-		if u.Scheme == "http" {
+		switch u.Scheme {
+		case "http":
 			u.Scheme = "ws"
-		} else if u.Scheme == "https" {
+		case "https":
 			u.Scheme = "wss"
-		} else if u.Scheme == "" {
+		case "":
 			u.Scheme = "ws"
 		}
 		u.Path = "/ws"
@@ -72,7 +73,11 @@ func startWorker() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			logger.Error("failed to close websocket connection", "error", err)
+		}
+	}()
 
 	// Send handshake
 	hostname, _ := os.Hostname()
@@ -175,7 +180,8 @@ func wsendError(conn *websocket.Conn, id uint64, err error) {
 func handleCopy(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
 	logger.Info("handling copy", "direction", cmd.Direction, "source", cmd.Source, "dest", cmd.Dest)
 
-	if cmd.Direction == pb.Copy_TO_WORKER {
+	switch cmd.Direction {
+	case pb.Copy_TO_WORKER:
 		// Receive file data from server (sent inline in Copy message)
 		if err := os.WriteFile(cmd.Dest, cmd.Data, 0644); err != nil {
 			return fmt.Errorf("failed to write file: %w", err)
@@ -188,31 +194,8 @@ func handleCopy(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Co
 				Done: &pb.Done{ExitCode: 0},
 			},
 		})
-	} else if cmd.Direction == pb.Copy_FROM_WORKER {
+	case pb.Copy_FROM_WORKER:
 		return sendFile(ctx, conn, id, cmd.Source, logger)
-	}
-	return nil
-}
-
-func gitClone(ctx context.Context, cmd *pb.Copy, logger *slog.Logger) error {
-	u, err := url.Parse(cmd.Source)
-	if err != nil {
-		return err
-	}
-
-	if cmd.Creds != nil {
-		if t := cmd.Creds.GetToken(); t != "" {
-			u.User = url.UserPassword("x-access-token", t)
-		} else if b := cmd.Creds.GetBasic(); b != nil {
-			u.User = url.UserPassword(b.Username, b.Password)
-		}
-	}
-
-	c := exec.CommandContext(ctx, "git", "clone", u.String(), cmd.Dest)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	if err := c.Run(); err != nil {
-		return fmt.Errorf("git clone failed: %w", err)
 	}
 	return nil
 }
@@ -222,7 +205,11 @@ func sendFile(ctx context.Context, conn *websocket.Conn, id uint64, path string,
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			logger.Error("failed to close file", "error", err)
+		}
+	}()
 
 	buf := make([]byte, 1024*64)
 	for {

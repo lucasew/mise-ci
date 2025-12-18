@@ -20,7 +20,9 @@ nomad:
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmp.Name())
+	defer func() {
+		_ = os.Remove(tmp.Name())
+	}()
 	if _, err := tmp.Write([]byte(content)); err != nil {
 		t.Fatal(err)
 	}

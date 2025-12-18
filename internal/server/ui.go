@@ -163,11 +163,13 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Send historical logs
 		for _, log := range historicalLogs {
-			sseutil.WriteEvent(w, map[string]interface{}{
+			if err := sseutil.WriteEvent(w, map[string]interface{}{
 				"timestamp": log.Timestamp.Format(time.RFC3339),
 				"stream":    log.Stream,
 				"data":      log.Data,
-			})
+			}); err != nil {
+				s.logger.Warn("failed to write sse event", "error", err)
+			}
 		}
 		sseutil.Flush(w)
 	}
@@ -179,11 +181,13 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			sseutil.WriteEvent(w, map[string]interface{}{
+			if err := sseutil.WriteEvent(w, map[string]interface{}{
 				"timestamp": log.Timestamp.Format(time.RFC3339),
 				"stream":    log.Stream,
 				"data":      log.Data,
-			})
+			}); err != nil {
+				s.logger.Warn("failed to write sse event", "error", err)
+			}
 			sseutil.Flush(w)
 		case <-r.Context().Done():
 			return
@@ -228,7 +232,9 @@ func (s *UIServer) HandleRunLogsText(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	for _, log := range logs {
-		fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, log.Data)
+		if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, log.Data); err != nil {
+			s.logger.Warn("failed to write log line", "error", err)
+		}
 	}
 }
 
@@ -262,7 +268,9 @@ func (s *UIServer) HandleStatusStream(w http.ResponseWriter, r *http.Request) {
 				data["exit_code"] = *status.ExitCode
 			}
 
-			sseutil.WriteEvent(w, data)
+			if err := sseutil.WriteEvent(w, data); err != nil {
+				s.logger.Warn("failed to write sse event", "error", err)
+			}
 			sseutil.Flush(w)
 		case <-r.Context().Done():
 			return

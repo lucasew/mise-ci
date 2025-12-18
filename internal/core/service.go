@@ -120,7 +120,9 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.Logger.Error("failed to encode response", "error", err)
+	}
 }
 
 func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
@@ -136,7 +138,11 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 		s.Core.UpdateStatus(run.ID, StatusError, nil)
 		return
 	}
-	defer os.RemoveAll(testDir)
+	defer func() {
+		if err := os.RemoveAll(testDir); err != nil {
+			s.Logger.Error("failed to remove test directory", "path", testDir, "error", err)
+		}
+	}()
 
 	// Write mise.toml
 	miseTomlPath := testDir + "/mise.toml"
@@ -240,7 +246,9 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		s.Logger.Error("dispatch job", "error", err)
 		status.State = forge.StateError
 		status.Description = "Failed to dispatch job"
-		f.UpdateStatus(ctx, event.Repo, event.SHA, status)
+		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+			s.Logger.Error("update status failed", "error", err)
+		}
 		return
 	}
 
@@ -483,7 +491,11 @@ func (s *Service) receiveFile(run *Run, destPath string, context string) bool {
 		s.Logger.Error("failed to create file", "error", err, "path", destPath)
 		return false
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.Logger.Error("failed to close file", "path", destPath, "error", err)
+		}
+	}()
 
 	for msg := range run.ResultCh {
 		switch payload := msg.Payload.(type) {

@@ -119,7 +119,11 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		}
 		logger.Info("repository initialized (sqlite)", "path", dbPath)
 	}
-	defer repo.Close()
+	defer func() {
+		if err := repo.Close(); err != nil {
+			logger.Error("failed to close repository", "error", err)
+		}
+	}()
 
 	artifactStorage := artifacts.NewLocalStorage(filepath.Join(dataDir, "artifacts"))
 	logger.Info("artifact storage initialized", "path", filepath.Join(dataDir, "artifacts"))
@@ -232,7 +236,11 @@ func validatePublicURL(cfg *config.Config, logger *slog.Logger) {
 		logger.Error("check your network configuration, firewall rules, and public_url setting")
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		logger.Error("public URL returned unexpected status", "url", validateURL, "status", resp.StatusCode)

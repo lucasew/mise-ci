@@ -27,12 +27,12 @@ func WriteEvent(w http.ResponseWriter, data interface{}) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "data: %s\n\n", jsonData)
-	return nil
+	_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+	return err
 }
 
 // WriteEventString writes an SSE event with data as a string
 func WriteEventString(w http.ResponseWriter, eventData string) error {
-	fmt.Fprintf(w, "data: %s\n\n", eventData)
-	return nil
+	_, err := fmt.Fprintf(w, "data: %s\n\n", eventData)
+	return err
 }
