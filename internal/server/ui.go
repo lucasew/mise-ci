@@ -198,7 +198,10 @@ func (s *UIServer) HandleRunLogsText(w http.ResponseWriter, r *http.Request) {
 	// But let's check how it's called.
 	// For robustness with the auth middleware logic, we can grab it from path manually or assume path value works.
 	runID := r.PathValue("run_id")
-	if runID == "" {
+	if runID != "" {
+		// Strip .log suffix if present (since wildcard might capture it)
+		runID = strings.TrimSuffix(runID, ".log")
+	} else {
 		// Fallback for prefix matching if not using wildcards correctly
 		path := strings.TrimPrefix(r.URL.Path, "/ui/run/")
 		runID = strings.TrimSuffix(path, ".log")
