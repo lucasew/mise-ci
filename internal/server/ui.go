@@ -14,6 +14,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/httputil"
 	"github.com/lucasew/mise-ci/internal/sseutil"
+	"github.com/lucasew/mise-ci/internal/version"
 )
 
 //go:embed templates/*
@@ -84,9 +85,10 @@ func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title": "Runs",
-		"Runs":  runs,
-		"Token": token,
+		"Title":   "Runs",
+		"Runs":    runs,
+		"Token":   token,
+		"Version": version.Get(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/index.html", data); err != nil {
@@ -120,9 +122,10 @@ func (s *UIServer) HandleRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title": fmt.Sprintf("Run %s", info.ID),
-		"Run":   info,
-		"Token": token,
+		"Title":   fmt.Sprintf("Run %s", info.ID),
+		"Run":     info,
+		"Token":   token,
+		"Version": version.Get(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/run.html", data); err != nil {

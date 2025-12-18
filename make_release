@@ -7,7 +7,7 @@ else
 	exit 1
 fi
 
-CURRENT_VERSION=($(cat version.txt | sed 's;\.; ;g'))
+CURRENT_VERSION=($(cat internal/version/version.txt | sed 's;\.; ;g'))
 
 case "$VERSION" in
 	patch)
@@ -23,9 +23,9 @@ esac
 
 # echo new version: $VERSION
 # exit 0
-printf "%s" "$VERSION" > version.txt
+printf "%s" "$VERSION" > internal/version/version.txt
 
-git add version.txt
+git add internal/version/version.txt
 git commit -sm "bump to $VERSION"
 if [[ ! -v NO_TAG ]]; then
 	git tag "$VERSION"
