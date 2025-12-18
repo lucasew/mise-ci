@@ -142,8 +142,8 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	logCh := s.core.SubscribeLogs(runID)
 	defer s.core.UnsubscribeLogs(runID, logCh)
 
-	// Check if run exists and get initial history
-	info, ok := s.core.GetRunInfo(runID)
+	// Check if run exists
+	_, ok := s.core.GetRunInfo(runID)
 	if !ok {
 		http.NotFound(w, r)
 		return

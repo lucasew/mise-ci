@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "modernc.org/sqlite"
 
-	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/repository"
 )
 
@@ -75,12 +75,22 @@ func runMigrations(db *sql.DB) error {
 }
 
 func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata) error {
+	var finishedAt sql.NullTime
+	if meta.FinishedAt != nil {
+		finishedAt = sql.NullTime{Time: *meta.FinishedAt, Valid: true}
+	}
+
+	var exitCode sql.NullInt64
+	if meta.ExitCode != nil {
+		exitCode = sql.NullInt64{Int64: int64(*meta.ExitCode), Valid: true}
+	}
+
 	return r.queries.CreateRun(ctx, CreateRunParams{
 		ID:         meta.ID,
 		Status:     string(meta.Status),
 		StartedAt:  meta.StartedAt,
-		FinishedAt: meta.FinishedAt,
-		ExitCode:   meta.ExitCode,
+		FinishedAt: finishedAt,
+		ExitCode:   exitCode,
 		UiToken:    meta.UIToken,
 	})
 }
@@ -91,26 +101,43 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		return nil, err
 	}
 
+	var finishedAt *time.Time
+	if row.FinishedAt.Valid {
+		finishedAt = &row.FinishedAt.Time
+	}
+
+	var exitCode *int32
+	if row.ExitCode.Valid {
+		code := int32(row.ExitCode.Int64)
+		exitCode = &code
+	}
+
 	return &repository.RunMetadata{
 		ID:         row.ID,
-		Status:     core.RunStatus(row.Status),
+		Status:     row.Status,
 		StartedAt:  row.StartedAt,
-		FinishedAt: row.FinishedAt,
-		ExitCode:   row.ExitCode,
+		FinishedAt: finishedAt,
+		ExitCode:   exitCode,
 		UIToken:    row.UiToken,
 	}, nil
 }
 
-func (r *Repository) UpdateRunStatus(ctx context.Context, runID string, status core.RunStatus, exitCode *int32) error {
-	var finishedAt *sql.NullTime
-	if status == core.StatusSuccess || status == core.StatusFailure || status == core.StatusError {
-		finishedAt = &sql.NullTime{Valid: true}
+func (r *Repository) UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error {
+	var finishedAt sql.NullTime
+	// Finished states: success, failure, error
+	if status == "success" || status == "failure" || status == "error" {
+		finishedAt = sql.NullTime{Time: time.Now(), Valid: true}
+	}
+
+	var exitCodeDB sql.NullInt64
+	if exitCode != nil {
+		exitCodeDB = sql.NullInt64{Int64: int64(*exitCode), Valid: true}
 	}
 
 	return r.queries.UpdateRunStatus(ctx, UpdateRunStatusParams{
 		ID:         runID,
-		Status:     string(status),
-		ExitCode:   exitCode,
+		Status:     status,
+		ExitCode:   exitCodeDB,
 		FinishedAt: finishedAt,
 	})
 }
@@ -123,12 +150,23 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 
 	runs := make([]*repository.RunMetadata, len(rows))
 	for i, row := range rows {
+		var finishedAt *time.Time
+		if row.FinishedAt.Valid {
+			finishedAt = &row.FinishedAt.Time
+		}
+
+		var exitCode *int32
+		if row.ExitCode.Valid {
+			code := int32(row.ExitCode.Int64)
+			exitCode = &code
+		}
+
 		runs[i] = &repository.RunMetadata{
 			ID:         row.ID,
-			Status:     core.RunStatus(row.Status),
+			Status:     row.Status,
 			StartedAt:  row.StartedAt,
-			FinishedAt: row.FinishedAt,
-			ExitCode:   row.ExitCode,
+			FinishedAt: finishedAt,
+			ExitCode:   exitCode,
 			UIToken:    row.UiToken,
 		}
 	}
@@ -136,7 +174,7 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 	return runs, nil
 }
 
-func (r *Repository) AppendLog(ctx context.Context, runID string, entry core.LogEntry) error {
+func (r *Repository) AppendLog(ctx context.Context, runID string, entry repository.LogEntry) error {
 	return r.queries.AppendLog(ctx, AppendLogParams{
 		RunID:     runID,
 		Timestamp: entry.Timestamp,
@@ -145,15 +183,15 @@ func (r *Repository) AppendLog(ctx context.Context, runID string, entry core.Log
 	})
 }
 
-func (r *Repository) GetLogs(ctx context.Context, runID string) ([]core.LogEntry, error) {
+func (r *Repository) GetLogs(ctx context.Context, runID string) ([]repository.LogEntry, error) {
 	rows, err := r.queries.GetLogs(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
 
-	logs := make([]core.LogEntry, len(rows))
+	logs := make([]repository.LogEntry, len(rows))
 	for i, row := range rows {
-		logs[i] = core.LogEntry{
+		logs[i] = repository.LogEntry{
 			Timestamp: row.Timestamp,
 			Stream:    row.Stream,
 			Data:      row.Data,

@@ -107,7 +107,7 @@ func (c *Core) CreateRun(id string) *Run {
 	// Persist to repository
 	metadata := &repository.RunMetadata{
 		ID:        id,
-		Status:    StatusScheduled,
+		Status:    string(StatusScheduled),
 		StartedAt: time.Now(),
 		UIToken:   uiToken,
 	}
@@ -217,7 +217,12 @@ func (c *Core) AddLog(runID string, stream string, data string) {
 	// Persist async (não bloquear worker!)
 	go func() {
 		ctx := context.Background()
-		if err := c.repo.AppendLog(ctx, runID, entry); err != nil {
+		repoEntry := repository.LogEntry{
+			Timestamp: entry.Timestamp,
+			Stream:    entry.Stream,
+			Data:      entry.Data,
+		}
+		if err := c.repo.AppendLog(ctx, runID, repoEntry); err != nil {
 			c.logger.Error("failed to persist log", "error", err, "run_id", runID)
 		}
 	}()
@@ -252,7 +257,7 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 	// Persist to repository (async)
 	go func() {
 		ctx := context.Background()
-		if err := c.repo.UpdateRunStatus(ctx, runID, status, exitCode); err != nil {
+		if err := c.repo.UpdateRunStatus(ctx, runID, string(status), exitCode); err != nil {
 			c.logger.Error("failed to persist status", "error", err, "run_id", runID)
 		}
 	}()
@@ -325,5 +330,19 @@ func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 }
 
 func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEntry, error) {
-	return c.repo.GetLogs(ctx, runID)
+	repoLogs, err := c.repo.GetLogs(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+
+	logs := make([]LogEntry, len(repoLogs))
+	for i, repoLog := range repoLogs {
+		logs[i] = LogEntry{
+			Timestamp: repoLog.Timestamp,
+			Stream:    repoLog.Stream,
+			Data:      repoLog.Data,
+		}
+	}
+
+	return logs, nil
 }

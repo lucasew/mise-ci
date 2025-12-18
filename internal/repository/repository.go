@@ -3,8 +3,6 @@ package repository
 import (
 	"context"
 	"time"
-
-	"github.com/lucasew/mise-ci/internal/core"
 )
 
 // Repository defines the storage abstraction for run information
@@ -12,12 +10,12 @@ type Repository interface {
 	// Run lifecycle
 	CreateRun(ctx context.Context, meta *RunMetadata) error
 	GetRun(ctx context.Context, runID string) (*RunMetadata, error)
-	UpdateRunStatus(ctx context.Context, runID string, status core.RunStatus, exitCode *int32) error
+	UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error
 	ListRuns(ctx context.Context) ([]*RunMetadata, error)
 
 	// Log operations
-	AppendLog(ctx context.Context, runID string, entry core.LogEntry) error
-	GetLogs(ctx context.Context, runID string) ([]core.LogEntry, error)
+	AppendLog(ctx context.Context, runID string, entry LogEntry) error
+	GetLogs(ctx context.Context, runID string) ([]LogEntry, error)
 
 	// Cleanup
 	Close() error
@@ -26,9 +24,16 @@ type Repository interface {
 // RunMetadata represents persistent run information (without logs)
 type RunMetadata struct {
 	ID         string
-	Status     core.RunStatus
+	Status     string
 	StartedAt  time.Time
 	FinishedAt *time.Time
 	ExitCode   *int32
 	UIToken    string
+}
+
+// LogEntry represents a single log line
+type LogEntry struct {
+	Timestamp time.Time
+	Stream    string // "stdout", "stderr", "system"
+	Data      string
 }
