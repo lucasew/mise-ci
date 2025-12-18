@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS log_entries;
+DROP TABLE IF EXISTS runs;

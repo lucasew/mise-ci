@@ -20,6 +20,8 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/forge/github"
+	"github.com/lucasew/mise-ci/internal/repository"
+	"github.com/lucasew/mise-ci/internal/repository/postgres"
 	"github.com/lucasew/mise-ci/internal/repository/sqlite"
 	"github.com/lucasew/mise-ci/internal/runner/nomad"
 	"github.com/lucasew/mise-ci/internal/server"
@@ -94,13 +96,27 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	if dataDir == "" {
 		dataDir = "./data"
 	}
-	dbPath := filepath.Join(dataDir, "runs.db")
-	repo, err := sqlite.NewRepository(dbPath)
-	if err != nil {
-		return fmt.Errorf("failed to create repository: %w", err)
+
+	var repo repository.Repository
+	if cfg.Database.Driver == "postgres" {
+		logger.Info("using postgres storage")
+		repo, err = postgres.NewRepository(cfg.Database.DSN)
+		if err != nil {
+			return fmt.Errorf("failed to create postgres repository: %w", err)
+		}
+	} else {
+		// Default to SQLite
+		dbPath := cfg.Database.DSN
+		if dbPath == "" {
+			dbPath = filepath.Join(dataDir, "runs.db")
+		}
+		repo, err = sqlite.NewRepository(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to create repository: %w", err)
+		}
+		logger.Info("repository initialized", "path", dbPath)
 	}
 	defer repo.Close()
-	logger.Info("repository initialized", "path", dbPath)
 
 	artifactStorage := artifacts.NewLocalStorage(filepath.Join(dataDir, "artifacts"))
 	logger.Info("artifact storage initialized", "path", filepath.Join(dataDir, "artifacts"))
