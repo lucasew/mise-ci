@@ -47,7 +47,6 @@ type RunInfo struct {
 
 type Core struct {
 	runs           map[string]*Run
-	runInfo        map[string]*RunInfo
 	repo           repository.Repository
 	mu             sync.RWMutex
 	logger         *slog.Logger
@@ -67,7 +66,6 @@ type Run struct {
 func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {
 	return &Core{
 		runs:           make(map[string]*Run),
-		runInfo:        make(map[string]*RunInfo),
 		repo:           repo,
 		logger:         logger,
 		jwtSecret:      []byte(secret),
@@ -95,16 +93,7 @@ func (c *Core) CreateRun(id string) *Run {
 		// We continue without a token, but this shouldn't happen
 	}
 
-	info := &RunInfo{
-		ID:        id,
-		Status:    StatusScheduled,
-		StartedAt: time.Now(),
-		Logs:      make([]LogEntry, 0),
-		UIToken:   uiToken,
-	}
-	c.runInfo[id] = info
-
-	// Persist to repository
+	// Save to database
 	metadata := &repository.RunMetadata{
 		ID:        id,
 		Status:    string(StatusScheduled),
@@ -114,13 +103,16 @@ func (c *Core) CreateRun(id string) *Run {
 
 	ctx := context.Background()
 	if err := c.repo.CreateRun(ctx, metadata); err != nil {
-		c.logger.Error("failed to persist run", "error", err, "run_id", id)
+		c.logger.Error("failed to create run in database", "error", err, "run_id", id)
 	}
 
-	// Broadcast new run to status listeners
-	infoCopy := *info
-	infoCopy.Logs = nil
-	c.statusListener.Broadcast(infoCopy)
+	// Broadcast to status listeners
+	c.statusListener.Broadcast(RunInfo{
+		ID:        id,
+		Status:    StatusScheduled,
+		StartedAt: metadata.StartedAt,
+		UIToken:   uiToken,
+	})
 
 	return run
 }
@@ -182,11 +174,9 @@ func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) 
 }
 
 func (c *Core) GetRunUIURL(runID string, baseURL string) string {
-	c.mu.RLock()
-	info, ok := c.runInfo[runID]
-	c.mu.RUnlock()
-
-	if !ok || info.UIToken == "" {
+	ctx := context.Background()
+	meta, err := c.repo.GetRun(ctx, runID)
+	if err != nil || meta.UIToken == "" {
 		return ""
 	}
 
@@ -195,107 +185,102 @@ func (c *Core) GetRunUIURL(runID string, baseURL string) string {
 		baseURL = baseURL[:len(baseURL)-1]
 	}
 
-	return fmt.Sprintf("%s/ui/run/%s?token=%s", baseURL, runID, info.UIToken)
+	return fmt.Sprintf("%s/ui/run/%s?token=%s", baseURL, runID, meta.UIToken)
 }
 
 func (c *Core) AddLog(runID string, stream string, data string) {
-	c.mu.Lock()
-	info, ok := c.runInfo[runID]
-	if !ok {
-		c.mu.Unlock()
-		return
-	}
-
 	entry := LogEntry{
 		Timestamp: time.Now(),
 		Stream:    stream,
 		Data:      data,
 	}
 
-	info.Logs = append(info.Logs, entry)
+	// Save to database (sync - não pode perder logs!)
+	ctx := context.Background()
+	repoEntry := repository.LogEntry{
+		Timestamp: entry.Timestamp,
+		Stream:    entry.Stream,
+		Data:      entry.Data,
+	}
+	if err := c.repo.AppendLog(ctx, runID, repoEntry); err != nil {
+		c.logger.Error("failed to persist log", "error", err, "run_id", runID)
+	}
 
-	// Persist async (não bloquear worker!)
-	go func() {
-		ctx := context.Background()
-		repoEntry := repository.LogEntry{
-			Timestamp: entry.Timestamp,
-			Stream:    entry.Stream,
-			Data:      entry.Data,
-		}
-		if err := c.repo.AppendLog(ctx, runID, repoEntry); err != nil {
-			c.logger.Error("failed to persist log", "error", err, "run_id", runID)
-		}
-	}()
-
+	// Broadcast to listeners (real-time streaming)
+	c.mu.RLock()
 	lm, exists := c.logListener[runID]
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
-	// Broadcast to listeners
 	if exists {
 		lm.Broadcast(entry)
 	}
 }
 
 func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
-	c.mu.Lock()
-	info, ok := c.runInfo[runID]
-	if !ok {
-		c.mu.Unlock()
+	// Update in database
+	ctx := context.Background()
+	if err := c.repo.UpdateRunStatus(ctx, runID, string(status), exitCode); err != nil {
+		c.logger.Error("failed to update status in database", "error", err, "run_id", runID)
 		return
 	}
 
-	info.Status = status
-	if exitCode != nil {
-		info.ExitCode = exitCode
+	// Get updated run info for broadcast
+	meta, err := c.repo.GetRun(ctx, runID)
+	if err != nil {
+		c.logger.Error("failed to get run after status update", "error", err, "run_id", runID)
+		return
 	}
 
-	if status == StatusSuccess || status == StatusFailure || status == StatusError {
-		now := time.Now()
-		info.FinishedAt = &now
-	}
-
-	// Persist to repository (async)
-	go func() {
-		ctx := context.Background()
-		if err := c.repo.UpdateRunStatus(ctx, runID, string(status), exitCode); err != nil {
-			c.logger.Error("failed to persist status", "error", err, "run_id", runID)
-		}
-	}()
-
-	// Broadcast status change to all listeners
-	infoCopy := *info
-	infoCopy.Logs = nil // Don't send logs in status updates
-	c.mu.Unlock()
-
-	c.statusListener.Broadcast(infoCopy)
+	// Broadcast status change to listeners
+	c.statusListener.Broadcast(RunInfo{
+		ID:         meta.ID,
+		Status:     RunStatus(meta.Status),
+		StartedAt:  meta.StartedAt,
+		FinishedAt: meta.FinishedAt,
+		ExitCode:   meta.ExitCode,
+		UIToken:    meta.UIToken,
+	})
 }
 
 func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	ctx := context.Background()
 
-	info, ok := c.runInfo[runID]
-	if !ok {
+	meta, err := c.repo.GetRun(ctx, runID)
+	if err != nil {
 		return nil, false
 	}
 
-	// Return a copy to avoid race conditions
-	infoCopy := *info
-	infoCopy.Logs = make([]LogEntry, len(info.Logs))
-	copy(infoCopy.Logs, info.Logs)
-
-	return &infoCopy, true
+	return &RunInfo{
+		ID:         meta.ID,
+		Status:     RunStatus(meta.Status),
+		StartedAt:  meta.StartedAt,
+		FinishedAt: meta.FinishedAt,
+		ExitCode:   meta.ExitCode,
+		UIToken:    meta.UIToken,
+		Logs:       nil, // Logs fetched separately via GetLogsFromRepository
+	}, true
 }
 
 func (c *Core) GetAllRuns() []RunInfo {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	ctx := context.Background()
 
-	runs := make([]RunInfo, 0, len(c.runInfo))
-	for _, info := range c.runInfo {
-		infoCopy := *info
-		infoCopy.Logs = nil // Don't include logs in list view
-		runs = append(runs, infoCopy)
+	repoRuns, err := c.repo.ListRuns(ctx)
+	if err != nil {
+		c.logger.Error("failed to list runs from repository", "error", err)
+		return []RunInfo{}
+	}
+
+	runs := make([]RunInfo, len(repoRuns))
+	for i, repoRun := range repoRuns {
+		runs[i] = RunInfo{
+			ID:         repoRun.ID,
+			Status:     RunStatus(repoRun.Status),
+			StartedAt:  repoRun.StartedAt,
+			FinishedAt: repoRun.FinishedAt,
+			Logs:       nil,
+			ExitCode:   repoRun.ExitCode,
+			UIToken:    repoRun.UIToken,
+		}
 	}
 
 	return runs
