@@ -284,6 +284,10 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	env := map[string]string{
 		"CI":      "true",
 		"MISE_CI": "true",
+		// Configure git to trust the directory via env vars (cleaner than running git config commands)
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "safe.directory",
+		"GIT_CONFIG_VALUE_0": "*",
 	}
 
 	// Add forge-specific environment variables
