@@ -113,6 +113,7 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		FinishedAt: finishedAt,
 		ExitCode:   exitCode,
 		UIToken:    row.UiToken,
+		GitLink:    row.GitLink,
 	}, nil
 }
 
@@ -162,6 +163,7 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			FinishedAt: finishedAt,
 			ExitCode:   exitCode,
 			UIToken:    row.UiToken,
+			GitLink:    row.GitLink,
 		}
 	}
 
