@@ -20,7 +20,7 @@ func NewLocalStorage(basePath string) *LocalStorage {
 
 // Save saves an artifact to the local filesystem.
 // It creates the directory structure {basePath}/{runID} if it doesn't exist.
-func (ls *LocalStorage) Save(ctx context.Context, runID string, name string, data io.Reader) error {
+func (ls *LocalStorage) Save(ctx context.Context, runID string, name string, data io.Reader) (err error) {
 	runDir := filepath.Join(ls.basePath, runID)
 	if err := os.MkdirAll(runDir, 0755); err != nil {
 		return fmt.Errorf("failed to create artifact directory: %w", err)
@@ -35,7 +35,11 @@ func (ls *LocalStorage) Save(ctx context.Context, runID string, name string, dat
 	if err != nil {
 		return fmt.Errorf("failed to create artifact file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close artifact file: %w", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(file, data); err != nil {
 		return fmt.Errorf("failed to write artifact data: %w", err)

@@ -19,7 +19,9 @@ var (
 func getInstanceID() string {
 	instanceIDOnce.Do(func() {
 		b := make([]byte, 16)
-		rand.Read(b)
+		if _, err := rand.Read(b); err != nil {
+			slog.Error("failed to generate instance ID", "error", err)
+		}
 		instanceID = hex.EncodeToString(b)
 	})
 	return instanceID
@@ -80,11 +82,15 @@ func (s *HttpServer) Serve(l net.Listener) error {
 
 func (s *HttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	if _, err := w.Write([]byte("OK")); err != nil {
+		s.logger.Error("failed to write health response", "error", err)
+	}
 }
 
 func (s *HttpServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("mise-ci-agent:" + getInstanceID()))
+	if _, err := w.Write([]byte("mise-ci-agent:" + getInstanceID())); err != nil {
+		s.logger.Error("failed to write validate response", "error", err)
+	}
 }

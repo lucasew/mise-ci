@@ -52,7 +52,7 @@ func TestHandleBidiStream_BlockingSend(t *testing.T) {
 	}
 
 	go func() {
-		HandleBidiStream(ctx, stream, sendCh, recvCh, BidiConfig[string]{})
+		_ = HandleBidiStream(ctx, stream, sendCh, recvCh, BidiConfig[string]{})
 	}()
 
 	// Wait enough time for the receiver goroutine to try to send to recvCh

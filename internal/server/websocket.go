@@ -98,7 +98,9 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		s.logger.Error("failed to upgrade connection", "error", err)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	s.logger.Info("worker connected", "run_id", runID)
 

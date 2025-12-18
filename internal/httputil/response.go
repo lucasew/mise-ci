@@ -3,6 +3,7 @@ package httputil
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -17,7 +18,9 @@ func WriteJSON(w http.ResponseWriter, status int, data interface{}) error {
 func WriteText(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
-	w.Write([]byte(message))
+	if _, err := w.Write([]byte(message)); err != nil {
+		slog.Error("failed to write response", "error", err)
+	}
 }
 
 // WriteError writes a formatted error response

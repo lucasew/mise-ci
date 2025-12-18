@@ -120,7 +120,9 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.Logger.Error("failed to encode response", "error", err)
+	}
 }
 
 func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
@@ -136,7 +138,11 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 		s.Core.UpdateStatus(run.ID, StatusError, nil)
 		return
 	}
-	defer os.RemoveAll(testDir)
+	defer func() {
+		if err := os.RemoveAll(testDir); err != nil {
+			s.Logger.Error("failed to remove test directory", "path", testDir, "error", err)
+		}
+	}()
 
 	// Write mise.toml
 	miseTomlPath := testDir + "/mise.toml"
@@ -240,7 +246,9 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		s.Logger.Error("dispatch job", "error", err)
 		status.State = forge.StateError
 		status.Description = "Failed to dispatch job"
-		f.UpdateStatus(ctx, event.Repo, event.SHA, status)
+		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+			s.Logger.Error("update status failed", "error", err)
+		}
 		return
 	}
 
@@ -319,18 +327,28 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	if !s.runCommand(run, 2, env, "mise", "trust") {
+	if !s.runCommand(run, 2, env, "git", "fetch", "origin", event.Ref) {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 3, env, "mise", "install") {
+	if !s.runCommand(run, 3, env, "git", "checkout", event.SHA) {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
+		return false
+	}
+
+	if !s.runCommand(run, 4, env, "mise", "trust") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
+		return false
+	}
+
+	if !s.runCommand(run, 5, env, "mise", "install") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	// Check if 'ci' task exists
-	tasksOutput, err := s.runCommandCapture(run, 4, env, "mise", "tasks", "--json")
+	tasksOutput, err := s.runCommandCapture(run, 6, env, "mise", "tasks", "--json")
 	if err != nil {
 		s.Logger.Error("failed to list tasks", "error", err)
 		// Don't fail the build if we can't list tasks, just try running CI?
@@ -358,7 +376,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	if hasCITask {
-		if !s.runCommand(run, 5, env, "mise", "run", "ci") {
+		if !s.runCommand(run, 7, env, "mise", "run", "ci") {
 			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 			return false
 		}
@@ -372,7 +390,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	s.Core.AddLog(run.ID, "system", "Build completed")
 
 	run.CommandCh <- &pb.ServerMessage{
-		Id: 6,
+		Id: 8,
 		Payload: &pb.ServerMessage_Close{
 			Close: &pb.Close{},
 		},
@@ -483,7 +501,11 @@ func (s *Service) receiveFile(run *Run, destPath string, context string) bool {
 		s.Logger.Error("failed to create file", "error", err, "path", destPath)
 		return false
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			s.Logger.Error("failed to close file", "path", destPath, "error", err)
+		}
+	}()
 
 	for msg := range run.ResultCh {
 		switch payload := msg.Payload.(type) {

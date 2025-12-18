@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -248,8 +249,16 @@ func (g *GitHubForge) UploadReleaseAsset(ctx context.Context, repo, tag, name st
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
+	defer func() {
+		if err := os.Remove(tmpFile.Name()); err != nil {
+			slog.Error("failed to remove temp file", "path", tmpFile.Name(), "error", err)
+		}
+	}()
+	defer func() {
+		if err := tmpFile.Close(); err != nil {
+			slog.Error("failed to close temp file", "path", tmpFile.Name(), "error", err)
+		}
+	}()
 
 	if _, err := io.Copy(tmpFile, data); err != nil {
 		return fmt.Errorf("write to temp file: %w", err)

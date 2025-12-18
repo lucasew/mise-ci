@@ -46,19 +46,24 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	// Explicitly bind environment variables
-	viper.BindEnv("jwt.secret")
-	viper.BindEnv("server.http_addr")
-	viper.BindEnv("server.public_url")
-	viper.BindEnv("github.app_id")
-	viper.BindEnv("github.private_key")
-	viper.BindEnv("github.webhook_secret")
-	viper.BindEnv("nomad.addr")
-	viper.BindEnv("nomad.job_name")
-	viper.BindEnv("nomad.default_image")
-	viper.BindEnv("auth.admin_username")
-	viper.BindEnv("auth.admin_password")
-	viper.BindEnv("database.driver")
-	viper.BindEnv("database.dsn")
+	envVars := []string{
+		"jwt.secret",
+		"server.http_addr",
+		"server.public_url",
+		"github.app_id",
+		"github.private_key",
+		"github.webhook_secret",
+		"nomad.addr",
+		"nomad.job_name",
+		"nomad.default_image",
+		"auth.admin_username",
+		"auth.admin_password",
+		"database.driver",
+		"database.dsn",
+	}
+	for _, key := range envVars {
+		_ = viper.BindEnv(key)
+	}
 
 	if err := viper.ReadInConfig(); err == nil {
 		logger.Info("using config file", "file", viper.ConfigFileUsed())

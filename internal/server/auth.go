@@ -38,9 +38,7 @@ func extractRunIDFromPath(path string) string {
 	if len(parts) >= 4 {
 		id := parts[3]
 		// Handle .log extension for raw logs
-		if strings.HasSuffix(id, ".log") {
-			id = strings.TrimSuffix(id, ".log")
-		}
+		id = strings.TrimSuffix(id, ".log")
 		return id
 	}
 	return ""
