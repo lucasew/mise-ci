@@ -43,8 +43,8 @@ jobs:
     - name: Go get
       run: go get ./...
 
-    - name: Go fmt
-      run: go fmt ./...
+    # - name: Go fmt
+    #   run: go fmt ./...
 
     - name: Create Pull Request if there is new stuff from updaters
       if: github.event_name != 'pull_request'
