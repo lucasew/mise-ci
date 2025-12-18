@@ -55,8 +55,16 @@ func (s *HttpServer) Serve(l net.Listener) error {
 
 	// UI routes
 	mux.HandleFunc("/ui/", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleIndex))
-	mux.HandleFunc("/ui/run/", s.authMiddleware.RequireRunToken(s.uiServer.HandleRun))
-	mux.HandleFunc("/ui/run/{run_id}.log", s.authMiddleware.RequireRunToken(s.uiServer.HandleRunLogsText))
+	// Use a dispatcher for /ui/run/{run_id} to handle both the page and the raw log file
+	// This avoids Go 1.22+ routing issues with wildcards containing dots
+	mux.HandleFunc("/ui/run/{run_id}", s.authMiddleware.RequireRunToken(func(w http.ResponseWriter, r *http.Request) {
+		runID := r.PathValue("run_id")
+		if len(runID) > 4 && runID[len(runID)-4:] == ".log" {
+			s.uiServer.HandleRunLogsText(w, r)
+		} else {
+			s.uiServer.HandleRun(w, r)
+		}
+	}))
 	mux.HandleFunc("/ui/logs/", s.authMiddleware.RequireRunToken(s.uiServer.HandleLogs))
 	mux.HandleFunc("/ui/status-stream", s.authMiddleware.RequireStatusStreamAuth(s.uiServer.HandleStatusStream))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
