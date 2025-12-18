@@ -103,7 +103,7 @@ Suporta dois drivers de banco de dados:
 - **SQLite**: para desenvolvimento local e setups simples.
 - **PostgreSQL**: para produção.
 
-A configuração é definida em `config.yaml` sob a chave `database`.
+A configuração é definida via variável de ambiente ou arquivo de configuração.
 
 ## Interfaces
 
@@ -156,58 +156,32 @@ type Storage interface {
 
 ## Configuração
 
-A configuração é carregada de `config.yaml`:
+A aplicação segue os princípios do **12-factor app**, priorizando configuração via variáveis de ambiente.
 
-```yaml
-# config.yaml
-server:
-  http_addr: ":8080"
-  public_url: "https://ci.example.com"
+O prefixo padrão é `MISE_CI`. A hierarquia é mapeada substituindo `.` por `_`.
 
-jwt:
-  secret: "..."         # segredo para assinar tokens dos workers
+### Variáveis principais
 
-auth:
-  admin_username: "admin"
-  admin_password: "..." # basic auth para endpoints administrativos
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `MISE_CI_SERVER_HTTP_ADDR` | Endereço do servidor HTTP | `:8080` |
+| `MISE_CI_SERVER_PUBLIC_URL` | URL pública (para webhooks/status) | `https://ci.example.com` |
+| `MISE_CI_JWT_SECRET` | Segredo para assinar tokens | `mysecret` |
+| `MISE_CI_AUTH_ADMIN_USERNAME` | Usuário admin | `admin` |
+| `MISE_CI_AUTH_ADMIN_PASSWORD` | Senha admin | `secret` |
+| `MISE_CI_GITHUB_APP_ID` | GitHub App ID | `12345` |
+| `MISE_CI_GITHUB_PRIVATE_KEY` | Chave privada do App | `-----BEGIN...` |
+| `MISE_CI_GITHUB_WEBHOOK_SECRET` | Segredo do webhook | `webhook_secret` |
+| `MISE_CI_NOMAD_ADDR` | Endereço do Nomad | `http://nomad:4646` |
+| `MISE_CI_DATABASE_DRIVER` | Driver de banco (`sqlite` ou `postgres`) | `postgres` |
+| `MISE_CI_DATABASE_DSN` | Connection string | `postgres://...` |
 
-github:
-  app_id: 12345
-  private_key: |
-    -----BEGIN RSA PRIVATE KEY-----
-    ...
-  webhook_secret: "..."
-
-nomad:
-  addr: "http://nomad:4646"
-  job_name: "mise-ci-worker"
-  default_image: "ghcr.io/mise-ci/worker:latest"
-
-storage:
-  data_dir: "./data/artifacts"
-
-database:
-  driver: "sqlite"      # ou "postgres"
-  dsn: "./mise-ci.db"   # ou "postgres://user:pass@host:5432/db"
-```
+Também é possível usar um arquivo de configuração (ex: `config.yaml`), mas variáveis de ambiente têm precedência.
 
 ## Tasks de desenvolvimento
 
-O projeto usa mise para desenvolvimento. Tasks principais:
+O projeto utiliza `mise` para automação de tarefas de desenvolvimento, como:
 
-```toml
-[tasks.generate]
-description = "Gera código do protobuf"
-run = "protoc --go_out=. --go-grpc_out=. internal/proto/ci.proto"
-
-[tasks.build]
-description = "Compila binários"
-run = """
-go build -o bin/matriz ./cmd/matriz
-go build -o bin/worker ./cmd/worker
-"""
-
-[tasks.ci]
-description = "Roda checks de CI"
-depends = ["ci:lint", "ci:test"]
-```
+- `mise run generate`: Gera código do protobuf.
+- `mise run build`: Compila os binários `matriz` e `worker`.
+- `mise run ci`: Executa pipeline de verificação (lint, tests).

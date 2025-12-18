@@ -7,7 +7,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/go-github/v66 v66.0.0
-	github.com/google/go-github/v80 v80.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/nomad/api v0.0.0-20251217200042-7a46c75fb6cf
 	github.com/lib/pq v1.10.9
@@ -15,7 +14,6 @@ require (
 	github.com/spf13/viper v1.21.0
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.40.1
 )
 
