@@ -326,7 +326,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	// Check if 'ci' task exists
-	tasksOutput, err := s.runCommandCapture(run, 4, env, "mise", "tasks")
+	tasksOutput, err := s.runCommandCapture(run, 4, env, "mise", "tasks", "--json")
 	if err != nil {
 		s.Logger.Error("failed to list tasks", "error", err)
 		// Don't fail the build if we can't list tasks, just try running CI?
@@ -336,9 +336,18 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
+	var tasks []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(tasksOutput), &tasks); err != nil {
+		s.Logger.Error("failed to parse tasks json", "error", err)
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
+		return false
+	}
+
 	hasCITask := false
-	for _, line := range strings.Split(tasksOutput, "\n") {
-		if strings.TrimSpace(line) == "ci" {
+	for _, task := range tasks {
+		if task.Name == "ci" {
 			hasCITask = true
 			break
 		}
