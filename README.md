@@ -14,9 +14,9 @@ A minimalist CI system based on mise tasks.
    mise install
    ```
 
-2. Generate protobuf code:
+2. Generate code:
    ```bash
-   mise run codegen:protobuf
+   mise run codegen
    ```
 
 3. Build:

@@ -2,9 +2,13 @@
 description = "Generate protobuf code"
 run = "protoc --go_out=. --go-grpc_out=. internal/proto/ci.proto"
 
+[tasks."codegen:sqlc"]
+description = "Generate sqlc code"
+run = "sqlc generate"
+
 [tasks.codegen]
 description = "Generate all code"
-depends = ["codegen:protobuf"]
+depends = ["codegen:protobuf", "codegen:sqlc"]
 
 [tasks.build]
 description = "Build binary"
