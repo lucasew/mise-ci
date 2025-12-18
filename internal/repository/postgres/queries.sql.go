@@ -34,8 +34,8 @@ func (q *Queries) AppendLog(ctx context.Context, arg AppendLogParams) error {
 }
 
 const createRun = `-- name: CreateRun :exec
-INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreateRunParams struct {
@@ -45,6 +45,7 @@ type CreateRunParams struct {
 	FinishedAt sql.NullTime  `json:"finished_at"`
 	ExitCode   sql.NullInt32 `json:"exit_code"`
 	UiToken    string        `json:"ui_token"`
+	GitLink    string        `json:"git_link"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
@@ -55,6 +56,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 		arg.FinishedAt,
 		arg.ExitCode,
 		arg.UiToken,
+		arg.GitLink,
 	)
 	return err
 }
@@ -96,7 +98,7 @@ func (q *Queries) GetLogs(ctx context.Context, runID string) ([]GetLogsRow, erro
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, status, started_at, finished_at, exit_code, ui_token
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link
 FROM runs
 WHERE id = $1
 `
@@ -108,6 +110,7 @@ type GetRunRow struct {
 	FinishedAt sql.NullTime  `json:"finished_at"`
 	ExitCode   sql.NullInt32 `json:"exit_code"`
 	UiToken    string        `json:"ui_token"`
+	GitLink    string        `json:"git_link"`
 }
 
 func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
@@ -120,12 +123,13 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 		&i.FinishedAt,
 		&i.ExitCode,
 		&i.UiToken,
+		&i.GitLink,
 	)
 	return i, err
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link
 FROM runs
 ORDER BY started_at DESC
 `
@@ -137,6 +141,7 @@ type ListRunsRow struct {
 	FinishedAt sql.NullTime  `json:"finished_at"`
 	ExitCode   sql.NullInt32 `json:"exit_code"`
 	UiToken    string        `json:"ui_token"`
+	GitLink    string        `json:"git_link"`
 }
 
 func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
@@ -155,6 +160,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 			&i.FinishedAt,
 			&i.ExitCode,
 			&i.UiToken,
+			&i.GitLink,
 		); err != nil {
 			return nil, err
 		}

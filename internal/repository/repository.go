@@ -29,6 +29,7 @@ type RunMetadata struct {
 	FinishedAt *time.Time
 	ExitCode   *int32
 	UIToken    string
+	GitLink    string
 }
 
 // LogEntry represents a single log line
