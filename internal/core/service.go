@@ -23,7 +23,6 @@ import (
 //go:embed testdata/mise.toml
 var testProjectMiseToml string
 
-
 type Service struct {
 	Core   *Core
 	Forges []forge.Forge
@@ -159,10 +158,10 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 			return s.copyFileToWorker(run, 1, "mise.toml", "mise.toml", miseTomlData)
 		}).
 		AddStep("trust", "Trusting mise configuration", func() error {
-			return s.runCommandSync(run, 2, "mise", "trust")
+			return s.runCommandSync(run, 2, nil, "mise", "trust")
 		}).
 		AddStep("run-ci", "Starting CI task", func() error {
-			return s.runCommandSync(run, 3, "mise", "run", "ci")
+			return s.runCommandSync(run, 3, nil, "mise", "run", "ci")
 		}).
 		AddStep("retrieve", "Retrieving output artifacts", func() error {
 			return s.copyFileFromWorker(run, 4, "output.txt", outputPath)
@@ -270,6 +269,18 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
+	// Prepare generic CI environment variables
+	env := map[string]string{
+		"CI":      "true",
+		"MISE_CI": "true",
+	}
+
+	// Add forge-specific environment variables
+	forgeEnv := f.GetCIEnv(event)
+	for k, v := range forgeEnv {
+		env[k] = v
+	}
+
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
 	if creds.Token != "" {
@@ -281,22 +292,23 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	s.Logger.Info("cloning repository")
-	if !s.runCommand(run, 1, "git", "clone", cloneURL, ".") {
+	// Clone typically doesn't need the env vars, but we pass them for consistency if needed later
+	if !s.runCommand(run, 1, env, "git", "clone", cloneURL, ".") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 2, "mise", "trust") {
+	if !s.runCommand(run, 2, env, "mise", "trust") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 3, "mise", "install") {
+	if !s.runCommand(run, 3, env, "mise", "install") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 4, "mise", "run", "ci") {
+	if !s.runCommand(run, 4, env, "mise", "run", "ci") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
@@ -314,14 +326,14 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	return true
 }
 
-func (s *Service) runCommand(run *Run, id uint64, cmd string, args ...string) bool {
-	return s.runCommandSync(run, id, cmd, args...) == nil
+func (s *Service) runCommand(run *Run, id uint64, env map[string]string, cmd string, args ...string) bool {
+	return s.runCommandSync(run, id, env, cmd, args...) == nil
 }
 
 // runCommandSync executes a command and waits for it to complete
-func (s *Service) runCommandSync(run *Run, id uint64, cmd string, args ...string) error {
+func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd string, args ...string) error {
 	s.Logger.Info("executing command", "cmd", cmd, "args", args)
-	run.CommandCh <- msgutil.NewRunCommand(id, cmd, args...)
+	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	if !s.waitForDone(run, cmd) {
 		return fmt.Errorf("command failed: %s", cmd)

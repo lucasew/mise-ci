@@ -5,13 +5,14 @@ import (
 )
 
 // NewRunCommand creates a Run command message
-func NewRunCommand(id uint64, cmd string, args ...string) *pb.ServerMessage {
+func NewRunCommand(id uint64, env map[string]string, cmd string, args ...string) *pb.ServerMessage {
 	return &pb.ServerMessage{
 		Id: id,
 		Payload: &pb.ServerMessage_Run{
 			Run: &pb.Run{
 				Cmd:  cmd,
 				Args: args,
+				Env:  env,
 			},
 		},
 	}

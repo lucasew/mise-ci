@@ -113,24 +113,73 @@ func (g *GitHubForge) UpdateStatus(ctx context.Context, repo, sha string, status
 
 	client := github.NewClient(nil).WithAuthToken(creds.Token)
 
-	ghState := ""
+	// Map status to Checks API fields
+	var ghStatus *string
+	var ghConclusion *string
+
+	pending := "in_progress"
+	completed := "completed"
+
+	success := "success"
+	failure := "failure"
+
 	switch status.State {
 	case forge.StatePending:
-		ghState = "pending"
+		ghStatus = &pending
 	case forge.StateSuccess:
-		ghState = "success"
+		ghStatus = &completed
+		ghConclusion = &success
 	case forge.StateFailure:
-		ghState = "failure"
+		ghStatus = &completed
+		ghConclusion = &failure
 	case forge.StateError:
-		ghState = "error"
+		ghStatus = &completed
+		ghConclusion = &failure
 	}
 
-	_, _, err = client.Repositories.CreateStatus(ctx, owner, name, sha, &github.RepoStatus{
-		State:       &ghState,
-		Context:     &status.Context,
-		Description: &status.Description,
-		TargetURL:   &status.TargetURL,
+	// Try to find existing check run
+	opts := &github.ListCheckRunsOptions{
+		CheckName: github.String(status.Context),
+		Filter:    github.String("latest"),
+	}
+	runs, _, err := client.Checks.ListCheckRunsForRef(ctx, owner, name, sha, opts)
+	if err != nil {
+		return fmt.Errorf("list check runs: %w", err)
+	}
+
+	var runID int64
+	if runs.Total != nil && *runs.Total > 0 && len(runs.CheckRuns) > 0 {
+		// Use the first one found
+		runID = runs.CheckRuns[0].GetID()
+	}
+
+	output := &github.CheckRunOutput{
+		Title:   github.String(status.Context),
+		Summary: github.String(status.Description),
+	}
+
+	if runID != 0 {
+		// Update existing run
+		_, _, err = client.Checks.UpdateCheckRun(ctx, owner, name, runID, github.UpdateCheckRunOptions{
+			Name:       status.Context,
+			Status:     ghStatus,
+			Conclusion: ghConclusion,
+			DetailsURL: &status.TargetURL,
+			Output:     output,
+		})
+		return err
+	}
+
+	// Create new run
+	_, _, err = client.Checks.CreateCheckRun(ctx, owner, name, github.CreateCheckRunOptions{
+		Name:       status.Context,
+		HeadSHA:    sha,
+		Status:     ghStatus,
+		Conclusion: ghConclusion,
+		DetailsURL: &status.TargetURL,
+		Output:     output,
 	})
+
 	return err
 }
 
@@ -140,6 +189,23 @@ func (g *GitHubForge) UploadArtifact(ctx context.Context, repo string, runID str
 
 func (g *GitHubForge) UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error {
 	return fmt.Errorf("not implemented")
+}
+
+func (g *GitHubForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
+	env := map[string]string{
+		"GITHUB_SHA":        event.SHA,
+		"GITHUB_REF":        event.Ref,
+		"GITHUB_REPOSITORY": event.Repo,
+		"GITHUB_SERVER_URL": "https://github.com",
+	}
+
+	if event.Type == forge.EventTypePullRequest {
+		env["GITHUB_EVENT_NAME"] = "pull_request"
+	} else {
+		env["GITHUB_EVENT_NAME"] = "push"
+	}
+
+	return env
 }
 
 func (g *GitHubForge) getAppClient() (*github.Client, error) {

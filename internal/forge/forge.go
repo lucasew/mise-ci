@@ -21,6 +21,9 @@ type Forge interface {
 
 	// UploadReleaseAsset uploads asset to release
 	UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error
+
+	// GetCIEnv returns forge-specific environment variables for the event
+	GetCIEnv(event *WebhookEvent) map[string]string
 }
 
 type WebhookEvent struct {
