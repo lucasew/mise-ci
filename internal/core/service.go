@@ -289,6 +289,12 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		env[k] = v
 	}
 
+	// Set GITHUB_TOKEN if we have a token (assuming GitHub forge)
+	// We check if GITHUB_SERVER_URL is set to confirm it is indeed a GitHub environment
+	if _, isGithub := env["GITHUB_SERVER_URL"]; isGithub && creds.Token != "" {
+		env["GITHUB_TOKEN"] = creds.Token
+	}
+
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
 	if creds.Token != "" {
