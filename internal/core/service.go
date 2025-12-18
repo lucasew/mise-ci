@@ -250,6 +250,13 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	if !success {
 		status.State = forge.StateFailure
 		status.Description = "Build failed"
+	} else {
+		// Check if it was skipped (we need to inspect the run status from core)
+		runInfo, ok := s.Core.GetRunInfo(runID)
+		if ok && runInfo.Status == StatusSkipped {
+			status.State = forge.StateSkipped
+			status.Description = "Build skipped (no ci task)"
+		}
 	}
 
 	if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
@@ -333,13 +340,14 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 			return false
 		}
+		s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
 	} else {
 		s.Logger.Info("no 'ci' task found, skipping")
 		s.Core.AddLog(run.ID, "system", "No 'ci' task found in mise.toml, skipping CI step.")
+		s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
 	}
 
-	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
-	s.Core.AddLog(run.ID, "system", "Build completed successfully")
+	s.Core.AddLog(run.ID, "system", "Build completed")
 
 	run.CommandCh <- &pb.ServerMessage{
 		Id: 6,

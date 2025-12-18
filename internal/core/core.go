@@ -20,6 +20,7 @@ const (
 	StatusSuccess   RunStatus = "success"
 	StatusFailure   RunStatus = "failure"
 	StatusError     RunStatus = "error"
+	StatusSkipped   RunStatus = "skipped"
 )
 
 type TokenType string

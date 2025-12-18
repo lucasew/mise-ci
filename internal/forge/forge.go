@@ -55,6 +55,7 @@ const (
 	StateSuccess
 	StateFailure
 	StateError
+	StateSkipped
 )
 
 type Credentials struct {

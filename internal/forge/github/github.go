@@ -135,6 +135,10 @@ func (g *GitHubForge) UpdateStatus(ctx context.Context, repo, sha string, status
 	case forge.StateError:
 		ghStatus = &completed
 		ghConclusion = &failure
+	case forge.StateSkipped:
+		ghStatus = &completed
+		skipped := "skipped"
+		ghConclusion = &skipped
 	}
 
 	// Try to find existing check run
