@@ -36,7 +36,12 @@ func extractRunIDFromPath(path string) string {
 	parts := strings.Split(path, "/")
 	// /ui/run/123 -> ["", "ui", "run", "123"]
 	if len(parts) >= 4 {
-		return parts[3]
+		id := parts[3]
+		// Handle .log extension for raw logs
+		if strings.HasSuffix(id, ".log") {
+			id = strings.TrimSuffix(id, ".log")
+		}
+		return id
 	}
 	return ""
 }
