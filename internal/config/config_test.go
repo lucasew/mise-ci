@@ -16,7 +16,7 @@ github:
 nomad:
   job_name: "test"
 `
-	tmp, err := os.CreateTemp("", "config.yaml")
+	tmp, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

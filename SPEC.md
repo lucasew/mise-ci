@@ -7,10 +7,10 @@ Sistema de CI minimalista baseado em mise tasks.
 ```
 ┌─────────────┐     webhook      ┌─────────────┐
 │    Forja    │ ───────────────► │   Matriz    │
-│  (GitHub)   │ ◄─────────────── │   (agent)   │
+│  (GitHub)   │ ◄─────────────── │   (server)  │
 └─────────────┘   commit status  └──────┬──────┘
                   releases              │
-                  artifacts             │ gRPC stream
+                                        │ gRPC stream
                                         │
                   ┌─────────────────────┼─────────────────────┐
                   │ Nomad               ▼                     │
@@ -41,7 +41,7 @@ Sistema de CI minimalista baseado em mise tasks.
 
 Comunicação via gRPC bidirecional. Worker conecta, matriz comanda.
 
-Ver `proto/ci.proto` para definição completa.
+Ver `internal/proto/ci.proto` para definição completa.
 
 ### Fluxo de uma run
 
@@ -73,20 +73,37 @@ mise-ci/
 │   └── worker/          # entrypoint do worker
 │       └── main.go
 ├── internal/
+│   ├── artifacts/       # gerenciamento de artefatos
+│   │   ├── artifacts.go
+│   │   └── local.go     # implementação filesystem local
+│   ├── config/          # configuração
+│   │   └── config.go
 │   ├── forge/           # interface e implementações de forja
 │   │   ├── forge.go     # interface Forge
 │   │   └── github/      # implementação GitHub
+│   ├── proto/           # definição e código gerado do protobuf
+│   │   └── ci.proto
+│   ├── repository/      # camada de dados (sqlc)
+│   │   ├── postgres/    # implementação PostgreSQL
+│   │   └── sqlite/      # implementação SQLite
 │   ├── runner/          # interface e implementações de runner
 │   │   ├── runner.go    # interface Runner
 │   │   └── nomad/       # implementação Nomad
-│   ├── proto/           # código gerado do protobuf
 │   ├── server/          # servidor gRPC + HTTP da matriz
-│   └── config/          # configuração
-├── proto/
-│   └── ci.proto         # definição do protocolo
 ├── go.mod
-└── mise.toml
+├── mise.toml
+└── sqlc.yaml
 ```
+
+## Persistência
+
+O projeto utiliza `sqlc` para gerar código Go type-safe a partir de queries SQL.
+Suporta dois drivers de banco de dados:
+
+- **SQLite**: para desenvolvimento local e setups simples.
+- **PostgreSQL**: para produção.
+
+A configuração é definida via variável de ambiente ou arquivo de configuração.
 
 ## Interfaces
 
@@ -110,29 +127,6 @@ type Forge interface {
     // UploadReleaseAsset faz upload de asset para release
     UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error
 }
-
-type WebhookEvent struct {
-    Type   EventType // Push, PullRequest
-    Repo   string    // owner/repo
-    Ref    string    // refs/heads/main, refs/pull/123/merge
-    SHA    string    // commit sha
-    Clone  string    // clone URL
-}
-
-type Status struct {
-    State       State  // Pending, Success, Failure, Error
-    Context     string // "mise-ci"
-    Description string
-    TargetURL   string // link para logs
-}
-
-type State int
-const (
-    StatePending State = iota
-    StateSuccess
-    StateFailure
-    StateError
-)
 ```
 
 ### Runner
@@ -146,165 +140,48 @@ type Runner interface {
     // Cancel cancela job em andamento
     Cancel(ctx context.Context, jobID string) error
 }
+```
 
-type RunParams struct {
-    CallbackURL string // URL da matriz
-    Token       string // JWT para autenticação
-    Image       string // imagem do container (opcional, usa default)
+### Storage
+
+A interface de storage de artifacts é desacoplada da Forja. A implementação padrão é `LocalStorage`, que salva arquivos em `data/artifacts`.
+
+```go
+type Storage interface {
+    Save(ctx context.Context, runID string, name string, data io.Reader) error
+    Get(ctx context.Context, runID string, name string) (io.ReadCloser, error)
+    List(ctx context.Context, runID string) ([]string, error)
 }
 ```
 
-## Decisões técnicas
+## Configuração
 
-### Autenticação worker → matriz
+A aplicação segue os princípios do **12-factor app**, priorizando configuração via variáveis de ambiente.
 
-JWT assinado pela matriz, contém:
-- `run_id`: identificador da run
-- `exp`: expiração curta (1h)
+O prefixo padrão é `MISE_CI`. A hierarquia é mapeada substituindo `.` por `_`.
 
-Worker passa JWT no connect. Matriz valida e associa conexão à run.
+### Variáveis principais
 
-### Credenciais de clone
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `MISE_CI_SERVER_HTTP_ADDR` | Endereço do servidor HTTP | `:8080` |
+| `MISE_CI_SERVER_PUBLIC_URL` | URL pública (para webhooks/status) | `https://ci.example.com` |
+| `MISE_CI_JWT_SECRET` | Segredo para assinar tokens | `mysecret` |
+| `MISE_CI_AUTH_ADMIN_USERNAME` | Usuário admin | `admin` |
+| `MISE_CI_AUTH_ADMIN_PASSWORD` | Senha admin | `secret` |
+| `MISE_CI_GITHUB_APP_ID` | GitHub App ID | `12345` |
+| `MISE_CI_GITHUB_PRIVATE_KEY` | Chave privada do App | `-----BEGIN...` |
+| `MISE_CI_GITHUB_WEBHOOK_SECRET` | Segredo do webhook | `webhook_secret` |
+| `MISE_CI_NOMAD_ADDR` | Endereço do Nomad | `http://nomad:4646` |
+| `MISE_CI_DATABASE_DRIVER` | Driver de banco (`sqlite` ou `postgres`) | `postgres` |
+| `MISE_CI_DATABASE_DSN` | Connection string | `postgres://...` |
 
-Matriz gera credenciais temporárias via API da forja (GitHub App installation token, etc).
-Credenciais são passadas no comando Copy e nunca persistidas no worker.
-
-### Streaming de output
-
-Worker envia Output messages conforme lê stdout/stderr.
-Matriz pode persistir, fazer broadcast para UI, etc.
-
-### Artifacts
-
-Matriz pede arquivo via Copy com direction FROM_WORKER.
-Worker lê arquivo e envia em FileChunks.
-Matriz faz upload para storage da forja ou S3.
-
-### Configuração
-
-```yaml
-# matriz.yaml
-server:
-  http_addr: ":8080"    # webhooks
-  grpc_addr: ":9090"    # workers
-
-jwt:
-  secret: "..."         # ou path para chave
-
-forge:
-  type: github
-  app_id: 12345
-  private_key: /path/to/key.pem
-  webhook_secret: "..."
-
-runner:
-  type: nomad
-  addr: "http://nomad:4646"
-  job_template: /path/to/job.hcl
-  default_image: "ghcr.io/mise-ci/worker:latest"
-
-storage:
-  type: s3              # para artifacts
-  bucket: mise-ci-artifacts
-  # ...
-```
-
-### Job template Nomad
-
-```hcl
-job "mise-ci-run" {
-  type = "batch"
-  
-  parameterized {
-    payload       = "forbidden"
-    meta_required = ["callback_url", "token"]
-  }
-  
-  group "worker" {
-    task "run" {
-      driver = "docker"
-      
-      config {
-        image = "${image}"
-      }
-      
-      env {
-        MISE_CI_CALLBACK = "${NOMAD_META_callback_url}"
-        MISE_CI_TOKEN    = "${NOMAD_META_token}"
-      }
-      
-      resources {
-        cpu    = 1000
-        memory = 2048
-      }
-    }
-  }
-}
-```
+Também é possível usar um arquivo de configuração (ex: `config.yaml`), mas variáveis de ambiente têm precedência.
 
 ## Tasks de desenvolvimento
 
-O projeto usa mise para desenvolvimento. Tasks disponíveis:
+O projeto utiliza `mise` para automação de tarefas de desenvolvimento, como:
 
-```toml
-[tasks.generate]
-description = "Gera código do protobuf"
-run = "protoc --go_out=. --go-grpc_out=. proto/ci.proto"
-
-[tasks.build]
-description = "Compila binários"
-run = """
-go build -o bin/matriz ./cmd/matriz
-go build -o bin/worker ./cmd/worker
-"""
-
-[tasks.ci]
-description = "Roda checks de CI"
-depends = ["ci:lint", "ci:test"]
-
-[tasks."ci:lint"]
-run = "golangci-lint run"
-
-[tasks."ci:test"]
-run = "go test ./..."
-```
-
-## Ordem de implementação sugerida
-
-1. **Proto + geração de código**
-   - Colocar ci.proto em proto/
-   - Configurar geração com protoc
-
-2. **Worker básico**
-   - Conectar via gRPC
-   - Receber e executar Copy (clone via git)
-   - Receber e executar Run (exec genérico)
-   - Streaming de output
-
-3. **Matriz básica**
-   - Servidor gRPC para workers
-   - Gerenciamento de runs em memória
-   - Comandar worker através de uma run
-
-4. **Interface Forge + GitHub**
-   - Parsing de webhooks
-   - Commit status
-   - Clone credentials via GitHub App
-
-5. **Interface Runner + Nomad**
-   - Dispatch de parameterized job
-   - Cancelamento
-
-6. **Servidor HTTP da matriz**
-   - Endpoint de webhook
-   - Endpoint de callback info (worker busca config)
-
-7. **Integração completa**
-   - Webhook → Run → Worker → Status update
-
-8. **Artifacts**
-   - Copy FROM_WORKER
-   - Upload para S3/forge
-
-9. **Releases**
-   - Upload de assets para releases da forja
+- `mise run generate`: Gera código do protobuf.
+- `mise run build`: Compila os binários `matriz` e `worker`.
+- `mise run ci`: Executa pipeline de verificação (lint, tests).

@@ -2,65 +2,84 @@ package config
 
 import (
 	"fmt"
-	"os"
+	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
 
 type Config struct {
-	Server  ServerConfig  `yaml:"server" mapstructure:"server"`
-	JWT     JWTConfig     `yaml:"jwt" mapstructure:"jwt"`
-	GitHub  GitHubConfig  `yaml:"github" mapstructure:"github"`
-	Nomad   NomadConfig   `yaml:"nomad" mapstructure:"nomad"`
-	Auth    AuthConfig    `yaml:"auth" mapstructure:"auth"`
-	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
-	Database DatabaseConfig `yaml:"database" mapstructure:"database"`
+	Server   ServerConfig   `mapstructure:"server"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	GitHub   GitHubConfig   `mapstructure:"github"`
+	Nomad    NomadConfig    `mapstructure:"nomad"`
+	Auth     AuthConfig     `mapstructure:"auth"`
+	Storage  StorageConfig  `mapstructure:"storage"`
+	Database DatabaseConfig `mapstructure:"database"`
 }
 
 type AuthConfig struct {
-	AdminUsername string `yaml:"admin_username" mapstructure:"admin_username"`
-	AdminPassword string `yaml:"admin_password" mapstructure:"admin_password"`
+	AdminUsername string `mapstructure:"admin_username"`
+	AdminPassword string `mapstructure:"admin_password"`
 }
 
 type ServerConfig struct {
-	HTTPAddr  string `yaml:"http_addr" mapstructure:"http_addr"`
-	PublicURL string `yaml:"public_url" mapstructure:"public_url"`
+	HTTPAddr  string `mapstructure:"http_addr"`
+	PublicURL string `mapstructure:"public_url"`
 }
 
 type JWTConfig struct {
-	Secret string `yaml:"secret" mapstructure:"secret"`
+	Secret string `mapstructure:"secret"`
 }
 
 type GitHubConfig struct {
-	AppID         int64  `yaml:"app_id" mapstructure:"app_id"`
-	PrivateKey    string `yaml:"private_key" mapstructure:"private_key"`
-	WebhookSecret string `yaml:"webhook_secret" mapstructure:"webhook_secret"`
+	AppID         int64  `mapstructure:"app_id"`
+	PrivateKey    string `mapstructure:"private_key"`
+	WebhookSecret string `mapstructure:"webhook_secret"`
 }
 
 type NomadConfig struct {
-	Addr         string `yaml:"addr" mapstructure:"addr"`
-	JobName      string `yaml:"job_name" mapstructure:"job_name"`
-	DefaultImage string `yaml:"default_image" mapstructure:"default_image"`
+	Addr         string `mapstructure:"addr"`
+	JobName      string `mapstructure:"job_name"`
+	DefaultImage string `mapstructure:"default_image"`
 }
 
 type StorageConfig struct {
-	DataDir string `yaml:"data_dir" mapstructure:"data_dir"`
+	DataDir string `mapstructure:"data_dir"`
 }
 
 type DatabaseConfig struct {
-	Driver string `yaml:"driver" mapstructure:"driver"` // "sqlite" or "postgres"
-	DSN    string `yaml:"dsn" mapstructure:"dsn"`       // Connection string (path for sqlite, URL for postgres)
+	Driver string `mapstructure:"driver"` // "sqlite" or "postgres"
+	DSN    string `mapstructure:"dsn"`    // Connection string (path for sqlite, URL for postgres)
 }
 
 func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+	v := viper.New()
+
+	// Set defaults
+	v.SetDefault("server.http_addr", ":8080")
+	v.SetDefault("nomad.addr", "http://127.0.0.1:4646")
+	v.SetDefault("nomad.job_name", "mise-ci-worker")
+	v.SetDefault("nomad.default_image", "ghcr.io/mise-ci/worker:latest")
+	v.SetDefault("storage.data_dir", "./data/artifacts")
+	v.SetDefault("database.driver", "sqlite")
+	v.SetDefault("database.dsn", "mise-ci.db")
+
+	// Config file settings
+	if path != "" {
+		v.SetConfigFile(path)
+		if err := v.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("read config file: %w", err)
+		}
 	}
 
+	// Environment variable settings
+	v.SetEnvPrefix("MISE_CI")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
 	return &cfg, nil
