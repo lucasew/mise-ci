@@ -23,17 +23,22 @@ type Repository struct {
 	queries *Queries
 }
 
-func NewRepository(dsn string) (*Repository, error) {
-	db, err := sql.Open("postgres", dsn)
+func NewRepository(dataSourceName string) (*Repository, error) {
+	db, err := sql.Open("postgres", dataSourceName)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
+	// Verify connection
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	// Rodar migrations
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Run migrations
 	if err := runMigrations(db); err != nil {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
@@ -80,11 +85,12 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 
 	return r.queries.CreateRun(ctx, CreateRunParams{
 		ID:         meta.ID,
-		Status:     meta.Status,
+		Status:     string(meta.Status),
 		StartedAt:  meta.StartedAt,
 		FinishedAt: finishedAt,
 		ExitCode:   exitCode,
 		UiToken:    meta.UIToken,
+		GitLink:    meta.GitLink,
 	})
 }
 
@@ -112,6 +118,7 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		FinishedAt: finishedAt,
 		ExitCode:   exitCode,
 		UIToken:    row.UiToken,
+		GitLink:    row.GitLink,
 	}, nil
 }
 
@@ -161,6 +168,7 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			FinishedAt: finishedAt,
 			ExitCode:   exitCode,
 			UIToken:    row.UiToken,
+			GitLink:    row.GitLink,
 		}
 	}
 

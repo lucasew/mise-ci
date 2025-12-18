@@ -14,7 +14,6 @@ type Config struct {
 	Nomad   NomadConfig   `yaml:"nomad" mapstructure:"nomad"`
 	Auth    AuthConfig    `yaml:"auth" mapstructure:"auth"`
 	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
-	Database DatabaseConfig `yaml:"database" mapstructure:"database"`
 }
 
 type AuthConfig struct {
@@ -44,12 +43,9 @@ type NomadConfig struct {
 }
 
 type StorageConfig struct {
-	DataDir string `yaml:"data_dir" mapstructure:"data_dir"`
-}
-
-type DatabaseConfig struct {
-	Driver string `yaml:"driver" mapstructure:"driver"` // "sqlite" or "postgres"
-	DSN    string `yaml:"dsn" mapstructure:"dsn"`       // Connection string (path for sqlite, URL for postgres)
+	DataDir  string `yaml:"data_dir" mapstructure:"data_dir"`
+	Driver   string `yaml:"driver" mapstructure:"driver"`     // sqlite (default) or postgres
+	Postgres string `yaml:"postgres" mapstructure:"postgres"` // postgres connection string
 }
 
 func Load(path string) (*Config, error) {

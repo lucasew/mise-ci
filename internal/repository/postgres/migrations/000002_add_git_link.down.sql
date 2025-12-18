@@ -1,0 +1,1 @@
+ALTER TABLE runs DROP COLUMN git_link;

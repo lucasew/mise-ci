@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/lucasew/mise-ci/internal/artifacts"
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
@@ -91,41 +90,37 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no runner configured (nomad.job_name missing)")
 	}
 
-	// Storage & Database
-	dataDir := cfg.Storage.DataDir
-	if dataDir == "" {
-		dataDir = "./data"
-	}
-
+	// Storage
 	var repo repository.Repository
-	if cfg.Database.Driver == "postgres" {
-		if cfg.Database.DSN == "" {
-			return fmt.Errorf("postgres driver requires 'dsn' (MISE_CI_DATABASE_DSN) to be set")
+
+	switch cfg.Storage.Driver {
+	case "postgres":
+		if cfg.Storage.Postgres == "" {
+			return fmt.Errorf("postgres connection string is required when driver is postgres")
 		}
-		repo, err = postgres.NewRepository(cfg.Database.DSN)
+		repo, err = postgres.NewRepository(cfg.Storage.Postgres)
 		if err != nil {
 			return fmt.Errorf("failed to create postgres repository: %w", err)
 		}
-		logger.Info("repository initialized (postgres)")
-	} else {
-		// Default to SQLite
-		dbPath := cfg.Database.DSN
-		if dbPath == "" {
-			dbPath = filepath.Join(dataDir, "runs.db")
+		logger.Info("repository initialized", "driver", "postgres")
+	case "sqlite", "":
+		dataDir := cfg.Storage.DataDir
+		if dataDir == "" {
+			dataDir = "./data"
 		}
+		dbPath := filepath.Join(dataDir, "runs.db")
 		repo, err = sqlite.NewRepository(dbPath)
 		if err != nil {
 			return fmt.Errorf("failed to create sqlite repository: %w", err)
 		}
-		logger.Info("repository initialized (sqlite)", "path", dbPath)
+		logger.Info("repository initialized", "driver", "sqlite", "path", dbPath)
+	default:
+		return fmt.Errorf("unknown storage driver: %s", cfg.Storage.Driver)
 	}
 	defer repo.Close()
 
-	artifactStorage := artifacts.NewLocalStorage(filepath.Join(dataDir, "artifacts"))
-	logger.Info("artifact storage initialized", "path", filepath.Join(dataDir, "artifacts"))
-
 	appCore := core.NewCore(logger, cfg.JWT.Secret, repo)
-	svc := core.NewService(appCore, forges, r, artifactStorage, &cfg, logger)
+	svc := core.NewService(appCore, forges, r, &cfg, logger)
 
 	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{
 		AdminUsername: cfg.Auth.AdminUsername,

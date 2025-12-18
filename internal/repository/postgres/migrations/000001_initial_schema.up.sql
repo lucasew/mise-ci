@@ -1,12 +1,12 @@
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     status TEXT NOT NULL,
-    started_at TIMESTAMPTZ NOT NULL,
-    finished_at TIMESTAMPTZ,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP,
     exit_code INTEGER,
     ui_token TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC);
@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE TABLE IF NOT EXISTS log_entries (
     id SERIAL PRIMARY KEY,
     run_id TEXT NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
     stream TEXT NOT NULL,
     data TEXT NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE

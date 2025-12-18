@@ -3,4 +3,3 @@ config.yaml
 *.pem
 data
 mise-ci
-build/

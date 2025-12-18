@@ -11,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/lucasew/mise-ci/internal/artifacts"
 	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/httputil"
@@ -26,22 +25,20 @@ import (
 var testProjectMiseToml string
 
 type Service struct {
-	Core            *Core
-	Forges          []forge.Forge
-	Runner          runner.Runner
-	ArtifactStorage artifacts.Storage
-	Config          *config.Config
-	Logger          *slog.Logger
+	Core   *Core
+	Forges []forge.Forge
+	Runner runner.Runner
+	Config *config.Config
+	Logger *slog.Logger
 }
 
-func NewService(core *Core, forges []forge.Forge, r runner.Runner, artifactStorage artifacts.Storage, cfg *config.Config, logger *slog.Logger) *Service {
+func NewService(core *Core, forges []forge.Forge, r runner.Runner, cfg *config.Config, logger *slog.Logger) *Service {
 	return &Service{
-		Core:            core,
-		Forges:          forges,
-		Runner:          r,
-		ArtifactStorage: artifactStorage,
-		Config:          cfg,
-		Logger:          logger,
+		Core:   core,
+		Forges: forges,
+		Runner: r,
+		Config: cfg,
+		Logger: logger,
 	}
 }
 
@@ -290,12 +287,6 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	forgeEnv := f.GetCIEnv(event)
 	for k, v := range forgeEnv {
 		env[k] = v
-	}
-
-	// Set GITHUB_TOKEN if we have a token (assuming GitHub forge)
-	// We check if GITHUB_SERVER_URL is set to confirm it is indeed a GitHub environment
-	if _, isGithub := env["GITHUB_SERVER_URL"]; isGithub && creds.Token != "" {
-		env["GITHUB_TOKEN"] = creds.Token
 	}
 
 	// Build git clone URL with credentials
