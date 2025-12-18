@@ -327,23 +327,28 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	if !s.runCommand(run, 2, env, "git", "checkout", event.SHA) {
+	if !s.runCommand(run, 2, env, "git", "fetch", "origin", event.Ref) {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 3, env, "mise", "trust") {
+	if !s.runCommand(run, 3, env, "git", "checkout", event.SHA) {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 4, env, "mise", "install") {
+	if !s.runCommand(run, 4, env, "mise", "trust") {
+		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
+		return false
+	}
+
+	if !s.runCommand(run, 5, env, "mise", "install") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	// Check if 'ci' task exists
-	tasksOutput, err := s.runCommandCapture(run, 5, env, "mise", "tasks", "--json")
+	tasksOutput, err := s.runCommandCapture(run, 6, env, "mise", "tasks", "--json")
 	if err != nil {
 		s.Logger.Error("failed to list tasks", "error", err)
 		// Don't fail the build if we can't list tasks, just try running CI?
@@ -371,7 +376,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	if hasCITask {
-		if !s.runCommand(run, 6, env, "mise", "run", "ci") {
+		if !s.runCommand(run, 7, env, "mise", "run", "ci") {
 			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 			return false
 		}
@@ -385,7 +390,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	s.Core.AddLog(run.ID, "system", "Build completed")
 
 	run.CommandCh <- &pb.ServerMessage{
-		Id: 7,
+		Id: 8,
 		Payload: &pb.ServerMessage_Close{
 			Close: &pb.Close{},
 		},
