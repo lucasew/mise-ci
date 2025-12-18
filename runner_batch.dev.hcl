@@ -33,6 +33,7 @@ job "mise-ci-run" {
       env {
         MISE_CI_CALLBACK = "${NOMAD_META_callback_url}"
         MISE_CI_TOKEN    = "${NOMAD_META_token}"
+        GITHUB_TOKEN     = "${NOMAD_META_github_token}"
       }
 
       resources {

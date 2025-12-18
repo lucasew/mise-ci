@@ -92,6 +92,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
@@ -235,6 +236,18 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		s.Logger.Error("update status pending", "error", err)
 	}
 
+	creds, err := f.CloneCredentials(ctx, event.Repo)
+	if err != nil {
+		s.Logger.Error("get credentials", "error", err)
+		status.State = forge.StateError
+		status.Description = "Failed to get credentials"
+		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+			s.Logger.Error("update status failed", "error", err)
+		}
+		return
+	}
+	s.Logger.Debug("clone credentials obtained successfully")
+
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
@@ -246,6 +259,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
+		GitHubToken: creds.Token,
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
@@ -261,7 +275,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
 
-	success := s.Orchestrate(ctx, run, event, f)
+	success := s.Orchestrate(ctx, run, event, f, creds)
 
 	status.State = forge.StateSuccess
 	status.Description = "Build passed"
@@ -282,19 +296,11 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 }
 
-func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge) bool {
+func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials) bool {
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
 	<-run.ConnectedCh
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
-
-	creds, err := f.CloneCredentials(ctx, event.Repo)
-	if err != nil {
-		s.Logger.Error("get credentials", "error", err)
-		s.Core.UpdateStatus(run.ID, StatusError, nil)
-		return false
-	}
-	s.Logger.Debug("clone credentials obtained successfully")
 
 	// Prepare generic CI environment variables
 	env := map[string]string{

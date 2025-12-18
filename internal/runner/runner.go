@@ -14,4 +14,5 @@ type RunParams struct {
 	CallbackURL string // URL of the matrix
 	Token       string // JWT for auth
 	Image       string // Container image (optional)
+	GitHubToken string // GitHub token for installation/auth
 }
