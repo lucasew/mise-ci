@@ -46,7 +46,6 @@ job "mise-ci" {
         ]
       }
       env {
-        MISE_CI_SERVER_HTTP_ADDR = "0.0.0.0:${NOMAD_PORT_http}"
         MISE_CI_STORAGE_DATA_DIR = "/alloc/data"
         MISE_CI_SERVER_PUBLIC_URL = "https://ci.app.lew.tec.br"
         MISE_CI_NOMAD_JOB_NAME = "mise-ci-run"
