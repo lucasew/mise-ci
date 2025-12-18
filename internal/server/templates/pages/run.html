@@ -32,6 +32,12 @@
             {{.Run.ExitCode}}
         </div>
         {{end}}
+        {{if .Run.GitLink}}
+        <div class="info-item">
+            <span class="info-label">Source:</span>
+            <a href="{{.Run.GitLink}}" target="_blank">Link</a>
+        </div>
+        {{end}}
     </div>
 
     <h2>Logs</h2>
