@@ -26,4 +26,5 @@ type Run struct {
 	UiToken    string        `json:"ui_token"`
 	CreatedAt  sql.NullTime  `json:"created_at"`
 	UpdatedAt  sql.NullTime  `json:"updated_at"`
+	GitLink    string        `json:"git_link"`
 }
