@@ -7,14 +7,23 @@ job "mise-ci-run" {
   }
 
   group "worker" {
+    
     task "run" {
       driver = "docker"
 
       config {
         image = "jdxcode/mise:latest"
+        network_mode = "host" # only for dev
+        work_dir = "/local"
         args = [
           "exec",
-          "go:github.com/lucasew/mise-ci/cmd/mise-ci",
+          "go@latest",
+          "--",
+          "mise",
+          "exec",
+          "go:github.com/lucasew/mise-ci/cmd/mise-ci@main",
+          "--",
+          "mise-ci",
           "worker"
         ]
       }
@@ -26,7 +35,7 @@ job "mise-ci-run" {
 
       resources {
         cpu    = 1000
-        memory = 128
+        memory = 1024
       }
     }
   }
