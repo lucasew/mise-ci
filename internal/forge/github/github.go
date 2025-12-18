@@ -44,12 +44,20 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		if e.Repo == nil || e.Repo.FullName == nil || e.Ref == nil || e.After == nil {
 			return nil, nil // Invalid or missing data
 		}
+		link := ""
+		if e.HeadCommit != nil && e.HeadCommit.URL != nil {
+			link = *e.HeadCommit.URL
+		} else if e.Repo.HTMLURL != nil {
+			link = fmt.Sprintf("%s/commit/%s", *e.Repo.HTMLURL, *e.After)
+		}
+
 		return &forge.WebhookEvent{
 			Type:  forge.EventTypePush,
 			Repo:  *e.Repo.FullName,
 			Ref:   *e.Ref,
 			SHA:   *e.After,
 			Clone: e.Repo.GetCloneURL(),
+			Link:  link,
 		}, nil
 	case *github.PullRequestEvent:
 		if e.Action == nil || (*e.Action != "opened" && *e.Action != "synchronize") {
@@ -58,12 +66,19 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		if e.Repo == nil || e.Repo.FullName == nil || e.PullRequest == nil || e.PullRequest.Head == nil {
 			return nil, nil
 		}
+
+		link := ""
+		if e.PullRequest.HTMLURL != nil {
+			link = *e.PullRequest.HTMLURL
+		}
+
 		return &forge.WebhookEvent{
 			Type:  forge.EventTypePullRequest,
 			Repo:  *e.Repo.FullName,
 			Ref:   fmt.Sprintf("refs/pull/%d/head", e.GetNumber()),
 			SHA:   *e.PullRequest.Head.SHA,
 			Clone: e.Repo.GetCloneURL(),
+			Link:  link,
 		}, nil
 	}
 
