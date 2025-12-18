@@ -85,6 +85,7 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 		FinishedAt: finishedAt,
 		ExitCode:   exitCode,
 		UiToken:    meta.UIToken,
+		GitLink:    meta.GitLink,
 	})
 }
 
