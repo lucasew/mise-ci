@@ -118,6 +118,36 @@ jobs:
           --title "$TITLE" \
           --generate-notes
 
+    - name: Build binaries for release
+      if: env.RELEASE_VERSION != '' && github.event_name != 'pull_request'
+      run: |
+        mkdir build -p && ls && pwd
+
+        echo "# Built targets" >> $GITHUB_STEP_SUMMARY
+        export CGO_ENABLED=0
+
+        targets=(
+          "linux/amd64"
+          "linux/arm64"
+          "windows/amd64"
+          "windows/arm64"
+        )
+
+        for target in "${targets[@]}"; do
+          GOOS=${target%/*}
+          GOARCH=${target#*/}
+
+          echo "::group::Build $GOOS/$GOARCH"
+          EXT=""
+          if [ "$GOOS" == "windows" ]; then
+            EXT=".exe"
+          fi
+
+          GOOS=$GOOS GOARCH=$GOARCH go build -v -o build/mise-ci-$GOOS-$GOARCH$EXT ./cmd/mise-ci && (echo "- $GOOS/$GOARCH" >> $GITHUB_STEP_SUMMARY) || true
+          echo "::endgroup::"
+        done
+
+
     - name: Upload release artifacts
       if: env.RELEASE_VERSION != '' && github.event_name != 'pull_request'
       env:
