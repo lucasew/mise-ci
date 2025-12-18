@@ -92,6 +92,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
+		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
@@ -163,15 +164,22 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 
 	pipeline := orchestration.NewPipeline(run.ID, s.Core, s.Logger)
 
+	// Prepare env for test run
+	env := map[string]string{}
+	// Inject GITHUB_TOKEN if available in server environment to avoid rate limits
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		env["GITHUB_TOKEN"] = token
+	}
+
 	pipeline.
 		AddStep("copy-config", "Copying mise.toml to worker", func() error {
 			return s.copyFileToWorker(run, 1, "mise.toml", "mise.toml", miseTomlData)
 		}).
 		AddStep("trust", "Trusting mise configuration", func() error {
-			return s.runCommandSync(run, 2, nil, "mise", "trust")
+			return s.runCommandSync(run, 2, env, "mise", "trust")
 		}).
 		AddStep("run-ci", "Starting CI task", func() error {
-			return s.runCommandSync(run, 3, nil, "mise", "run", "ci")
+			return s.runCommandSync(run, 3, env, "mise", "run", "ci")
 		}).
 		AddStep("retrieve", "Retrieving output artifacts", func() error {
 			return s.copyFileFromWorker(run, 4, "output.txt", outputPath)
@@ -228,6 +236,18 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		s.Logger.Error("update status pending", "error", err)
 	}
 
+	creds, err := f.CloneCredentials(ctx, event.Repo)
+	if err != nil {
+		s.Logger.Error("get credentials", "error", err)
+		status.State = forge.StateError
+		status.Description = "Failed to get credentials"
+		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
+			s.Logger.Error("update status failed", "error", err)
+		}
+		return
+	}
+	s.Logger.Debug("clone credentials obtained successfully")
+
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
@@ -239,6 +259,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
+		GitHubToken: creds.Token,
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
@@ -254,7 +275,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
 
-	success := s.Orchestrate(ctx, run, event, f)
+	success := s.Orchestrate(ctx, run, event, f, creds)
 
 	status.State = forge.StateSuccess
 	status.Description = "Build passed"
@@ -275,18 +296,11 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 }
 
-func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge) bool {
+func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials) bool {
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
 	<-run.ConnectedCh
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
-
-	creds, err := f.CloneCredentials(ctx, event.Repo)
-	if err != nil {
-		s.Logger.Error("get credentials", "error", err)
-		s.Core.UpdateStatus(run.ID, StatusError, nil)
-		return false
-	}
 
 	// Prepare generic CI environment variables
 	env := map[string]string{
@@ -307,6 +321,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	// Set GITHUB_TOKEN if we have a token (assuming GitHub forge)
 	// We check if GITHUB_SERVER_URL is set to confirm it is indeed a GitHub environment
 	if _, isGithub := env["GITHUB_SERVER_URL"]; isGithub && creds.Token != "" {
+		s.Logger.Debug("injecting GITHUB_TOKEN into run environment")
 		env["GITHUB_TOKEN"] = creds.Token
 	}
 
@@ -405,7 +420,7 @@ func (s *Service) runCommand(run *Run, id uint64, env map[string]string, cmd str
 
 // runCommandSync executes a command and waits for it to complete
 func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd string, args ...string) error {
-	s.Logger.Info("executing command", "cmd", cmd, "args", args)
+	s.Logger.Info("executing command", "cmd", cmd, "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	if !s.waitForDone(run, cmd) {
@@ -416,7 +431,7 @@ func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd
 
 // runCommandCapture executes a command and captures stdout, returning it as a string
 func (s *Service) runCommandCapture(run *Run, id uint64, env map[string]string, cmd string, args ...string) (string, error) {
-	s.Logger.Info("executing command capture", "cmd", cmd, "args", args)
+	s.Logger.Info("executing command capture", "cmd", cmd, "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	var outputBuilder strings.Builder
@@ -493,6 +508,21 @@ func (s *Service) waitForDone(run *Run, context string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Service) sanitizeArgs(args []string) []string {
+	sanitized := make([]string, len(args))
+	for i, arg := range args {
+		if strings.Contains(arg, "x-access-token") {
+			if u, err := url.Parse(arg); err == nil && u.User != nil {
+				u.User = url.UserPassword(u.User.Username(), "REDACTED")
+				sanitized[i] = u.String()
+				continue
+			}
+		}
+		sanitized[i] = arg
+	}
+	return sanitized
 }
 
 func (s *Service) receiveFile(run *Run, destPath string, context string) bool {
