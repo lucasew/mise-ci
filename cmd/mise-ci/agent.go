@@ -41,6 +41,7 @@ func init() {
 }
 
 func runAgent(cmd *cobra.Command, args []string) error {
+	// Triggering CI build to ensure lint fixes are picked up
 	var cfg config.Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return err
