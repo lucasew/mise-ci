@@ -44,6 +44,7 @@ type RunInfo struct {
 	Logs       []LogEntry
 	ExitCode   *int32
 	UIToken    string
+	GitLink    string
 }
 
 type Core struct {
@@ -75,7 +76,7 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 	}
 }
 
-func (c *Core) CreateRun(id string) *Run {
+func (c *Core) CreateRun(id string, gitLink string) *Run {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -100,6 +101,7 @@ func (c *Core) CreateRun(id string) *Run {
 		Status:    string(StatusScheduled),
 		StartedAt: time.Now(),
 		UIToken:   uiToken,
+		GitLink:   gitLink,
 	}
 
 	ctx := context.Background()
@@ -113,6 +115,7 @@ func (c *Core) CreateRun(id string) *Run {
 		Status:    StatusScheduled,
 		StartedAt: metadata.StartedAt,
 		UIToken:   uiToken,
+		GitLink:   gitLink,
 	})
 
 	return run
@@ -258,6 +261,7 @@ func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
 		FinishedAt: meta.FinishedAt,
 		ExitCode:   meta.ExitCode,
 		UIToken:    meta.UIToken,
+		GitLink:    meta.GitLink,
 		Logs:       nil, // Logs fetched separately via GetLogsFromRepository
 	}, true
 }
@@ -281,6 +285,7 @@ func (c *Core) GetAllRuns() []RunInfo {
 			Logs:       nil,
 			ExitCode:   repoRun.ExitCode,
 			UIToken:    repoRun.UIToken,
+			GitLink:    repoRun.GitLink,
 		}
 	}
 

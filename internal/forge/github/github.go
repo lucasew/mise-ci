@@ -50,6 +50,7 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 			Ref:   *e.Ref,
 			SHA:   *e.After,
 			Clone: e.Repo.GetCloneURL(),
+			Link:  e.Repo.GetHTMLURL(),
 		}, nil
 	case *github.PullRequestEvent:
 		if e.Action == nil || (*e.Action != "opened" && *e.Action != "synchronize") {
@@ -64,6 +65,7 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 			Ref:   fmt.Sprintf("refs/pull/%d/head", e.GetNumber()),
 			SHA:   *e.PullRequest.Head.SHA,
 			Clone: e.Repo.GetCloneURL(),
+			Link:  e.PullRequest.GetHTMLURL(),
 		}, nil
 	}
 

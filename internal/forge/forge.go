@@ -29,6 +29,7 @@ type WebhookEvent struct {
 	Ref   string    // refs/heads/main, refs/pull/123/merge
 	SHA   string    // commit sha
 	Clone string    // clone URL
+	Link  string    // link to PR or Repo
 }
 
 type EventType int

@@ -14,6 +14,7 @@
                 <th>Status</th>
                 <th>Started</th>
                 <th>Duration</th>
+                <th>Source</th>
             </tr>
         </thead>
         <tbody id="runs-table">
@@ -23,6 +24,13 @@
                 <td><span class="status-badge {{statusClass .Status}}">{{.Status}}</span></td>
                 <td>{{formatTime .StartedAt}}</td>
                 <td class="duration">{{formatDuration .StartedAt .FinishedAt}}</td>
+                <td>
+                    {{if .GitLink}}
+                    <a href="{{.GitLink}}" target="_blank" rel="noopener noreferrer">View Source</a>
+                    {{else}}
+                    -
+                    {{end}}
+                </td>
             </tr>
             {{end}}
         </tbody>
