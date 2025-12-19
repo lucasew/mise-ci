@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/version"
 )
 
 var workerCmd = &cobra.Command{
@@ -88,6 +89,7 @@ func startWorker() error {
 				Hostname: hostname,
 				Os:       runtime.GOOS,
 				Arch:     runtime.GOARCH,
+				Version:  version.Get(),
 			},
 		},
 	}

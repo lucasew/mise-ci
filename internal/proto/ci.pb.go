@@ -366,6 +366,7 @@ type RunnerInfo struct {
 	Os            string                 `protobuf:"bytes,2,opt,name=os,proto3" json:"os,omitempty"`
 	Arch          string                 `protobuf:"bytes,3,opt,name=arch,proto3" json:"arch,omitempty"`
 	Extra         map[string]string      `protobuf:"bytes,4,rep,name=extra,proto3" json:"extra,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Version       string                 `protobuf:"bytes,5,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -426,6 +427,13 @@ func (x *RunnerInfo) GetExtra() map[string]string {
 		return x.Extra
 	}
 	return nil
+}
+
+func (x *RunnerInfo) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
 }
 
 // Copy files - bidirectional
@@ -962,13 +970,14 @@ const file_internal_proto_ci_proto_rawDesc = "" +
 	"\x04copy\x18\x02 \x01(\v2\b.ci.CopyH\x00R\x04copy\x12\x1b\n" +
 	"\x03run\x18\x03 \x01(\v2\a.ci.RunH\x00R\x03run\x12!\n" +
 	"\x05close\x18\x04 \x01(\v2\t.ci.CloseH\x00R\x05closeB\t\n" +
-	"\apayload\"\xb7\x01\n" +
+	"\apayload\"\xd1\x01\n" +
 	"\n" +
 	"RunnerInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
 	"\x02os\x18\x02 \x01(\tR\x02os\x12\x12\n" +
 	"\x04arch\x18\x03 \x01(\tR\x04arch\x12/\n" +
-	"\x05extra\x18\x04 \x03(\v2\x19.ci.RunnerInfo.ExtraEntryR\x05extra\x1a8\n" +
+	"\x05extra\x18\x04 \x03(\v2\x19.ci.RunnerInfo.ExtraEntryR\x05extra\x12\x18\n" +
+	"\aversion\x18\x05 \x01(\tR\aversion\x1a8\n" +
 	"\n" +
 	"ExtraEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

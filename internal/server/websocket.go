@@ -15,6 +15,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/stream"
+	"github.com/lucasew/mise-ci/internal/version"
 )
 
 var upgrader = websocket.Upgrader{
@@ -122,6 +123,13 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 				if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
 					s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
+					if info.RunnerInfo.Version != version.Get() {
+						s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
+						// Send close frame so worker exits with 0
+						cm := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "version mismatch")
+						_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)
+						return fmt.Errorf("worker version mismatch: worker=%s server=%s", info.RunnerInfo.Version, version.Get())
+					}
 					// Update status to running when worker connects
 					s.core.UpdateStatus(runID, core.StatusRunning, nil)
 					s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
