@@ -39,6 +39,7 @@ message RunnerInfo {
   string os = 2;
   string arch = 3;
   map<string, string> extra = 4;
+  string version = 5;
 }
 
 // Copy files - bidirectional
