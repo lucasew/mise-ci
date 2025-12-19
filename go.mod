@@ -7,6 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/go-github/v66 v66.0.0
+	github.com/google/go-github/v78 v78.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/nomad/api v0.0.0-20251217200042-7a46c75fb6cf
 	github.com/lib/pq v1.10.9
