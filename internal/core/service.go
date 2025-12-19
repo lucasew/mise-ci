@@ -132,6 +132,10 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	<-run.ConnectedCh
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
 
+	defer func() {
+		run.CommandCh <- msgutil.NewCloseCommand(9999)
+	}()
+
 	// Create temporary test project directory
 	testDir, err := os.MkdirTemp("", "mise-ci-test-*")
 	if err != nil {
@@ -207,9 +211,6 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 
 	s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
 	s.Core.AddLog(run.ID, "system", "Test run completed successfully")
-
-	// Close connection
-	run.CommandCh <- msgutil.NewCloseCommand(5)
 }
 
 func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
@@ -301,6 +302,15 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
 	<-run.ConnectedCh
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+
+	defer func() {
+		run.CommandCh <- &pb.ServerMessage{
+			Id: 9999,
+			Payload: &pb.ServerMessage_Close{
+				Close: &pb.Close{},
+			},
+		}
+	}()
 
 	// Prepare generic CI environment variables
 	env := map[string]string{
@@ -403,13 +413,6 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	s.Core.AddLog(run.ID, "system", "Build completed")
-
-	run.CommandCh <- &pb.ServerMessage{
-		Id: 8,
-		Payload: &pb.ServerMessage_Close{
-			Close: &pb.Close{},
-		},
-	}
 
 	return true
 }
