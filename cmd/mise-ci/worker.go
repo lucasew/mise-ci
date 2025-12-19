@@ -108,8 +108,8 @@ func startWorker() error {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 				break
 			}
-			logger.Error("failed to read message", "error", err)
-			return fmt.Errorf("read error: %w", err)
+			logger.Warn("connection lost", "error", err)
+			return nil
 		}
 
 		var msg pb.ServerMessage
