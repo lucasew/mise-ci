@@ -1,9 +1,9 @@
 -- name: CreateRun :exec
-INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 
 -- name: GetRun :one
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch
 FROM runs
 WHERE id = $1;
 
@@ -13,7 +13,7 @@ SET status = $2, exit_code = $3, finished_at = $4, updated_at = CURRENT_TIMESTAM
 WHERE id = $1;
 
 -- name: ListRuns :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch
 FROM runs
 ORDER BY started_at DESC;
 

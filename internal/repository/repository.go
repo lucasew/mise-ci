@@ -23,13 +23,16 @@ type Repository interface {
 
 // RunMetadata represents persistent run information (without logs)
 type RunMetadata struct {
-	ID         string
-	Status     string
-	StartedAt  time.Time
-	FinishedAt *time.Time
-	ExitCode   *int32
-	UIToken    string
-	GitLink    string
+	ID            string
+	Status        string
+	StartedAt     time.Time
+	FinishedAt    *time.Time
+	ExitCode      *int32
+	UIToken       string
+	GitLink       string
+	CommitMessage string
+	Author        string
+	Branch        string
 }
 
 // LogEntry represents a single log line

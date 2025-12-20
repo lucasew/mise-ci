@@ -1,0 +1,3 @@
+ALTER TABLE runs DROP COLUMN commit_message;
+ALTER TABLE runs DROP COLUMN author;
+ALTER TABLE runs DROP COLUMN branch;

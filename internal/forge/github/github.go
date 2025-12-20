@@ -52,13 +52,25 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 			link = fmt.Sprintf("%s/commit/%s", *e.Repo.HTMLURL, *e.After)
 		}
 
+		msg := ""
+		author := ""
+		if e.HeadCommit != nil {
+			msg = e.HeadCommit.GetMessage()
+			if e.HeadCommit.Author != nil {
+				author = e.HeadCommit.Author.GetName()
+			}
+		}
+
 		return &forge.WebhookEvent{
-			Type:  forge.EventTypePush,
-			Repo:  *e.Repo.FullName,
+			Type:          forge.EventTypePush,
+			Repo:          *e.Repo.FullName,
 			Ref:   *e.Ref,
 			SHA:   *e.After,
-			Clone: e.Repo.GetCloneURL(),
-			Link:  link,
+			Clone:         e.Repo.GetCloneURL(),
+			Link:          link,
+			CommitMessage: msg,
+			Author:        author,
+			Branch:        strings.TrimPrefix(*e.Ref, "refs/heads/"),
 		}, nil
 	case *github.PullRequestEvent:
 		if e.Action == nil || (*e.Action != "opened" && *e.Action != "synchronize") {
@@ -74,12 +86,15 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		}
 
 		return &forge.WebhookEvent{
-			Type:  forge.EventTypePullRequest,
-			Repo:  *e.Repo.FullName,
+			Type:          forge.EventTypePullRequest,
+			Repo:          *e.Repo.FullName,
 			Ref:   fmt.Sprintf("refs/pull/%d/head", e.GetNumber()),
 			SHA:   *e.PullRequest.Head.SHA,
-			Clone: e.Repo.GetCloneURL(),
-			Link:  link,
+			Clone:         e.Repo.GetCloneURL(),
+			Link:          link,
+			CommitMessage: e.PullRequest.GetTitle(),
+			Author:        e.PullRequest.User.GetLogin(),
+			Branch:        e.PullRequest.Head.GetRef(),
 		}, nil
 	}
 
