@@ -73,6 +73,8 @@ github.com/hashicorp/nomad/api v0.0.0-20251218213252-3501ae8d69c1 h1:TSuEhtPki5G
 github.com/hashicorp/nomad/api v0.0.0-20251218213252-3501ae8d69c1/go.mod h1:sldFTIgs+FsUeKU3LwVjviAIuksxD8TzDOn02MYwslE=
 github.com/hashicorp/nomad/api v0.0.0-20251219102226-840bfc469748 h1:equW1gPpngZkw5+7cA49Yop/gpCFuguAI+dWwtcpjgE=
 github.com/hashicorp/nomad/api v0.0.0-20251219102226-840bfc469748/go.mod h1:sldFTIgs+FsUeKU3LwVjviAIuksxD8TzDOn02MYwslE=
+github.com/hashicorp/nomad/api v0.0.0-20251219203746-5beec4b905a9 h1:oTNXRNJP/rPQ60fQ5WNDH475o9A3jnfYQUNgkzlf4lo=
+github.com/hashicorp/nomad/api v0.0.0-20251219203746-5beec4b905a9/go.mod h1:sldFTIgs+FsUeKU3LwVjviAIuksxD8TzDOn02MYwslE=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=

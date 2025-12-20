@@ -9,7 +9,7 @@ require (
 	github.com/google/go-github/v66 v66.0.0
 	github.com/google/go-github/v80 v80.0.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/hashicorp/nomad/api v0.0.0-20251219102226-840bfc469748
+	github.com/hashicorp/nomad/api v0.0.0-20251219203746-5beec4b905a9
 	github.com/lib/pq v1.10.9
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
