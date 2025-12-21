@@ -193,7 +193,7 @@ func (r *Repository) AppendLogs(ctx context.Context, runID string, entries []rep
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	qtx := r.queries.WithTx(tx)
 
