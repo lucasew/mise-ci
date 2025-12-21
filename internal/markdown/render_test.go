@@ -37,6 +37,11 @@ func TestRender(t *testing.T) {
 			input:    "[Google](https://google.com)",
 			contains: `<a href="https://google.com" rel="nofollow">Google</a>`,
 		},
+		{
+			name:     "Autolink",
+			input:    "https://example.com",
+			contains: `<a href="https://example.com"`,
+		},
 	}
 
 	for _, tt := range tests {

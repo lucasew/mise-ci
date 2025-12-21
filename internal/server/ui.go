@@ -30,6 +30,20 @@ type UIServer struct {
 func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 	funcMap := template.FuncMap{
 		"markdown": markdown.Render,
+		"subject": func(s string) string {
+			idx := strings.Index(s, "\n")
+			if idx == -1 {
+				return s
+			}
+			return s[:idx]
+		},
+		"body": func(s string) string {
+			idx := strings.Index(s, "\n")
+			if idx == -1 {
+				return ""
+			}
+			return strings.TrimSpace(s[idx+1:])
+		},
 		"formatTime": func(t time.Time) string {
 			return t.Format("2006-01-02 15:04:05")
 		},
