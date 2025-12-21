@@ -37,7 +37,9 @@
         {{if .Run.CommitMessage}}
         <div class="info-item">
             <span class="info-label">Commit:</span>
-            {{.Run.CommitMessage}}
+            <div style="display: inline-block; vertical-align: top;">
+                {{markdown .Run.CommitMessage}}
+            </div>
         </div>
         {{end}}
         {{if .Run.Author}}

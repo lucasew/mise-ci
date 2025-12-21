@@ -13,6 +13,7 @@ import (
 	"github.com/abiosoft/mold"
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/httputil"
+	"github.com/lucasew/mise-ci/internal/markdown"
 	"github.com/lucasew/mise-ci/internal/sseutil"
 	"github.com/lucasew/mise-ci/internal/version"
 )
@@ -28,6 +29,7 @@ type UIServer struct {
 
 func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 	funcMap := template.FuncMap{
+		"markdown": markdown.Render,
 		"formatTime": func(t time.Time) string {
 			return t.Format("2006-01-02 15:04:05")
 		},
