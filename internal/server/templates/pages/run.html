@@ -32,6 +32,24 @@
             {{.Run.ExitCode}}
         </div>
         {{end}}
+        {{if .Run.CommitMessage}}
+        <div class="info-item">
+            <span class="info-label">Commit:</span>
+            {{.Run.CommitMessage}}
+        </div>
+        {{end}}
+        {{if .Run.Author}}
+        <div class="info-item">
+            <span class="info-label">Author:</span>
+            {{.Run.Author}}
+        </div>
+        {{end}}
+        {{if .Run.Branch}}
+        <div class="info-item">
+            <span class="info-label">Branch:</span>
+            {{.Run.Branch}}
+        </div>
+        {{end}}
         {{if .Run.GitLink}}
         <div class="info-item">
             <span class="info-label">Source:</span>

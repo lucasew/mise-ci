@@ -37,14 +37,17 @@ type LogEntry struct {
 }
 
 type RunInfo struct {
-	ID         string
-	Status     RunStatus
-	StartedAt  time.Time
-	FinishedAt *time.Time
-	Logs       []LogEntry
-	ExitCode   *int32
-	UIToken    string
-	GitLink    string
+	ID            string
+	Status        RunStatus
+	StartedAt     time.Time
+	FinishedAt    *time.Time
+	Logs          []LogEntry
+	ExitCode      *int32
+	UIToken       string
+	GitLink       string
+	CommitMessage string
+	Author        string
+	Branch        string
 }
 
 type Core struct {
@@ -76,7 +79,7 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 	}
 }
 
-func (c *Core) CreateRun(id string, gitLink string) *Run {
+func (c *Core) CreateRun(id string, gitLink, commitMessage, author, branch string) *Run {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -97,11 +100,14 @@ func (c *Core) CreateRun(id string, gitLink string) *Run {
 
 	// Save to database
 	metadata := &repository.RunMetadata{
-		ID:        id,
-		Status:    string(StatusScheduled),
-		StartedAt: time.Now(),
-		UIToken:   uiToken,
-		GitLink:   gitLink,
+		ID:            id,
+		Status:        string(StatusScheduled),
+		StartedAt:     time.Now(),
+		UIToken:       uiToken,
+		GitLink:       gitLink,
+		CommitMessage: commitMessage,
+		Author:        author,
+		Branch:        branch,
 	}
 
 	ctx := context.Background()
@@ -111,11 +117,14 @@ func (c *Core) CreateRun(id string, gitLink string) *Run {
 
 	// Broadcast to status listeners
 	c.statusListener.Broadcast(RunInfo{
-		ID:        id,
-		Status:    StatusScheduled,
-		StartedAt: metadata.StartedAt,
-		UIToken:   uiToken,
-		GitLink:   gitLink,
+		ID:            id,
+		Status:        StatusScheduled,
+		StartedAt:     metadata.StartedAt,
+		UIToken:       uiToken,
+		GitLink:       gitLink,
+		CommitMessage: commitMessage,
+		Author:        author,
+		Branch:        branch,
 	})
 
 	return run
@@ -237,13 +246,16 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 
 	// Broadcast status change to listeners
 	c.statusListener.Broadcast(RunInfo{
-		ID:         meta.ID,
-		Status:     RunStatus(meta.Status),
-		StartedAt:  meta.StartedAt,
-		FinishedAt: meta.FinishedAt,
-		ExitCode:   meta.ExitCode,
-		UIToken:    meta.UIToken,
-		GitLink:    meta.GitLink,
+		ID:            meta.ID,
+		Status:        RunStatus(meta.Status),
+		StartedAt:     meta.StartedAt,
+		FinishedAt:    meta.FinishedAt,
+		ExitCode:      meta.ExitCode,
+		UIToken:       meta.UIToken,
+		GitLink:       meta.GitLink,
+		CommitMessage: meta.CommitMessage,
+		Author:        meta.Author,
+		Branch:        meta.Branch,
 	})
 }
 
@@ -256,14 +268,17 @@ func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
 	}
 
 	return &RunInfo{
-		ID:         meta.ID,
-		Status:     RunStatus(meta.Status),
-		StartedAt:  meta.StartedAt,
-		FinishedAt: meta.FinishedAt,
-		ExitCode:   meta.ExitCode,
-		UIToken:    meta.UIToken,
-		GitLink:    meta.GitLink,
-		Logs:       nil, // Logs fetched separately via GetLogsFromRepository
+		ID:            meta.ID,
+		Status:        RunStatus(meta.Status),
+		StartedAt:     meta.StartedAt,
+		FinishedAt:    meta.FinishedAt,
+		ExitCode:      meta.ExitCode,
+		UIToken:       meta.UIToken,
+		GitLink:       meta.GitLink,
+		CommitMessage: meta.CommitMessage,
+		Author:        meta.Author,
+		Branch:        meta.Branch,
+		Logs:          nil, // Logs fetched separately via GetLogsFromRepository
 	}, true
 }
 
@@ -279,14 +294,17 @@ func (c *Core) GetAllRuns() []RunInfo {
 	runs := make([]RunInfo, len(repoRuns))
 	for i, repoRun := range repoRuns {
 		runs[i] = RunInfo{
-			ID:         repoRun.ID,
-			Status:     RunStatus(repoRun.Status),
-			StartedAt:  repoRun.StartedAt,
-			FinishedAt: repoRun.FinishedAt,
-			Logs:       nil,
-			ExitCode:   repoRun.ExitCode,
-			UIToken:    repoRun.UIToken,
-			GitLink:    repoRun.GitLink,
+			ID:            repoRun.ID,
+			Status:        RunStatus(repoRun.Status),
+			StartedAt:     repoRun.StartedAt,
+			FinishedAt:    repoRun.FinishedAt,
+			Logs:          nil,
+			ExitCode:      repoRun.ExitCode,
+			UIToken:       repoRun.UIToken,
+			GitLink:       repoRun.GitLink,
+			CommitMessage: repoRun.CommitMessage,
+			Author:        repoRun.Author,
+			Branch:        repoRun.Branch,
 		}
 	}
 

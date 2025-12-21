@@ -24,12 +24,15 @@ type Forge interface {
 }
 
 type WebhookEvent struct {
-	Type  EventType // Push, PullRequest
-	Repo  string    // owner/repo
-	Ref   string    // refs/heads/main, refs/pull/123/merge
-	SHA   string    // commit sha
-	Clone string    // clone URL
-	Link  string    // link to PR or commit
+	Type          EventType // Push, PullRequest
+	Repo          string    // owner/repo
+	Ref           string    // refs/heads/main, refs/pull/123/merge
+	SHA           string    // commit sha
+	Clone         string    // clone URL
+	Link          string    // link to PR or commit
+	CommitMessage string
+	Author        string
+	Branch        string
 }
 
 type EventType int

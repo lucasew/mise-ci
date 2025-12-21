@@ -79,13 +79,16 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 	}
 
 	return r.queries.CreateRun(ctx, CreateRunParams{
-		ID:         meta.ID,
-		Status:     meta.Status,
-		StartedAt:  meta.StartedAt,
-		FinishedAt: finishedAt,
-		ExitCode:   exitCode,
-		UiToken:    meta.UIToken,
-		GitLink:    meta.GitLink,
+		ID:            meta.ID,
+		Status:        meta.Status,
+		StartedAt:     meta.StartedAt,
+		FinishedAt:    finishedAt,
+		ExitCode:      exitCode,
+		UiToken:       meta.UIToken,
+		GitLink:       meta.GitLink,
+		CommitMessage: meta.CommitMessage,
+		Author:        meta.Author,
+		Branch:        meta.Branch,
 	})
 }
 
@@ -107,13 +110,16 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 	}
 
 	return &repository.RunMetadata{
-		ID:         row.ID,
-		Status:     row.Status,
-		StartedAt:  row.StartedAt,
-		FinishedAt: finishedAt,
-		ExitCode:   exitCode,
-		UIToken:    row.UiToken,
-		GitLink:    row.GitLink,
+		ID:            row.ID,
+		Status:        row.Status,
+		StartedAt:     row.StartedAt,
+		FinishedAt:    finishedAt,
+		ExitCode:      exitCode,
+		UIToken:       row.UiToken,
+		GitLink:       row.GitLink,
+		CommitMessage: row.CommitMessage,
+		Author:        row.Author,
+		Branch:        row.Branch,
 	}, nil
 }
 
@@ -157,13 +163,16 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 		}
 
 		runs[i] = &repository.RunMetadata{
-			ID:         row.ID,
-			Status:     row.Status,
-			StartedAt:  row.StartedAt,
-			FinishedAt: finishedAt,
-			ExitCode:   exitCode,
-			UIToken:    row.UiToken,
-			GitLink:    row.GitLink,
+			ID:            row.ID,
+			Status:        row.Status,
+			StartedAt:     row.StartedAt,
+			FinishedAt:    finishedAt,
+			ExitCode:      exitCode,
+			UIToken:       row.UiToken,
+			GitLink:       row.GitLink,
+			CommitMessage: row.CommitMessage,
+			Author:        row.Author,
+			Branch:        row.Branch,
 		}
 	}
 
