@@ -1,10 +1,12 @@
 {{define "content"}}
-    <a href="/ui/" class="back-link">← Back to Runs</a>
+    <h1>Run: {{if .Run.CommitMessage}}{{.Run.CommitMessage}}{{else}}{{.Run.ID}}{{end}}</h1>
 
-    <h1>Run: {{.Run.ID}}</h1>
-
-    <div style="margin-bottom: 20px;">
-        <a href="/ui/run/{{.Run.ID}}.log{{if .Token}}?token={{.Token}}{{end}}" target="_blank" class="button">Raw Logs</a>
+    <div class="run-nav" style="margin-bottom: 20px; padding: 10px 0; border-bottom: 1px solid #eee;">
+        <a href="/ui/" style="margin-right: 20px; text-decoration: none;">← Runs</a>
+        <a href="/ui/run/{{.Run.ID}}.log{{if .Token}}?token={{.Token}}{{end}}" target="_blank" style="margin-right: 20px; text-decoration: none;">Raw Logs</a>
+        {{if .Run.GitLink}}
+        <a href="{{.Run.GitLink}}" target="_blank" style="text-decoration: none;">Source</a>
+        {{end}}
     </div>
 
     <div class="info-section" data-status="{{.Run.Status}}" data-started="{{.Run.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .Run.FinishedAt}}{{.Run.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
