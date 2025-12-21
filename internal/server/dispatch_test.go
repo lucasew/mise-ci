@@ -39,7 +39,7 @@ func TestDispatchAuth(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Expected 401 Unauthorized, got %d", resp.StatusCode)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Test case 2: With credentials
 	req, _ = http.NewRequest("POST", server.URL+"/ui/test/dispatch", nil)
@@ -51,5 +51,5 @@ func TestDispatchAuth(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected 200 OK, got %d", resp.StatusCode)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
