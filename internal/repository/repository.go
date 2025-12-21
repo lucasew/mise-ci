@@ -15,6 +15,7 @@ type Repository interface {
 
 	// Log operations
 	AppendLog(ctx context.Context, runID string, entry LogEntry) error
+	AppendLogs(ctx context.Context, runID string, entries []LogEntry) error
 	GetLogs(ctx context.Context, runID string) ([]LogEntry, error)
 
 	// Cleanup

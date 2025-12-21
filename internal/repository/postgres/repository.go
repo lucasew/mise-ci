@@ -188,6 +188,29 @@ func (r *Repository) AppendLog(ctx context.Context, runID string, entry reposito
 	})
 }
 
+func (r *Repository) AppendLogs(ctx context.Context, runID string, entries []repository.LogEntry) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	qtx := r.queries.WithTx(tx)
+
+	for _, entry := range entries {
+		if err := qtx.AppendLog(ctx, AppendLogParams{
+			RunID:     runID,
+			Timestamp: entry.Timestamp,
+			Stream:    entry.Stream,
+			Data:      entry.Data,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *Repository) GetLogs(ctx context.Context, runID string) ([]repository.LogEntry, error) {
 	rows, err := r.queries.GetLogs(ctx, runID)
 	if err != nil {

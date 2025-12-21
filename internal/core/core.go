@@ -50,14 +50,57 @@ type RunInfo struct {
 	Branch        string
 }
 
+type LogBuffer struct {
+	mu      sync.Mutex
+	entries []LogEntry
+	core    *Core
+	runID   string
+	flushCh chan struct{}
+}
+
+func (lb *LogBuffer) start() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			lb.flush()
+		case <-lb.flushCh:
+			lb.flush()
+			return
+		}
+	}
+}
+
+func (lb *LogBuffer) flush() {
+	lb.mu.Lock()
+	if len(lb.entries) == 0 {
+		lb.mu.Unlock()
+		return
+	}
+	entries := lb.entries
+	lb.entries = nil
+	lb.mu.Unlock()
+
+	lb.core.flushLogs(lb.runID, entries)
+}
+
+func (lb *LogBuffer) append(entry LogEntry) {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+	lb.entries = append(lb.entries, entry)
+}
+
 type Core struct {
 	runs           map[string]*Run
 	repo           repository.Repository
 	mu             sync.RWMutex
 	logger         *slog.Logger
 	jwtSecret      []byte
-	logListener    map[string]*ListenerManager[LogEntry] // run_id -> log listeners manager
-	statusListener *ListenerManager[RunInfo]             // global status change listeners manager
+	logListener    map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
+	statusListener *ListenerManager[RunInfo]               // global status change listeners manager
+	logBuffers     map[string]*LogBuffer
 }
 
 type Run struct {
@@ -74,8 +117,9 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 		repo:           repo,
 		logger:         logger,
 		jwtSecret:      []byte(secret),
-		logListener:    make(map[string]*ListenerManager[LogEntry]),
+		logListener:    make(map[string]*ListenerManager[[]LogEntry]),
 		statusListener: NewListenerManager[RunInfo](),
+		logBuffers:     make(map[string]*LogBuffer),
 	}
 }
 
@@ -201,6 +245,24 @@ func (c *Core) GetRunUIURL(runID string, baseURL string) string {
 	return fmt.Sprintf("%s/ui/run/%s?token=%s", baseURL, runID, meta.UIToken)
 }
 
+func (c *Core) getOrCreateLogBuffer(runID string) *LogBuffer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if lb, ok := c.logBuffers[runID]; ok {
+		return lb
+	}
+
+	lb := &LogBuffer{
+		core:    c,
+		runID:   runID,
+		flushCh: make(chan struct{}),
+	}
+	c.logBuffers[runID] = lb
+	go lb.start()
+	return lb
+}
+
 func (c *Core) AddLog(runID string, stream string, data string) {
 	entry := LogEntry{
 		Timestamp: time.Now(),
@@ -208,28 +270,61 @@ func (c *Core) AddLog(runID string, stream string, data string) {
 		Data:      data,
 	}
 
-	// Save to database (sync - não pode perder logs!)
-	ctx := context.Background()
-	repoEntry := repository.LogEntry{
-		Timestamp: entry.Timestamp,
-		Stream:    entry.Stream,
-		Data:      entry.Data,
-	}
-	if err := c.repo.AppendLog(ctx, runID, repoEntry); err != nil {
-		c.logger.Error("failed to persist log", "error", err, "run_id", runID)
+	lb := c.getOrCreateLogBuffer(runID)
+	lb.append(entry)
+}
+
+func (c *Core) flushLogs(runID string, entries []LogEntry) {
+	if len(entries) == 0 {
+		return
 	}
 
-	// Broadcast to listeners (real-time streaming)
+	// Save to database (batch)
+	ctx := context.Background()
+	repoEntries := make([]repository.LogEntry, len(entries))
+	for i, entry := range entries {
+		repoEntries[i] = repository.LogEntry{
+			Timestamp: entry.Timestamp,
+			Stream:    entry.Stream,
+			Data:      entry.Data,
+		}
+	}
+
+	if err := c.repo.AppendLogs(ctx, runID, repoEntries); err != nil {
+		c.logger.Error("failed to persist logs", "error", err, "run_id", runID)
+	}
+
+	// Broadcast to listeners
 	c.mu.RLock()
 	lm, exists := c.logListener[runID]
 	c.mu.RUnlock()
 
 	if exists {
-		lm.Broadcast(entry)
+		lm.Broadcast(entries)
 	}
 }
 
 func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
+	// Check if finished and flush logs
+	if status == StatusSuccess || status == StatusFailure || status == StatusError || status == StatusSkipped {
+		c.mu.Lock()
+		if lb, ok := c.logBuffers[runID]; ok {
+			// Signal to flush and stop
+			// We do this async or sync? If sync, we might block if start() is busy.
+			// But start() selects.
+			// Ideally we want to wait for it to finish flushing.
+			// For simplicity, we just send to flushCh which triggers flush and return.
+			// But if channel is full (shouldn't be if buffer large enough or consumer fast),
+			// flushCh is unbuffered. start() reads it.
+			// We can just call lb.flush() directly here if we remove it from map?
+			// But start() is running.
+			// Let's just remove from map and close channel.
+			delete(c.logBuffers, runID)
+			close(lb.flushCh)
+		}
+		c.mu.Unlock()
+	}
+
 	// Update in database
 	ctx := context.Background()
 	if err := c.repo.UpdateRunStatus(ctx, runID, string(status), exitCode); err != nil {
@@ -311,17 +406,17 @@ func (c *Core) GetAllRuns() []RunInfo {
 	return runs
 }
 
-func (c *Core) SubscribeLogs(runID string) chan LogEntry {
+func (c *Core) SubscribeLogs(runID string) chan []LogEntry {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if _, ok := c.logListener[runID]; !ok {
-		c.logListener[runID] = NewListenerManager[LogEntry]()
+		c.logListener[runID] = NewListenerManager[[]LogEntry]()
 	}
 	return c.logListener[runID].Subscribe()
 }
 
-func (c *Core) UnsubscribeLogs(runID string, ch chan LogEntry) {
+func (c *Core) UnsubscribeLogs(runID string, ch chan []LogEntry) {
 	c.mu.RLock()
 	lm, ok := c.logListener[runID]
 	c.mu.RUnlock()

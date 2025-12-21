@@ -177,16 +177,18 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	// Stream new logs
 	for {
 		select {
-		case log, ok := <-logCh:
+		case logs, ok := <-logCh:
 			if !ok {
 				return
 			}
-			if err := sseutil.WriteEvent(w, map[string]interface{}{
-				"timestamp": log.Timestamp.Format(time.RFC3339),
-				"stream":    log.Stream,
-				"data":      log.Data,
-			}); err != nil {
-				s.logger.Warn("failed to write sse event", "error", err)
+			for _, log := range logs {
+				if err := sseutil.WriteEvent(w, map[string]interface{}{
+					"timestamp": log.Timestamp.Format(time.RFC3339),
+					"stream":    log.Stream,
+					"data":      log.Data,
+				}); err != nil {
+					s.logger.Warn("failed to write sse event", "error", err)
+				}
 			}
 			sseutil.Flush(w)
 		case <-r.Context().Done():
