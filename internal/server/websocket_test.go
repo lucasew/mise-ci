@@ -80,7 +80,10 @@ if err != nil {
 			},
 		},
 	}
-	data, _ := proto.Marshal(info)
+data, err := proto.Marshal(info)
+if err != nil {
+	t.Fatalf("failed to marshal RunnerInfo: %v", err)
+}
 	if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 		t.Fatalf("Write RunnerInfo failed: %v", err)
 	}
