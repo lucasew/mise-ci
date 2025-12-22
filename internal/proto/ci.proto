@@ -19,6 +19,7 @@ message WorkerMessage {
     Done done = 4;                 // command finished
     FileChunk file_chunk = 5;      // file chunk being sent
     Error error = 6;               // command error
+    ContextRequest context_request = 7; // request for context
   }
 }
 
@@ -30,7 +31,16 @@ message ServerMessage {
     Copy copy = 2;
     Run run = 3;
     Close close = 4;
+    ContextResponse context_response = 5; // context response
   }
+}
+
+// Context request
+message ContextRequest {}
+
+// Context response
+message ContextResponse {
+  map<string, string> env = 1;
 }
 
 // Runner info, sent on connect

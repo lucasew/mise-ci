@@ -130,6 +130,28 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 						_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)
 						return fmt.Errorf("worker version mismatch: worker=%s server=%s", info.RunnerInfo.Version, version.Get())
 					}
+
+					// Wait for ContextRequest
+					workerMsg, err = wsAdapter.Recv()
+					if err != nil {
+						return fmt.Errorf("failed to read context request: %w", err)
+					}
+					if _, ok := workerMsg.Payload.(*pb.WorkerMessage_ContextRequest); !ok {
+						return errors.New("expected ContextRequest after RunnerInfo")
+					}
+
+					// Send ContextResponse
+					contextResp := &pb.ServerMessage{
+						Payload: &pb.ServerMessage_ContextResponse{
+							ContextResponse: &pb.ContextResponse{
+								Env: run.Env,
+							},
+						},
+					}
+					if err := wsAdapter.Send(contextResp); err != nil {
+						return fmt.Errorf("failed to send context response: %w", err)
+					}
+
 					// Update status to running when worker connects
 					s.core.UpdateStatus(runID, core.StatusRunning, nil)
 					s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
