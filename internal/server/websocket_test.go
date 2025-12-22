@@ -94,7 +94,10 @@ if err != nil {
 			ContextRequest: &pb.ContextRequest{},
 		},
 	}
-	data, _ = proto.Marshal(req)
+data, err = proto.Marshal(req)
+if err != nil {
+	t.Fatalf("failed to marshal ContextRequest: %v", err)
+}
 	if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
 		t.Fatalf("Write ContextRequest failed: %v", err)
 	}
