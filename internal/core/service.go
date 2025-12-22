@@ -87,12 +87,21 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 		publicURL = s.Config.Server.HTTPAddr
 	}
 
+	// Prepare initial environment
+	env := map[string]string{
+		"CI":      "true",
+		"MISE_CI": "true",
+	}
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		env["GITHUB_TOKEN"] = token
+	}
+	s.Core.SetRunEnv(runID, env)
+
 	callback := publicURL
 	params := runner.RunParams{
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)
@@ -255,12 +264,31 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		return
 	}
 
+	// Prepare environment
+	env := map[string]string{
+		"CI":                 "true",
+		"MISE_CI":            "true",
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "safe.directory",
+		"GIT_CONFIG_VALUE_0": "*",
+	}
+
+	forgeEnv := f.GetCIEnv(event)
+	for k, v := range forgeEnv {
+		env[k] = v
+	}
+
+	if _, isGithub := env["GITHUB_SERVER_URL"]; isGithub && creds.Token != "" {
+		env["GITHUB_TOKEN"] = creds.Token
+	}
+
+	s.Core.SetRunEnv(runID, env)
+
 	callback := publicURL
 	params := runner.RunParams{
 		CallbackURL: callback,
 		Token:       token,
 		Image:       s.Config.Nomad.DefaultImage,
-		GitHubToken: creds.Token,
 	}
 
 	jobID, err := s.Runner.Dispatch(ctx, params)

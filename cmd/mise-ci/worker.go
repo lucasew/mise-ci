@@ -29,6 +29,8 @@ var workerCmd = &cobra.Command{
 	RunE:  runWorker,
 }
 
+var workerEnv []string
+
 func init() {
 	rootCmd.AddCommand(workerCmd)
 	workerCmd.Flags().String("callback", "", "Server callback URL")
@@ -97,7 +99,38 @@ func startWorker() error {
 		return fmt.Errorf("failed to send runner info: %w", err)
 	}
 
-	logger.Info("connected and info sent")
+	// Request context
+	if err := wsafeSend(conn, &pb.WorkerMessage{
+		Payload: &pb.WorkerMessage_ContextRequest{
+			ContextRequest: &pb.ContextRequest{},
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to send context request: %w", err)
+	}
+
+	// Receive context
+	_, msgData, err := conn.ReadMessage()
+	if err != nil {
+		return fmt.Errorf("failed to read context response: %w", err)
+	}
+
+	var ctxMsg pb.ServerMessage
+	if err := proto.Unmarshal(msgData, &ctxMsg); err != nil {
+		return fmt.Errorf("unmarshal error: %w", err)
+	}
+
+	ctxResp, ok := ctxMsg.Payload.(*pb.ServerMessage_ContextResponse)
+	if !ok {
+		return fmt.Errorf("expected ContextResponse, got %T", ctxMsg.Payload)
+	}
+
+	// Initialize environment
+	workerEnv = os.Environ()
+	for k, v := range ctxResp.ContextResponse.Env {
+		workerEnv = append(workerEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	logger.Info("connected and context received", "env_vars", len(ctxResp.ContextResponse.Env))
 
 	var (
 		mu         sync.Mutex
@@ -287,7 +320,8 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
 	c.Dir = cmd.Workdir
-	c.Env = os.Environ()
+	c.Env = make([]string, len(workerEnv))
+	copy(c.Env, workerEnv)
 	for k, v := range cmd.Env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
 	}

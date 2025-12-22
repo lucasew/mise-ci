@@ -64,7 +64,7 @@ func (x Copy_Direction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Copy_Direction.Descriptor instead.
 func (Copy_Direction) EnumDescriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{3, 0}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type Output_Stream int32
@@ -110,7 +110,7 @@ func (x Output_Stream) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Output_Stream.Descriptor instead.
 func (Output_Stream) EnumDescriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{7, 0}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{9, 0}
 }
 
 // Messages from worker to server
@@ -124,6 +124,7 @@ type WorkerMessage struct {
 	//	*WorkerMessage_Done
 	//	*WorkerMessage_FileChunk
 	//	*WorkerMessage_Error
+	//	*WorkerMessage_ContextRequest
 	Payload       isWorkerMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -218,6 +219,15 @@ func (x *WorkerMessage) GetError() *Error {
 	return nil
 }
 
+func (x *WorkerMessage) GetContextRequest() *ContextRequest {
+	if x != nil {
+		if x, ok := x.Payload.(*WorkerMessage_ContextRequest); ok {
+			return x.ContextRequest
+		}
+	}
+	return nil
+}
+
 type isWorkerMessage_Payload interface {
 	isWorkerMessage_Payload()
 }
@@ -242,6 +252,10 @@ type WorkerMessage_Error struct {
 	Error *Error `protobuf:"bytes,6,opt,name=error,proto3,oneof"` // command error
 }
 
+type WorkerMessage_ContextRequest struct {
+	ContextRequest *ContextRequest `protobuf:"bytes,7,opt,name=context_request,json=contextRequest,proto3,oneof"` // request for context
+}
+
 func (*WorkerMessage_RunnerInfo) isWorkerMessage_Payload() {}
 
 func (*WorkerMessage_Output) isWorkerMessage_Payload() {}
@@ -252,6 +266,8 @@ func (*WorkerMessage_FileChunk) isWorkerMessage_Payload() {}
 
 func (*WorkerMessage_Error) isWorkerMessage_Payload() {}
 
+func (*WorkerMessage_ContextRequest) isWorkerMessage_Payload() {}
+
 // Messages from server to worker
 type ServerMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -261,6 +277,7 @@ type ServerMessage struct {
 	//	*ServerMessage_Copy
 	//	*ServerMessage_Run
 	//	*ServerMessage_Close
+	//	*ServerMessage_ContextResponse
 	Payload       isServerMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -337,6 +354,15 @@ func (x *ServerMessage) GetClose() *Close {
 	return nil
 }
 
+func (x *ServerMessage) GetContextResponse() *ContextResponse {
+	if x != nil {
+		if x, ok := x.Payload.(*ServerMessage_ContextResponse); ok {
+			return x.ContextResponse
+		}
+	}
+	return nil
+}
+
 type isServerMessage_Payload interface {
 	isServerMessage_Payload()
 }
@@ -353,11 +379,99 @@ type ServerMessage_Close struct {
 	Close *Close `protobuf:"bytes,4,opt,name=close,proto3,oneof"`
 }
 
+type ServerMessage_ContextResponse struct {
+	ContextResponse *ContextResponse `protobuf:"bytes,5,opt,name=context_response,json=contextResponse,proto3,oneof"` // context response
+}
+
 func (*ServerMessage_Copy) isServerMessage_Payload() {}
 
 func (*ServerMessage_Run) isServerMessage_Payload() {}
 
 func (*ServerMessage_Close) isServerMessage_Payload() {}
+
+func (*ServerMessage_ContextResponse) isServerMessage_Payload() {}
+
+// Context request
+type ContextRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContextRequest) Reset() {
+	*x = ContextRequest{}
+	mi := &file_internal_proto_ci_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContextRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextRequest) ProtoMessage() {}
+
+func (x *ContextRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_ci_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextRequest.ProtoReflect.Descriptor instead.
+func (*ContextRequest) Descriptor() ([]byte, []int) {
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{2}
+}
+
+// Context response
+type ContextResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Env           map[string]string      `protobuf:"bytes,1,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContextResponse) Reset() {
+	*x = ContextResponse{}
+	mi := &file_internal_proto_ci_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContextResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextResponse) ProtoMessage() {}
+
+func (x *ContextResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_ci_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextResponse.ProtoReflect.Descriptor instead.
+func (*ContextResponse) Descriptor() ([]byte, []int) {
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ContextResponse) GetEnv() map[string]string {
+	if x != nil {
+		return x.Env
+	}
+	return nil
+}
 
 // Runner info, sent on connect
 type RunnerInfo struct {
@@ -373,7 +487,7 @@ type RunnerInfo struct {
 
 func (x *RunnerInfo) Reset() {
 	*x = RunnerInfo{}
-	mi := &file_internal_proto_ci_proto_msgTypes[2]
+	mi := &file_internal_proto_ci_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -385,7 +499,7 @@ func (x *RunnerInfo) String() string {
 func (*RunnerInfo) ProtoMessage() {}
 
 func (x *RunnerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[2]
+	mi := &file_internal_proto_ci_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -398,7 +512,7 @@ func (x *RunnerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunnerInfo.ProtoReflect.Descriptor instead.
 func (*RunnerInfo) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{2}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RunnerInfo) GetHostname() string {
@@ -450,7 +564,7 @@ type Copy struct {
 
 func (x *Copy) Reset() {
 	*x = Copy{}
-	mi := &file_internal_proto_ci_proto_msgTypes[3]
+	mi := &file_internal_proto_ci_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -462,7 +576,7 @@ func (x *Copy) String() string {
 func (*Copy) ProtoMessage() {}
 
 func (x *Copy) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[3]
+	mi := &file_internal_proto_ci_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -475,7 +589,7 @@ func (x *Copy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Copy.ProtoReflect.Descriptor instead.
 func (*Copy) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{3}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Copy) GetDirection() Copy_Direction {
@@ -526,7 +640,7 @@ type Credentials struct {
 
 func (x *Credentials) Reset() {
 	*x = Credentials{}
-	mi := &file_internal_proto_ci_proto_msgTypes[4]
+	mi := &file_internal_proto_ci_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -538,7 +652,7 @@ func (x *Credentials) String() string {
 func (*Credentials) ProtoMessage() {}
 
 func (x *Credentials) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[4]
+	mi := &file_internal_proto_ci_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -551,7 +665,7 @@ func (x *Credentials) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Credentials.ProtoReflect.Descriptor instead.
 func (*Credentials) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{4}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Credentials) GetAuth() isCredentials_Auth {
@@ -605,7 +719,7 @@ type BasicAuth struct {
 
 func (x *BasicAuth) Reset() {
 	*x = BasicAuth{}
-	mi := &file_internal_proto_ci_proto_msgTypes[5]
+	mi := &file_internal_proto_ci_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -617,7 +731,7 @@ func (x *BasicAuth) String() string {
 func (*BasicAuth) ProtoMessage() {}
 
 func (x *BasicAuth) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[5]
+	mi := &file_internal_proto_ci_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -630,7 +744,7 @@ func (x *BasicAuth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BasicAuth.ProtoReflect.Descriptor instead.
 func (*BasicAuth) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{5}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *BasicAuth) GetUsername() string {
@@ -660,7 +774,7 @@ type Run struct {
 
 func (x *Run) Reset() {
 	*x = Run{}
-	mi := &file_internal_proto_ci_proto_msgTypes[6]
+	mi := &file_internal_proto_ci_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -672,7 +786,7 @@ func (x *Run) String() string {
 func (*Run) ProtoMessage() {}
 
 func (x *Run) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[6]
+	mi := &file_internal_proto_ci_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -685,7 +799,7 @@ func (x *Run) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Run.ProtoReflect.Descriptor instead.
 func (*Run) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{6}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Run) GetCmd() string {
@@ -727,7 +841,7 @@ type Output struct {
 
 func (x *Output) Reset() {
 	*x = Output{}
-	mi := &file_internal_proto_ci_proto_msgTypes[7]
+	mi := &file_internal_proto_ci_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -739,7 +853,7 @@ func (x *Output) String() string {
 func (*Output) ProtoMessage() {}
 
 func (x *Output) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[7]
+	mi := &file_internal_proto_ci_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +866,7 @@ func (x *Output) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Output.ProtoReflect.Descriptor instead.
 func (*Output) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{7}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Output) GetStream() Output_Stream {
@@ -779,7 +893,7 @@ type Done struct {
 
 func (x *Done) Reset() {
 	*x = Done{}
-	mi := &file_internal_proto_ci_proto_msgTypes[8]
+	mi := &file_internal_proto_ci_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -791,7 +905,7 @@ func (x *Done) String() string {
 func (*Done) ProtoMessage() {}
 
 func (x *Done) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[8]
+	mi := &file_internal_proto_ci_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -804,7 +918,7 @@ func (x *Done) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Done.ProtoReflect.Descriptor instead.
 func (*Done) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{8}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Done) GetExitCode() int32 {
@@ -825,7 +939,7 @@ type FileChunk struct {
 
 func (x *FileChunk) Reset() {
 	*x = FileChunk{}
-	mi := &file_internal_proto_ci_proto_msgTypes[9]
+	mi := &file_internal_proto_ci_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -837,7 +951,7 @@ func (x *FileChunk) String() string {
 func (*FileChunk) ProtoMessage() {}
 
 func (x *FileChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[9]
+	mi := &file_internal_proto_ci_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -850,7 +964,7 @@ func (x *FileChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileChunk.ProtoReflect.Descriptor instead.
 func (*FileChunk) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{9}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *FileChunk) GetData() []byte {
@@ -877,7 +991,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_internal_proto_ci_proto_msgTypes[10]
+	mi := &file_internal_proto_ci_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -889,7 +1003,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[10]
+	mi := &file_internal_proto_ci_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -902,7 +1016,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{10}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Error) GetMessage() string {
@@ -921,7 +1035,7 @@ type Close struct {
 
 func (x *Close) Reset() {
 	*x = Close{}
-	mi := &file_internal_proto_ci_proto_msgTypes[11]
+	mi := &file_internal_proto_ci_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -933,7 +1047,7 @@ func (x *Close) String() string {
 func (*Close) ProtoMessage() {}
 
 func (x *Close) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ci_proto_msgTypes[11]
+	mi := &file_internal_proto_ci_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -946,14 +1060,14 @@ func (x *Close) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Close.ProtoReflect.Descriptor instead.
 func (*Close) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ci_proto_rawDescGZIP(), []int{11}
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{13}
 }
 
 var File_internal_proto_ci_proto protoreflect.FileDescriptor
 
 const file_internal_proto_ci_proto_rawDesc = "" +
 	"\n" +
-	"\x17internal/proto/ci.proto\x12\x02ci\"\xf6\x01\n" +
+	"\x17internal/proto/ci.proto\x12\x02ci\"\xb5\x02\n" +
 	"\rWorkerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x121\n" +
 	"\vrunner_info\x18\x02 \x01(\v2\x0e.ci.RunnerInfoH\x00R\n" +
@@ -963,14 +1077,22 @@ const file_internal_proto_ci_proto_rawDesc = "" +
 	"\x04done\x18\x04 \x01(\v2\b.ci.DoneH\x00R\x04done\x12.\n" +
 	"\n" +
 	"file_chunk\x18\x05 \x01(\v2\r.ci.FileChunkH\x00R\tfileChunk\x12!\n" +
-	"\x05error\x18\x06 \x01(\v2\t.ci.ErrorH\x00R\x05errorB\t\n" +
-	"\apayload\"\x8a\x01\n" +
+	"\x05error\x18\x06 \x01(\v2\t.ci.ErrorH\x00R\x05error\x12=\n" +
+	"\x0fcontext_request\x18\a \x01(\v2\x12.ci.ContextRequestH\x00R\x0econtextRequestB\t\n" +
+	"\apayload\"\xcc\x01\n" +
 	"\rServerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x1e\n" +
 	"\x04copy\x18\x02 \x01(\v2\b.ci.CopyH\x00R\x04copy\x12\x1b\n" +
 	"\x03run\x18\x03 \x01(\v2\a.ci.RunH\x00R\x03run\x12!\n" +
-	"\x05close\x18\x04 \x01(\v2\t.ci.CloseH\x00R\x05closeB\t\n" +
-	"\apayload\"\xd1\x01\n" +
+	"\x05close\x18\x04 \x01(\v2\t.ci.CloseH\x00R\x05close\x12@\n" +
+	"\x10context_response\x18\x05 \x01(\v2\x13.ci.ContextResponseH\x00R\x0fcontextResponseB\t\n" +
+	"\apayload\"\x10\n" +
+	"\x0eContextRequest\"y\n" +
+	"\x0fContextResponse\x12.\n" +
+	"\x03env\x18\x01 \x03(\v2\x1c.ci.ContextResponse.EnvEntryR\x03env\x1a6\n" +
+	"\bEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd1\x01\n" +
 	"\n" +
 	"RunnerInfo\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12\x0e\n" +
@@ -1038,47 +1160,53 @@ func file_internal_proto_ci_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_proto_ci_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_internal_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_internal_proto_ci_proto_goTypes = []any{
-	(Copy_Direction)(0),   // 0: ci.Copy.Direction
-	(Output_Stream)(0),    // 1: ci.Output.Stream
-	(*WorkerMessage)(nil), // 2: ci.WorkerMessage
-	(*ServerMessage)(nil), // 3: ci.ServerMessage
-	(*RunnerInfo)(nil),    // 4: ci.RunnerInfo
-	(*Copy)(nil),          // 5: ci.Copy
-	(*Credentials)(nil),   // 6: ci.Credentials
-	(*BasicAuth)(nil),     // 7: ci.BasicAuth
-	(*Run)(nil),           // 8: ci.Run
-	(*Output)(nil),        // 9: ci.Output
-	(*Done)(nil),          // 10: ci.Done
-	(*FileChunk)(nil),     // 11: ci.FileChunk
-	(*Error)(nil),         // 12: ci.Error
-	(*Close)(nil),         // 13: ci.Close
-	nil,                   // 14: ci.RunnerInfo.ExtraEntry
-	nil,                   // 15: ci.Run.EnvEntry
+	(Copy_Direction)(0),     // 0: ci.Copy.Direction
+	(Output_Stream)(0),      // 1: ci.Output.Stream
+	(*WorkerMessage)(nil),   // 2: ci.WorkerMessage
+	(*ServerMessage)(nil),   // 3: ci.ServerMessage
+	(*ContextRequest)(nil),  // 4: ci.ContextRequest
+	(*ContextResponse)(nil), // 5: ci.ContextResponse
+	(*RunnerInfo)(nil),      // 6: ci.RunnerInfo
+	(*Copy)(nil),            // 7: ci.Copy
+	(*Credentials)(nil),     // 8: ci.Credentials
+	(*BasicAuth)(nil),       // 9: ci.BasicAuth
+	(*Run)(nil),             // 10: ci.Run
+	(*Output)(nil),          // 11: ci.Output
+	(*Done)(nil),            // 12: ci.Done
+	(*FileChunk)(nil),       // 13: ci.FileChunk
+	(*Error)(nil),           // 14: ci.Error
+	(*Close)(nil),           // 15: ci.Close
+	nil,                     // 16: ci.ContextResponse.EnvEntry
+	nil,                     // 17: ci.RunnerInfo.ExtraEntry
+	nil,                     // 18: ci.Run.EnvEntry
 }
 var file_internal_proto_ci_proto_depIdxs = []int32{
-	4,  // 0: ci.WorkerMessage.runner_info:type_name -> ci.RunnerInfo
-	9,  // 1: ci.WorkerMessage.output:type_name -> ci.Output
-	10, // 2: ci.WorkerMessage.done:type_name -> ci.Done
-	11, // 3: ci.WorkerMessage.file_chunk:type_name -> ci.FileChunk
-	12, // 4: ci.WorkerMessage.error:type_name -> ci.Error
-	5,  // 5: ci.ServerMessage.copy:type_name -> ci.Copy
-	8,  // 6: ci.ServerMessage.run:type_name -> ci.Run
-	13, // 7: ci.ServerMessage.close:type_name -> ci.Close
-	14, // 8: ci.RunnerInfo.extra:type_name -> ci.RunnerInfo.ExtraEntry
-	0,  // 9: ci.Copy.direction:type_name -> ci.Copy.Direction
-	6,  // 10: ci.Copy.creds:type_name -> ci.Credentials
-	7,  // 11: ci.Credentials.basic:type_name -> ci.BasicAuth
-	15, // 12: ci.Run.env:type_name -> ci.Run.EnvEntry
-	1,  // 13: ci.Output.stream:type_name -> ci.Output.Stream
-	2,  // 14: ci.Server.Connect:input_type -> ci.WorkerMessage
-	3,  // 15: ci.Server.Connect:output_type -> ci.ServerMessage
-	15, // [15:16] is the sub-list for method output_type
-	14, // [14:15] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	6,  // 0: ci.WorkerMessage.runner_info:type_name -> ci.RunnerInfo
+	11, // 1: ci.WorkerMessage.output:type_name -> ci.Output
+	12, // 2: ci.WorkerMessage.done:type_name -> ci.Done
+	13, // 3: ci.WorkerMessage.file_chunk:type_name -> ci.FileChunk
+	14, // 4: ci.WorkerMessage.error:type_name -> ci.Error
+	4,  // 5: ci.WorkerMessage.context_request:type_name -> ci.ContextRequest
+	7,  // 6: ci.ServerMessage.copy:type_name -> ci.Copy
+	10, // 7: ci.ServerMessage.run:type_name -> ci.Run
+	15, // 8: ci.ServerMessage.close:type_name -> ci.Close
+	5,  // 9: ci.ServerMessage.context_response:type_name -> ci.ContextResponse
+	16, // 10: ci.ContextResponse.env:type_name -> ci.ContextResponse.EnvEntry
+	17, // 11: ci.RunnerInfo.extra:type_name -> ci.RunnerInfo.ExtraEntry
+	0,  // 12: ci.Copy.direction:type_name -> ci.Copy.Direction
+	8,  // 13: ci.Copy.creds:type_name -> ci.Credentials
+	9,  // 14: ci.Credentials.basic:type_name -> ci.BasicAuth
+	18, // 15: ci.Run.env:type_name -> ci.Run.EnvEntry
+	1,  // 16: ci.Output.stream:type_name -> ci.Output.Stream
+	2,  // 17: ci.Server.Connect:input_type -> ci.WorkerMessage
+	3,  // 18: ci.Server.Connect:output_type -> ci.ServerMessage
+	18, // [18:19] is the sub-list for method output_type
+	17, // [17:18] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_internal_proto_ci_proto_init() }
@@ -1092,13 +1220,15 @@ func file_internal_proto_ci_proto_init() {
 		(*WorkerMessage_Done)(nil),
 		(*WorkerMessage_FileChunk)(nil),
 		(*WorkerMessage_Error)(nil),
+		(*WorkerMessage_ContextRequest)(nil),
 	}
 	file_internal_proto_ci_proto_msgTypes[1].OneofWrappers = []any{
 		(*ServerMessage_Copy)(nil),
 		(*ServerMessage_Run)(nil),
 		(*ServerMessage_Close)(nil),
+		(*ServerMessage_ContextResponse)(nil),
 	}
-	file_internal_proto_ci_proto_msgTypes[4].OneofWrappers = []any{
+	file_internal_proto_ci_proto_msgTypes[6].OneofWrappers = []any{
 		(*Credentials_Token)(nil),
 		(*Credentials_Basic)(nil),
 	}
@@ -1108,7 +1238,7 @@ func file_internal_proto_ci_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_ci_proto_rawDesc), len(file_internal_proto_ci_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   14,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

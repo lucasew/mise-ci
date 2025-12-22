@@ -109,6 +109,7 @@ type Run struct {
 	ResultCh    chan *pb.WorkerMessage // Results from worker (for logic to consume)
 	DoneCh      chan struct{}
 	ConnectedCh chan struct{} // Signals when worker connects
+	Env         map[string]string
 }
 
 func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {
@@ -133,6 +134,7 @@ func (c *Core) CreateRun(id string, gitLink, commitMessage, author, branch strin
 		ResultCh:    make(chan *pb.WorkerMessage, 10),
 		DoneCh:      make(chan struct{}),
 		ConnectedCh: make(chan struct{}),
+		Env:         make(map[string]string),
 	}
 	c.runs[id] = run
 
@@ -179,6 +181,14 @@ func (c *Core) GetRun(id string) (*Run, bool) {
 	defer c.mu.RUnlock()
 	run, ok := c.runs[id]
 	return run, ok
+}
+
+func (c *Core) SetRunEnv(id string, env map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if run, ok := c.runs[id]; ok {
+		run.Env = env
+	}
 }
 
 func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
