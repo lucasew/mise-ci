@@ -209,7 +209,6 @@ func (r *Repository) AppendLogs(ctx context.Context, runID string, entries []rep
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
 
 	qtx := r.queries.WithTx(tx)
 
@@ -220,11 +219,17 @@ func (r *Repository) AppendLogs(ctx context.Context, runID string, entries []rep
 			Stream:    entry.Stream,
 			Data:      entry.Data,
 		}); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	return nil
 }
 
 func (r *Repository) GetLogs(ctx context.Context, runID string) ([]repository.LogEntry, error) {
