@@ -57,9 +57,8 @@ func (n *NomadRunner) Dispatch(ctx context.Context, params runner.RunParams) (st
 	if params.Image != "" {
 		meta["image"] = params.Image
 	}
-	if params.GitHubToken != "" {
-		meta["github_token"] = params.GitHubToken
-	}
+	// GitHubToken is no longer passed via Nomad dispatch
+	// Worker will request it from the server after handshake
 
 	resp, _, err := n.client.Jobs().Dispatch(n.jobName, meta, nil, "", nil)
 	if err != nil {

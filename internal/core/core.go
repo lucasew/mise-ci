@@ -109,6 +109,9 @@ type Run struct {
 	ResultCh    chan *pb.WorkerMessage // Results from worker (for logic to consume)
 	DoneCh      chan struct{}
 	ConnectedCh chan struct{} // Signals when worker connects
+	// Job context to send to worker after handshake
+	GitHubToken string
+	Env         map[string]string
 }
 
 func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {
@@ -179,6 +182,18 @@ func (c *Core) GetRun(id string) (*Run, bool) {
 	defer c.mu.RUnlock()
 	run, ok := c.runs[id]
 	return run, ok
+}
+
+func (c *Core) SetRunContext(id string, githubToken string, env map[string]string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	run, ok := c.runs[id]
+	if !ok {
+		return fmt.Errorf("run not found: %s", id)
+	}
+	run.GitHubToken = githubToken
+	run.Env = env
+	return nil
 }
 
 func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
