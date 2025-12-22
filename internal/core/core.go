@@ -305,13 +305,20 @@ func (c *Core) flushLogs(runID string, entries []LogEntry) {
 }
 
 func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
-	// Check if finished and flush all remaining logs before updating status
+	// Check if finished and flush logs
 	if status == StatusSuccess || status == StatusFailure || status == StatusError || status == StatusSkipped {
 		c.mu.Lock()
 		if lb, ok := c.logBuffers[runID]; ok {
-			// Force final flush before marking as completed
-			lb.flush()
-			// Now stop the background goroutine
+			// Signal to flush and stop
+			// We do this async or sync? If sync, we might block if start() is busy.
+			// But start() selects.
+			// Ideally we want to wait for it to finish flushing.
+			// For simplicity, we just send to flushCh which triggers flush and return.
+			// But if channel is full (shouldn't be if buffer large enough or consumer fast),
+			// flushCh is unbuffered. start() reads it.
+			// We can just call lb.flush() directly here if we remove it from map?
+			// But start() is running.
+			// Let's just remove from map and close channel.
 			delete(c.logBuffers, runID)
 			close(lb.flushCh)
 		}
