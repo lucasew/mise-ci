@@ -46,7 +46,10 @@ func TestWebSocketHandshake(t *testing.T) {
 	c.SetRunEnv(runID, expectedEnv)
 
 	// Get worker token
-	token, _ := c.GenerateWorkerToken(runID)
+token, err := c.GenerateWorkerToken(runID)
+if err != nil {
+	t.Fatalf("failed to generate worker token: %v", err)
+}
 
 	// Setup Server
 	wsServer := NewWebSocketServer(c, logger)
