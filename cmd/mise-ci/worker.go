@@ -320,11 +320,11 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
 	c.Dir = cmd.Workdir
-	c.Env = make([]string, len(workerEnv))
-	copy(c.Env, workerEnv)
-	for k, v := range cmd.Env {
-		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
-	}
+c.Env = make([]string, 0, len(workerEnv)+len(cmd.Env))
+c.Env = append(c.Env, workerEnv...)
+for k, v := range cmd.Env {
+	c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
+}
 
 	// Log environment keys for debugging
 	envKeys := make([]string, 0, len(c.Env))
