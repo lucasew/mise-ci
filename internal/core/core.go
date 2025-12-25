@@ -46,6 +46,7 @@ type RunInfo struct {
 	ExitCode      *int32
 	UIToken       string
 	GitLink       string
+	RepoID        string
 	CloneURL      string
 	CommitMessage string
 	Author        string
@@ -127,7 +128,7 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 	}
 }
 
-func (c *Core) CreateRun(id string, gitLink, cloneURL, commitMessage, author, branch string) *Run {
+func (c *Core) CreateRun(id string, gitLink, repoID, cloneURL, commitMessage, author, branch string) *Run {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -154,7 +155,8 @@ func (c *Core) CreateRun(id string, gitLink, cloneURL, commitMessage, author, br
 		StartedAt:     time.Now(),
 		UIToken:       uiToken,
 		GitLink:       gitLink,
-		CloneURL:      cloneURL,
+		RepoID:        repoID,
+		CloneURL:      cloneURL, // For in-memory broadcast; DB ignores if not joined? No, DB create uses RepoID.
 		CommitMessage: commitMessage,
 		Author:        author,
 		Branch:        branch,
@@ -172,6 +174,7 @@ func (c *Core) CreateRun(id string, gitLink, cloneURL, commitMessage, author, br
 		StartedAt:     metadata.StartedAt,
 		UIToken:       uiToken,
 		GitLink:       gitLink,
+		RepoID:        repoID,
 		CloneURL:      cloneURL,
 		CommitMessage: commitMessage,
 		Author:        author,
@@ -358,6 +361,7 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 		ExitCode:      meta.ExitCode,
 		UIToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
+		RepoID:        meta.RepoID,
 		CloneURL:      meta.CloneURL,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
@@ -381,6 +385,7 @@ func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
 		ExitCode:      meta.ExitCode,
 		UIToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
+		RepoID:        meta.RepoID,
 		CloneURL:      meta.CloneURL,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
@@ -409,6 +414,7 @@ func (c *Core) GetAllRuns() []RunInfo {
 			ExitCode:      repoRun.ExitCode,
 			UIToken:       repoRun.UIToken,
 			GitLink:       repoRun.GitLink,
+			RepoID:        repoRun.RepoID,
 			CloneURL:      repoRun.CloneURL,
 			CommitMessage: repoRun.CommitMessage,
 			Author:        repoRun.Author,

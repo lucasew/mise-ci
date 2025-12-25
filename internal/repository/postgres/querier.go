@@ -10,8 +10,10 @@ import (
 
 type Querier interface {
 	AppendLog(ctx context.Context, arg AppendLogParams) error
+	CreateRepo(ctx context.Context, arg CreateRepoParams) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
+	GetRepo(ctx context.Context, cloneUrl string) (Repo, error)
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
 	ListRuns(ctx context.Context) ([]ListRunsRow, error)
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error

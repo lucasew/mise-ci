@@ -1,1 +1,8 @@
-ALTER TABLE runs ADD COLUMN clone_url TEXT NOT NULL DEFAULT '';
+CREATE TABLE repos (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    name TEXT NOT NULL,
+    clone_url TEXT NOT NULL UNIQUE
+);
+
+ALTER TABLE runs ADD COLUMN repo_id TEXT NOT NULL DEFAULT '';

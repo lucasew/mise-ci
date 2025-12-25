@@ -17,6 +17,13 @@ type LogEntry struct {
 	Data      string    `json:"data"`
 }
 
+type Repo struct {
+	ID       string `json:"id"`
+	Owner    string `json:"owner"`
+	Name     string `json:"name"`
+	CloneUrl string `json:"clone_url"`
+}
+
 type Run struct {
 	ID            string        `json:"id"`
 	Status        string        `json:"status"`
@@ -30,5 +37,5 @@ type Run struct {
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
-	CloneUrl      string        `json:"clone_url"`
+	RepoID        string        `json:"repo_id"`
 }

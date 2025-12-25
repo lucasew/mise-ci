@@ -102,11 +102,33 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 		ExitCode:      exitCode,
 		UiToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
-		CloneUrl:      meta.CloneURL,
+		RepoID:        meta.RepoID,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
 		Branch:        meta.Branch,
 	})
+}
+
+func (r *Repository) CreateRepo(ctx context.Context, repo *repository.Repo) error {
+	return r.queries.CreateRepo(ctx, CreateRepoParams{
+		ID:       repo.ID,
+		Owner:    repo.Owner,
+		Name:     repo.Name,
+		CloneUrl: repo.CloneURL,
+	})
+}
+
+func (r *Repository) GetRepo(ctx context.Context, cloneURL string) (*repository.Repo, error) {
+	row, err := r.queries.GetRepo(ctx, cloneURL)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.Repo{
+		ID:       row.ID,
+		Owner:    row.Owner,
+		Name:     row.Name,
+		CloneURL: row.CloneUrl,
+	}, nil
 }
 
 func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunMetadata, error) {
@@ -134,6 +156,7 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		ExitCode:      exitCode,
 		UIToken:       row.UiToken,
 		GitLink:       row.GitLink,
+		RepoID:        row.RepoID,
 		CloneURL:      row.CloneUrl,
 		CommitMessage: row.CommitMessage,
 		Author:        row.Author,
@@ -188,6 +211,7 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			ExitCode:      exitCode,
 			UIToken:       row.UiToken,
 			GitLink:       row.GitLink,
+			RepoID:        row.RepoID,
 			CloneURL:      row.CloneUrl,
 			CommitMessage: row.CommitMessage,
 			Author:        row.Author,
