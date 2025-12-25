@@ -22,6 +22,9 @@ type Forge interface {
 	// CreatePullRequest creates a pull request
 	CreatePullRequest(ctx context.Context, repo, baseBranch, headBranch, title, body string) (string, error)
 
+	// GetVariables returns repository-level variables (not secrets)
+	GetVariables(ctx context.Context, repo string) (map[string]string, error)
+
 	// GetCIEnv returns forge-specific environment variables for the event
 	GetCIEnv(event *WebhookEvent) map[string]string
 }

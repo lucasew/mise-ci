@@ -363,6 +363,27 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		env["GITHUB_TOKEN"] = creds.Token
 	}
 
+	// Fetch variables from Forge (e.g., GitHub Variables)
+	// We cannot fetch Secrets as their values are never returned by the API.
+	// We handle errors softly to avoid breaking the build if permissions are missing.
+	vars, err := f.GetVariables(ctx, event.Repo)
+	if err != nil {
+		s.Logger.Warn("failed to fetch repository variables", "error", err)
+		s.Core.AddLog(run.ID, "system", fmt.Sprintf("Warning: Failed to fetch repository variables: %v. Ensure the App has 'Variables: Read' permission.", err))
+	} else {
+		count := 0
+		for k, v := range vars {
+			env[k] = v
+			count++
+		}
+		if count > 0 {
+			s.Logger.Info("injected repository variables", "count", count)
+			s.Core.AddLog(run.ID, "system", fmt.Sprintf("Injected %d repository variables.", count))
+		}
+	}
+	// Clarify regarding secrets
+	s.Core.AddLog(run.ID, "system", "Note: Only repository 'Variables' are fetched. 'Secrets' cannot be retrieved via API.")
+
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
 	if creds.Token != "" {
