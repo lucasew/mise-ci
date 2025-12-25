@@ -438,11 +438,12 @@ func (g *GitHubForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 		"GITHUB_SERVER_URL": "https://github.com",
 	}
 
-	if event.Type == forge.EventTypePullRequest {
+	switch event.Type {
+	case forge.EventTypePullRequest:
 		env["GITHUB_EVENT_NAME"] = "pull_request"
-	} else if event.Type == forge.EventTypeCheckRun {
+	case forge.EventTypeCheckRun:
 		env["GITHUB_EVENT_NAME"] = "check_run"
-	} else {
+	default:
 		env["GITHUB_EVENT_NAME"] = "push"
 	}
 
