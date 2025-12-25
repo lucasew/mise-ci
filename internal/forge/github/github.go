@@ -338,6 +338,55 @@ func (g *GitHubForge) CreatePullRequest(ctx context.Context, repo, baseBranch, h
 	return pr.GetHTMLURL(), nil
 }
 
+func (g *GitHubForge) GetVariables(ctx context.Context, repo string) (map[string]string, error) {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repo format: %s", repo)
+	}
+	owner, nameRepo := parts[0], parts[1]
+
+	// Authenticate as installation
+	client, err := g.getAppClient()
+	if err != nil {
+		return nil, fmt.Errorf("get app client: %w", err)
+	}
+
+	inst, _, err := client.Apps.FindRepositoryInstallation(ctx, owner, nameRepo)
+	if err != nil {
+		return nil, fmt.Errorf("find installation: %w", err)
+	}
+
+	token, _, err := client.Apps.CreateInstallationToken(ctx, inst.GetID(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("create installation token: %w", err)
+	}
+
+	instClient := github.NewClient(nil).WithAuthToken(token.GetToken())
+
+	variables := make(map[string]string)
+	opts := &github.ListOptions{
+		PerPage: 100,
+	}
+
+	for {
+		vars, resp, err := instClient.Actions.ListRepoVariables(ctx, owner, nameRepo, opts)
+		if err != nil {
+			return nil, fmt.Errorf("list repo variables: %w", err)
+		}
+
+		for _, v := range vars.Variables {
+			variables[v.Name] = v.Value
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return variables, nil
+}
+
 func (g *GitHubForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 	env := map[string]string{
 		"GITHUB_SHA":        event.SHA,
