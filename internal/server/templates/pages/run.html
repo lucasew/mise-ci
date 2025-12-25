@@ -6,13 +6,6 @@
         }
     </style>
     <h1 class="run-title">Run: {{if .Run.CommitMessage}}{{.Run.CommitMessage | subject | markdown}}{{else}}{{.Run.ID}}{{end}}</h1>
-    {{if .Run.CommitMessage}}
-        {{if .Run.CommitMessage | body}}
-        <div style="margin-top: -10px; margin-bottom: 20px;">
-            {{.Run.CommitMessage | body | markdown}}
-        </div>
-        {{end}}
-    {{end}}
 
     <div class="run-nav" style="margin-bottom: 20px; padding: 10px 0; border-bottom: 1px solid #eee;">
         <a href="/ui/" style="margin-right: 20px; text-decoration: none;">← Runs</a>
@@ -21,6 +14,14 @@
         <a href="{{.Run.GitLink}}" target="_blank" style="text-decoration: none;">Source</a>
         {{end}}
     </div>
+
+    {{if .Run.CommitMessage}}
+        {{if .Run.CommitMessage | body}}
+        <div style="margin-top: -10px; margin-bottom: 20px;">
+            {{.Run.CommitMessage | body | markdown}}
+        </div>
+        {{end}}
+    {{end}}
 
     <div class="info-section" data-status="{{.Run.Status}}" data-started="{{.Run.StartedAt.Format "2006-01-02T15:04:05Z07:00"}}" data-finished="{{if .Run.FinishedAt}}{{.Run.FinishedAt.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
         <div class="info-item">
