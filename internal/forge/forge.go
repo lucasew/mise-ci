@@ -19,6 +19,9 @@ type Forge interface {
 	// UploadReleaseAsset uploads asset to release
 	UploadReleaseAsset(ctx context.Context, repo, tag, name string, data io.Reader) error
 
+	// CreatePullRequest creates a pull request
+	CreatePullRequest(ctx context.Context, repo, baseBranch, headBranch, title, body string) (string, error)
+
 	// GetCIEnv returns forge-specific environment variables for the event
 	GetCIEnv(event *WebhookEvent) map[string]string
 }
