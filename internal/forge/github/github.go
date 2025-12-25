@@ -123,16 +123,19 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 			link = *e.CheckRun.HTMLURL
 		}
 
+		msg := "Re-run requested via GitHub"
+		if e.CheckRun.CheckSuite != nil && e.CheckRun.CheckSuite.HeadCommit != nil && e.CheckRun.CheckSuite.HeadCommit.Message != nil {
+			msg = fmt.Sprintf("(rerun) %s", *e.CheckRun.CheckSuite.HeadCommit.Message)
+		}
+
 		return &forge.WebhookEvent{
-			Type:  forge.EventTypeCheckRun,
-			Repo:  *e.Repo.FullName,
+			Type:          forge.EventTypeCheckRun,
+			Repo:          *e.Repo.FullName,
 			Ref:   ref,
 			SHA:   *e.CheckRun.HeadSHA,
-			Clone: e.Repo.GetCloneURL(),
-			Link:  link,
-			// CommitMessage and Author might need to be fetched separately if not in payload,
-			// or we can leave them empty/generic for a re-run.
-			CommitMessage: "Re-run requested via GitHub",
+			Clone:         e.Repo.GetCloneURL(),
+			Link:          link,
+			CommitMessage: msg,
 			Author:        e.Sender.GetLogin(),
 			Branch:        branch,
 		}, nil
