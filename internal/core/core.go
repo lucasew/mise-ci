@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -110,6 +111,7 @@ type Run struct {
 	DoneCh      chan struct{}
 	ConnectedCh chan struct{} // Signals when worker connects
 	Env         map[string]string
+	NextOpID    atomic.Uint64
 }
 
 func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {

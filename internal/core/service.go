@@ -186,16 +186,16 @@ func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 
 	pipeline.
 		AddStep("copy-config", "Copying mise.toml to worker", func() error {
-			return s.copyFileToWorker(run, 1, "mise.toml", "mise.toml", miseTomlData)
+			return s.copyFileToWorker(run, "mise.toml", "mise.toml", miseTomlData)
 		}).
 		AddStep("trust", "Trusting mise configuration", func() error {
-			return s.runCommandSync(run, 2, env, "mise", "trust")
+			return s.runCommandSync(run, env, "mise", "trust")
 		}).
 		AddStep("run-ci", "Starting CI task", func() error {
-			return s.runCommandSync(run, 3, env, "mise", "run", "ci")
+			return s.runCommandSync(run, env, "mise", "run", "ci")
 		}).
 		AddStep("retrieve", "Retrieving output artifacts", func() error {
-			return s.copyFileFromWorker(run, 4, "output.txt", outputPath)
+			return s.copyFileFromWorker(run, "output.txt", outputPath)
 		})
 
 	if err := pipeline.Run(); err != nil {
@@ -375,33 +375,33 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 
 	s.Logger.Info("cloning repository")
 	// Clone typically doesn't need the env vars, but we pass them for consistency if needed later
-	if !s.runCommand(run, 1, env, "git", "clone", cloneURL, ".") {
+	if !s.runCommand(run, env, "git", "clone", cloneURL, ".") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 2, env, "git", "fetch", "origin", event.Ref) {
+	if !s.runCommand(run, env, "git", "fetch", "origin", event.Ref) {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 3, env, "git", "checkout", event.SHA) {
+	if !s.runCommand(run, env, "git", "checkout", event.SHA) {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 4, env, "mise", "trust") {
+	if !s.runCommand(run, env, "mise", "trust") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	if !s.runCommand(run, 5, env, "mise", "install") {
+	if !s.runCommand(run, env, "mise", "install") {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
 	// Check tasks
-	tasksOutput, err := s.runCommandCapture(run, 6, env, "mise", "tasks", "--json")
+	tasksOutput, err := s.runCommandCapture(run, env, "mise", "tasks", "--json")
 	if err != nil {
 		s.Logger.Error("failed to list tasks", "error", err)
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
@@ -431,12 +431,12 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	if hasCodegenTask {
 		s.Logger.Info("running codegen task")
 		// If codegen fails, we log it but continue ("se der pau só avisa no status e segue o jogo")
-		if err := s.runCommandSync(run, 7, env, "mise", "run", "codegen"); err != nil {
+		if err := s.runCommandSync(run, env, "mise", "run", "codegen"); err != nil {
 			s.Logger.Error("codegen failed", "error", err)
 			s.Core.AddLog(run.ID, "system", "Codegen task failed, proceeding with caution.")
 		} else {
 			// Check for dirty tree
-			statusOutput, err := s.runCommandCapture(run, 8, env, "git", "status", "--porcelain")
+			statusOutput, err := s.runCommandCapture(run, env, "git", "status", "--porcelain")
 			if err != nil {
 				s.Logger.Error("failed to check git status", "error", err)
 			} else if strings.TrimSpace(statusOutput) != "" {
@@ -447,12 +447,12 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 				branchName := "miseci-codegen"
 
 				// Configure git user
-				s.runCommand(run, 9, env, "git", "config", "user.name", "mise-ci")
-				s.runCommand(run, 10, env, "git", "config", "user.email", "mise-ci@localhost")
+				s.runCommand(run, env, "git", "config", "user.name", "mise-ci")
+				s.runCommand(run, env, "git", "config", "user.email", "mise-ci@localhost")
 
-				s.runCommand(run, 11, env, "git", "checkout", "-b", branchName)
-				s.runCommand(run, 12, env, "git", "add", "-A")
-				s.runCommand(run, 13, env, "git", "commit", "-m", "chore: codegen updates")
+				s.runCommand(run, env, "git", "checkout", "-b", branchName)
+				s.runCommand(run, env, "git", "add", "-A")
+				s.runCommand(run, env, "git", "commit", "-m", "chore: codegen updates")
 
 				// Push
 				// Need to re-add token to remote URL if needed, but we can just use the token in env?
@@ -460,9 +460,9 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 				// In Orchestrate we already have cloneURL which might have the token.
 				// But we are pushing to 'origin'.
 				// Let's set the remote url to be sure.
-				s.runCommand(run, 14, env, "git", "remote", "set-url", "origin", cloneURL)
+				s.runCommand(run, env, "git", "remote", "set-url", "origin", cloneURL)
 
-				if s.runCommand(run, 15, env, "git", "push", "origin", branchName, "--force") {
+				if s.runCommand(run, env, "git", "push", "origin", branchName, "--force") {
 					prURL, err := f.CreatePullRequest(ctx, event.Repo, event.Branch, branchName, "chore: codegen updates", "Automated codegen updates triggered by mise-ci.")
 					if err != nil {
 						s.Logger.Error("failed to create PR", "error", err)
@@ -480,7 +480,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	if hasCITask {
-		if !s.runCommand(run, 16, env, "mise", "run", "ci") {
+		if !s.runCommand(run, env, "mise", "run", "ci") {
 			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 			return false
 		}
@@ -496,12 +496,13 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	return true
 }
 
-func (s *Service) runCommand(run *Run, id uint64, env map[string]string, cmd string, args ...string) bool {
-	return s.runCommandSync(run, id, env, cmd, args...) == nil
+func (s *Service) runCommand(run *Run, env map[string]string, cmd string, args ...string) bool {
+	return s.runCommandSync(run, env, cmd, args...) == nil
 }
 
 // runCommandSync executes a command and waits for it to complete
-func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd string, args ...string) error {
+func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, args ...string) error {
+	id := run.NextOpID.Add(1)
 	s.Logger.Info("executing command", "cmd", cmd, "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
@@ -512,7 +513,8 @@ func (s *Service) runCommandSync(run *Run, id uint64, env map[string]string, cmd
 }
 
 // runCommandCapture executes a command and captures stdout, returning it as a string
-func (s *Service) runCommandCapture(run *Run, id uint64, env map[string]string, cmd string, args ...string) (string, error) {
+func (s *Service) runCommandCapture(run *Run, env map[string]string, cmd string, args ...string) (string, error) {
+	id := run.NextOpID.Add(1)
 	s.Logger.Info("executing command capture", "cmd", cmd, "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
@@ -546,7 +548,8 @@ Done:
 }
 
 // copyFileToWorker sends a file to the worker
-func (s *Service) copyFileToWorker(run *Run, id uint64, source, dest string, data []byte) error {
+func (s *Service) copyFileToWorker(run *Run, source, dest string, data []byte) error {
+	id := run.NextOpID.Add(1)
 	run.CommandCh <- msgutil.NewCopyToWorker(id, source, dest, data)
 	if !s.waitForDone(run, fmt.Sprintf("copy %s", source)) {
 		return fmt.Errorf("failed to copy file: %s", source)
@@ -555,7 +558,8 @@ func (s *Service) copyFileToWorker(run *Run, id uint64, source, dest string, dat
 }
 
 // copyFileFromWorker receives a file from the worker
-func (s *Service) copyFileFromWorker(run *Run, id uint64, source, dest string) error {
+func (s *Service) copyFileFromWorker(run *Run, source, dest string) error {
+	id := run.NextOpID.Add(1)
 	run.CommandCh <- msgutil.NewCopyFromWorker(id, source, dest)
 	if !s.receiveFile(run, dest, fmt.Sprintf("copy %s", source)) {
 		return fmt.Errorf("failed to receive file: %s", source)
