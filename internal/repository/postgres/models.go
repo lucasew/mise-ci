@@ -30,4 +30,5 @@ type Run struct {
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
+	CloneUrl      string        `json:"clone_url"`
 }

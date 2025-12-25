@@ -34,8 +34,8 @@ func (q *Queries) AppendLog(ctx context.Context, arg AppendLogParams) error {
 }
 
 const createRun = `-- name: CreateRun :exec
-INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, clone_url, commit_message, author, branch)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateRunParams struct {
@@ -46,6 +46,7 @@ type CreateRunParams struct {
 	ExitCode      sql.NullInt64 `json:"exit_code"`
 	UiToken       string        `json:"ui_token"`
 	GitLink       string        `json:"git_link"`
+	CloneUrl      string        `json:"clone_url"`
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
@@ -60,6 +61,7 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 		arg.ExitCode,
 		arg.UiToken,
 		arg.GitLink,
+		arg.CloneUrl,
 		arg.CommitMessage,
 		arg.Author,
 		arg.Branch,
@@ -104,7 +106,7 @@ func (q *Queries) GetLogs(ctx context.Context, runID string) ([]GetLogsRow, erro
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, clone_url, commit_message, author, branch
 FROM runs
 WHERE id = ?
 `
@@ -117,6 +119,7 @@ type GetRunRow struct {
 	ExitCode      sql.NullInt64 `json:"exit_code"`
 	UiToken       string        `json:"ui_token"`
 	GitLink       string        `json:"git_link"`
+	CloneUrl      string        `json:"clone_url"`
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
@@ -133,6 +136,7 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 		&i.ExitCode,
 		&i.UiToken,
 		&i.GitLink,
+		&i.CloneUrl,
 		&i.CommitMessage,
 		&i.Author,
 		&i.Branch,
@@ -141,7 +145,7 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, commit_message, author, branch
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, clone_url, commit_message, author, branch
 FROM runs
 ORDER BY started_at DESC
 `
@@ -154,6 +158,7 @@ type ListRunsRow struct {
 	ExitCode      sql.NullInt64 `json:"exit_code"`
 	UiToken       string        `json:"ui_token"`
 	GitLink       string        `json:"git_link"`
+	CloneUrl      string        `json:"clone_url"`
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
@@ -176,6 +181,7 @@ func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 			&i.ExitCode,
 			&i.UiToken,
 			&i.GitLink,
+			&i.CloneUrl,
 			&i.CommitMessage,
 			&i.Author,
 			&i.Branch,

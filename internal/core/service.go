@@ -74,7 +74,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 
 	s.Logger.Info("test dispatch", "run_id", runID)
 
-	run := s.Core.CreateRun(runID, "", "Test Dispatch", "admin", "test")
+	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
@@ -228,7 +228,8 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("starting run", "run_id", runID)
 
-	run := s.Core.CreateRun(runID, event.Link, event.CommitMessage, event.Author, event.Branch)
+	// Clean clone URL is already in event.Clone (no credentials)
+	run := s.Core.CreateRun(runID, event.Link, event.Clone, event.CommitMessage, event.Author, event.Branch)
 
 	publicURL := s.Config.Server.PublicURL
 	if publicURL == "" {
