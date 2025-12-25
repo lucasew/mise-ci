@@ -31,6 +31,7 @@ type RunMetadata struct {
 	ExitCode      *int32
 	UIToken       string
 	GitLink       string
+	CloneURL      string
 	CommitMessage string
 	Author        string
 	Branch        string
