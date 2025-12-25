@@ -297,6 +297,47 @@ func (g *GitHubForge) UploadReleaseAsset(ctx context.Context, repo, tag, name st
 	return nil
 }
 
+func (g *GitHubForge) CreatePullRequest(ctx context.Context, repo, baseBranch, headBranch, title, body string) (string, error) {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid repo format: %s", repo)
+	}
+	owner, nameRepo := parts[0], parts[1]
+
+	// 1. Authenticate as installation
+	client, err := g.getAppClient()
+	if err != nil {
+		return "", fmt.Errorf("get app client: %w", err)
+	}
+
+	inst, _, err := client.Apps.FindRepositoryInstallation(ctx, owner, nameRepo)
+	if err != nil {
+		return "", fmt.Errorf("find installation: %w", err)
+	}
+
+	token, _, err := client.Apps.CreateInstallationToken(ctx, inst.GetID(), nil)
+	if err != nil {
+		return "", fmt.Errorf("create installation token: %w", err)
+	}
+
+	instClient := github.NewClient(nil).WithAuthToken(token.GetToken())
+
+	newPR := &github.NewPullRequest{
+		Title:               github.String(title),
+		Head:                github.String(headBranch),
+		Base:                github.String(baseBranch),
+		Body:                github.String(body),
+		MaintainerCanModify: github.Bool(true),
+	}
+
+	pr, _, err := instClient.PullRequests.Create(ctx, owner, nameRepo, newPR)
+	if err != nil {
+		return "", fmt.Errorf("create pull request: %w", err)
+	}
+
+	return pr.GetHTMLURL(), nil
+}
+
 func (g *GitHubForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 	env := map[string]string{
 		"GITHUB_SHA":        event.SHA,

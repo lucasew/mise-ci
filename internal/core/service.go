@@ -400,13 +400,10 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
-	// Check if 'ci' task exists
+	// Check tasks
 	tasksOutput, err := s.runCommandCapture(run, 6, env, "mise", "tasks", "--json")
 	if err != nil {
 		s.Logger.Error("failed to list tasks", "error", err)
-		// Don't fail the build if we can't list tasks, just try running CI?
-		// Or fail because something is wrong with mise?
-		// Assuming fail.
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
@@ -421,15 +418,69 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 
 	hasCITask := false
+	hasCodegenTask := false
 	for _, task := range tasks {
 		if task.Name == "ci" {
 			hasCITask = true
-			break
+		}
+		if task.Name == "codegen" {
+			hasCodegenTask = true
+		}
+	}
+
+	if hasCodegenTask {
+		s.Logger.Info("running codegen task")
+		// If codegen fails, we log it but continue ("se der pau só avisa no status e segue o jogo")
+		if err := s.runCommandSync(run, 7, env, "mise", "run", "codegen"); err != nil {
+			s.Logger.Error("codegen failed", "error", err)
+			s.Core.AddLog(run.ID, "system", "Codegen task failed, proceeding with caution.")
+		} else {
+			// Check for dirty tree
+			statusOutput, err := s.runCommandCapture(run, 8, env, "git", "status", "--porcelain")
+			if err != nil {
+				s.Logger.Error("failed to check git status", "error", err)
+			} else if strings.TrimSpace(statusOutput) != "" {
+				s.Logger.Info("codegen resulted in dirty tree, creating PR")
+				s.Core.AddLog(run.ID, "system", "Codegen resulted in file changes. Creating PR...")
+
+				// Create PR
+				branchName := "miseci-codegen"
+
+				// Configure git user
+				s.runCommand(run, 9, env, "git", "config", "user.name", "mise-ci")
+				s.runCommand(run, 10, env, "git", "config", "user.email", "mise-ci@localhost")
+
+				s.runCommand(run, 11, env, "git", "checkout", "-b", branchName)
+				s.runCommand(run, 12, env, "git", "add", "-A")
+				s.runCommand(run, 13, env, "git", "commit", "-m", "chore: codegen updates")
+
+				// Push
+				// Need to re-add token to remote URL if needed, but we can just use the token in env?
+				// git push usually needs credentials helper or URL with token.
+				// In Orchestrate we already have cloneURL which might have the token.
+				// But we are pushing to 'origin'.
+				// Let's set the remote url to be sure.
+				s.runCommand(run, 14, env, "git", "remote", "set-url", "origin", cloneURL)
+
+				if s.runCommand(run, 15, env, "git", "push", "origin", branchName, "--force") {
+					prURL, err := f.CreatePullRequest(ctx, event.Repo, event.Branch, branchName, "chore: codegen updates", "Automated codegen updates triggered by mise-ci.")
+					if err != nil {
+						s.Logger.Error("failed to create PR", "error", err)
+						s.Core.AddLog(run.ID, "system", fmt.Sprintf("Failed to create PR: %v", err))
+					} else {
+						s.Logger.Info("PR created", "url", prURL)
+						s.Core.AddLog(run.ID, "system", fmt.Sprintf("PR created: %s", prURL))
+					}
+				} else {
+					s.Logger.Error("failed to push branch")
+					s.Core.AddLog(run.ID, "system", "Failed to push codegen branch")
+				}
+			}
 		}
 	}
 
 	if hasCITask {
-		if !s.runCommand(run, 7, env, "mise", "run", "ci") {
+		if !s.runCommand(run, 16, env, "mise", "run", "ci") {
 			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 			return false
 		}
