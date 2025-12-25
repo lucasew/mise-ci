@@ -451,7 +451,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 				s.runCommand(run, 10, env, "git", "config", "user.email", "mise-ci@localhost")
 
 				s.runCommand(run, 11, env, "git", "checkout", "-b", branchName)
-				s.runCommand(run, 12, env, "git", "add", ".")
+				s.runCommand(run, 12, env, "git", "add", "-A")
 				s.runCommand(run, 13, env, "git", "commit", "-m", "chore: codegen updates")
 
 				// Push
