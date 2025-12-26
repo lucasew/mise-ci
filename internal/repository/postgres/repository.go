@@ -211,6 +211,109 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 	return runs, nil
 }
 
+func (r *Repository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
+	rows, err := r.queries.GetRunsWithoutRepoURL(ctx, int32(limit))
+	if err != nil {
+		return nil, err
+	}
+
+	runs := make([]*repository.RunMetadata, len(rows))
+	for i, row := range rows {
+		var finishedAt *time.Time
+		if row.FinishedAt.Valid {
+			finishedAt = &row.FinishedAt.Time
+		}
+
+		var exitCode *int32
+		if row.ExitCode.Valid {
+			code := row.ExitCode.Int32
+			exitCode = &code
+		}
+
+		var repoURL string
+		if row.RepoUrl.Valid {
+			repoURL = row.RepoUrl.String
+		}
+
+		runs[i] = &repository.RunMetadata{
+			ID:            row.ID,
+			Status:        row.Status,
+			StartedAt:     row.StartedAt,
+			FinishedAt:    finishedAt,
+			ExitCode:      exitCode,
+			UIToken:       row.UiToken,
+			GitLink:       row.GitLink,
+			RepoURL:       repoURL,
+			CommitMessage: row.CommitMessage,
+			Author:        row.Author,
+			Branch:        row.Branch,
+		}
+	}
+	return runs, nil
+}
+
+func (r *Repository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error {
+	return r.queries.UpdateRunRepoURL(ctx, UpdateRunRepoURLParams{
+		RepoUrl: sql.NullString{String: repoURL, Valid: true},
+		ID:      runID,
+	})
+}
+
+func (r *Repository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) {
+	rows, err := r.queries.GetStuckRuns(ctx, GetStuckRunsParams{
+		StartedAt: olderThan,
+		Limit:     int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	runs := make([]*repository.RunMetadata, len(rows))
+	for i, row := range rows {
+		var finishedAt *time.Time
+		if row.FinishedAt.Valid {
+			finishedAt = &row.FinishedAt.Time
+		}
+
+		var exitCode *int32
+		if row.ExitCode.Valid {
+			code := row.ExitCode.Int32
+			exitCode = &code
+		}
+
+		var repoURL string
+		if row.RepoUrl.Valid {
+			repoURL = row.RepoUrl.String
+		}
+
+		runs[i] = &repository.RunMetadata{
+			ID:            row.ID,
+			Status:        row.Status,
+			StartedAt:     row.StartedAt,
+			FinishedAt:    finishedAt,
+			ExitCode:      exitCode,
+			UIToken:       row.UiToken,
+			GitLink:       row.GitLink,
+			RepoURL:       repoURL,
+			CommitMessage: row.CommitMessage,
+			Author:        row.Author,
+			Branch:        row.Branch,
+		}
+	}
+	return runs, nil
+}
+
+func (r *Repository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) {
+	_, err := r.queries.CheckRepoExists(ctx, cloneURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *Repository) AppendLog(ctx context.Context, runID string, entry repository.LogEntry) error {
 	return r.queries.AppendLog(ctx, AppendLogParams{
 		RunID:     runID,

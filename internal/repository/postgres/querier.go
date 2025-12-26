@@ -10,12 +10,16 @@ import (
 
 type Querier interface {
 	AppendLog(ctx context.Context, arg AppendLogParams) error
+	CheckRepoExists(ctx context.Context, cloneUrl string) (int32, error)
 	CreateRepo(ctx context.Context, cloneUrl string) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
 	GetRepo(ctx context.Context, cloneUrl string) (string, error)
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
+	GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]GetRunsWithoutRepoURLRow, error)
+	GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error)
 	ListRuns(ctx context.Context) ([]ListRunsRow, error)
+	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
 }
 

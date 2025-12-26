@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+    "time"
 
 	"github.com/gorilla/websocket"
 	"github.com/lucasew/mise-ci/internal/core"
@@ -31,6 +32,12 @@ func (m *MockRepository) GetLogs(ctx context.Context, runID string) ([]repositor
 func (m *MockRepository) CreateRepo(ctx context.Context, repo *repository.Repo) error { return nil }
 func (m *MockRepository) GetRepo(ctx context.Context, cloneURL string) (*repository.Repo, error) { return nil, nil }
 func (m *MockRepository) Close() error { return nil }
+
+// New methods
+func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
+func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error { return nil }
+func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
+func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
 
 func TestWebSocketHandshake(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

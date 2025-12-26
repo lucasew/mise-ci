@@ -69,6 +69,12 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	}))
 	mux.HandleFunc("/ui/logs/", s.authMiddleware.RequireRunToken(s.uiServer.HandleLogs))
 	mux.HandleFunc("/ui/status-stream", s.authMiddleware.RequireStatusStreamAuth(s.uiServer.HandleStatusStream))
+
+	// Admin routes
+	mux.HandleFunc("/ui/admin/cleanup", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminCleanup))
+	mux.HandleFunc("/ui/admin/cleanup/repo-urls", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleBackfillRepoURLs))
+	mux.HandleFunc("/ui/admin/cleanup/stuck-runs", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleCleanupStuckRuns))
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/ui/", http.StatusFound)

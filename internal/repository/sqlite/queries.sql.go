@@ -33,6 +33,17 @@ func (q *Queries) AppendLog(ctx context.Context, arg AppendLogParams) error {
 	return err
 }
 
+const checkRepoExists = `-- name: CheckRepoExists :one
+SELECT 1 FROM repos WHERE clone_url = ? LIMIT 1
+`
+
+func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkRepoExists, cloneUrl)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createRepo = `-- name: CreateRepo :exec
 INSERT INTO repos (clone_url)
 VALUES (?)
@@ -167,6 +178,124 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 	return i, err
 }
 
+const getRunsWithoutRepoURL = `-- name: GetRunsWithoutRepoURL :many
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
+FROM runs
+WHERE repo_url IS NULL OR repo_url = ''
+LIMIT ?
+`
+
+type GetRunsWithoutRepoURLRow struct {
+	ID            string         `json:"id"`
+	Status        string         `json:"status"`
+	StartedAt     time.Time      `json:"started_at"`
+	FinishedAt    sql.NullTime   `json:"finished_at"`
+	ExitCode      sql.NullInt64  `json:"exit_code"`
+	UiToken       string         `json:"ui_token"`
+	GitLink       string         `json:"git_link"`
+	RepoUrl       sql.NullString `json:"repo_url"`
+	CommitMessage string         `json:"commit_message"`
+	Author        string         `json:"author"`
+	Branch        string         `json:"branch"`
+}
+
+func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int64) ([]GetRunsWithoutRepoURLRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRunsWithoutRepoURL, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRunsWithoutRepoURLRow{}
+	for rows.Next() {
+		var i GetRunsWithoutRepoURLRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ExitCode,
+			&i.UiToken,
+			&i.GitLink,
+			&i.RepoUrl,
+			&i.CommitMessage,
+			&i.Author,
+			&i.Branch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStuckRuns = `-- name: GetStuckRuns :many
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
+FROM runs
+WHERE status IN ('scheduled', 'running')
+AND started_at < ?
+LIMIT ?
+`
+
+type GetStuckRunsParams struct {
+	StartedAt time.Time `json:"started_at"`
+	Limit     int64     `json:"limit"`
+}
+
+type GetStuckRunsRow struct {
+	ID            string         `json:"id"`
+	Status        string         `json:"status"`
+	StartedAt     time.Time      `json:"started_at"`
+	FinishedAt    sql.NullTime   `json:"finished_at"`
+	ExitCode      sql.NullInt64  `json:"exit_code"`
+	UiToken       string         `json:"ui_token"`
+	GitLink       string         `json:"git_link"`
+	RepoUrl       sql.NullString `json:"repo_url"`
+	CommitMessage string         `json:"commit_message"`
+	Author        string         `json:"author"`
+	Branch        string         `json:"branch"`
+}
+
+func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getStuckRuns, arg.StartedAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetStuckRunsRow{}
+	for rows.Next() {
+		var i GetStuckRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.ExitCode,
+			&i.UiToken,
+			&i.GitLink,
+			&i.RepoUrl,
+			&i.CommitMessage,
+			&i.Author,
+			&i.Branch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRuns = `-- name: ListRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
@@ -220,6 +349,22 @@ func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateRunRepoURL = `-- name: UpdateRunRepoURL :exec
+UPDATE runs
+SET repo_url = ?
+WHERE id = ?
+`
+
+type UpdateRunRepoURLParams struct {
+	RepoUrl sql.NullString `json:"repo_url"`
+	ID      string         `json:"id"`
+}
+
+func (q *Queries) UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error {
+	_, err := q.db.ExecContext(ctx, updateRunRepoURL, arg.RepoUrl, arg.ID)
+	return err
 }
 
 const updateRunStatus = `-- name: UpdateRunStatus :exec

@@ -17,6 +17,24 @@ SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_
 FROM runs
 ORDER BY started_at DESC;
 
+-- name: GetRunsWithoutRepoURL :many
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
+FROM runs
+WHERE repo_url IS NULL OR repo_url = ''
+LIMIT $1;
+
+-- name: UpdateRunRepoURL :exec
+UPDATE runs
+SET repo_url = $1
+WHERE id = $2;
+
+-- name: GetStuckRuns :many
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
+FROM runs
+WHERE status IN ('scheduled', 'running')
+AND started_at < $1
+LIMIT $2;
+
 -- name: CreateRepo :exec
 INSERT INTO repos (clone_url)
 VALUES ($1);
@@ -25,6 +43,9 @@ VALUES ($1);
 SELECT clone_url
 FROM repos
 WHERE clone_url = $1;
+
+-- name: CheckRepoExists :one
+SELECT 1 FROM repos WHERE clone_url = $1 LIMIT 1;
 
 -- name: AppendLog :exec
 INSERT INTO log_entries (run_id, timestamp, stream, data)

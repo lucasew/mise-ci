@@ -17,6 +17,12 @@ type Repository interface {
 	UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error
 	ListRuns(ctx context.Context) ([]*RunMetadata, error)
 
+	// Maintenance
+	GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*RunMetadata, error)
+	UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error
+	GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*RunMetadata, error)
+	CheckRepoExists(ctx context.Context, cloneURL string) (bool, error)
+
 	// Log operations
 	AppendLog(ctx context.Context, runID string, entry LogEntry) error
 	AppendLogs(ctx context.Context, runID string, entries []LogEntry) error

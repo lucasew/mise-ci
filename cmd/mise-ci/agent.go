@@ -130,6 +130,11 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	logger.Info("artifact storage initialized", "path", filepath.Join(dataDir, "artifacts"))
 
 	appCore := core.NewCore(logger, cfg.JWT.Secret, repo)
+	// Inject the first forge if available for maintenance tasks
+	if len(forges) > 0 {
+		appCore.SetForge(forges[0])
+	}
+
 	svc := core.NewService(appCore, forges, r, artifactStorage, &cfg, logger)
 
 	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{
