@@ -75,7 +75,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 
 	s.Logger.Info("test dispatch", "run_id", runID)
 
-	run := s.Core.CreateRun(runID, "", "", "", "Test Dispatch", "admin", "test")
+	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
@@ -233,11 +233,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	repo, err := s.Core.repo.GetRepo(ctx, event.Clone)
 	if err != nil {
 		// Assume not found or error, try to create
-		// We might need better error handling to distinguish "not found"
-		repoID := fmt.Sprintf("repo-%d", time.Now().UnixNano())
-
 		newRepo := &repository.Repo{
-			ID:       repoID,
 			CloneURL: event.Clone,
 		}
 		if err := s.Core.repo.CreateRepo(ctx, newRepo); err != nil {
@@ -259,7 +255,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 
 	// Clean clone URL is already in event.Clone (no credentials)
-	run := s.Core.CreateRun(runID, event.Link, repo.ID, event.Clone, event.CommitMessage, event.Author, event.Branch)
+	run := s.Core.CreateRun(runID, event.Link, repo.CloneURL, event.CommitMessage, event.Author, event.Branch)
 
 	publicURL := s.Config.Server.PublicURL
 	if publicURL == "" {

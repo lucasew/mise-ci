@@ -28,7 +28,6 @@ type Repository interface {
 
 // Repo represents a repository
 type Repo struct {
-	ID       string
 	CloneURL string
 }
 
@@ -42,7 +41,6 @@ type RunMetadata struct {
 	UIToken       string
 	GitLink       string
 	RepoID        string
-	CloneURL      string // Populated via join
 	CommitMessage string
 	Author        string
 	Branch        string

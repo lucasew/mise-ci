@@ -39,7 +39,7 @@ func TestWebSocketHandshake(t *testing.T) {
 
 	// Create run and set context env
 	runID := "test-run"
-	_ = c.CreateRun(runID, "", "", "", "", "", "")
+	_ = c.CreateRun(runID, "", "", "", "", "")
 
 	expectedEnv := map[string]string{
 		"TEST_VAR": "test-value",

@@ -3,11 +3,9 @@ INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetRun :one
-SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url
-FROM runs r
-JOIN repos re ON r.repo_id = re.id
-WHERE r.id = ?;
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_id, commit_message, author, branch
+FROM runs
+WHERE id = ?;
 
 -- name: UpdateRunStatus :exec
 UPDATE runs
@@ -15,18 +13,16 @@ SET status = ?, exit_code = ?, finished_at = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?;
 
 -- name: ListRuns :many
-SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url
-FROM runs r
-JOIN repos re ON r.repo_id = re.id
-ORDER BY r.started_at DESC;
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_id, commit_message, author, branch
+FROM runs
+ORDER BY started_at DESC;
 
 -- name: CreateRepo :exec
-INSERT INTO repos (id, clone_url)
-VALUES (?, ?);
+INSERT INTO repos (clone_url)
+VALUES (?);
 
 -- name: GetRepo :one
-SELECT id, clone_url
+SELECT clone_url
 FROM repos
 WHERE clone_url = ?;
 

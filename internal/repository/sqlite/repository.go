@@ -110,10 +110,7 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 }
 
 func (r *Repository) CreateRepo(ctx context.Context, repo *repository.Repo) error {
-	return r.queries.CreateRepo(ctx, CreateRepoParams{
-		ID:       repo.ID,
-		CloneUrl: repo.CloneURL,
-	})
+	return r.queries.CreateRepo(ctx, repo.CloneURL)
 }
 
 func (r *Repository) GetRepo(ctx context.Context, cloneURL string) (*repository.Repo, error) {
@@ -122,8 +119,7 @@ func (r *Repository) GetRepo(ctx context.Context, cloneURL string) (*repository.
 		return nil, err
 	}
 	return &repository.Repo{
-		ID:       row.ID,
-		CloneURL: row.CloneUrl,
+		CloneURL: row,
 	}, nil
 }
 
@@ -153,7 +149,6 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		UIToken:       row.UiToken,
 		GitLink:       row.GitLink,
 		RepoID:        row.RepoID,
-		CloneURL:      row.CloneUrl,
 		CommitMessage: row.CommitMessage,
 		Author:        row.Author,
 		Branch:        row.Branch,
@@ -208,7 +203,6 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			UIToken:       row.UiToken,
 			GitLink:       row.GitLink,
 			RepoID:        row.RepoID,
-			CloneURL:      row.CloneUrl,
 			CommitMessage: row.CommitMessage,
 			Author:        row.Author,
 			Branch:        row.Branch,

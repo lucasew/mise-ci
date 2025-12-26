@@ -1,6 +1,5 @@
 CREATE TABLE repos (
-    id TEXT PRIMARY KEY,
-    clone_url TEXT NOT NULL UNIQUE
+    clone_url TEXT PRIMARY KEY
 );
 
-ALTER TABLE runs ADD COLUMN repo_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE runs ADD COLUMN repo_id TEXT NOT NULL DEFAULT '' REFERENCES repos(clone_url);
