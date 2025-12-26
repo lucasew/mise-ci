@@ -1,0 +1,59 @@
+{{template "layout" .}}
+
+{{define "content"}}
+<div class="container mt-4">
+    <h1>System Maintenance</h1>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Run Cleanup
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Backfill Repo URLs</h5>
+                    <p class="card-text">Populate missing <code>repo_url</code> fields by parsing <code>git_link</code>.</p>
+                    <form action="/ui/admin/cleanup/repo-urls" method="POST">
+                        <div class="mb-3">
+                            <label for="limit" class="form-label">Batch Size</label>
+                            <input type="number" class="form-control" id="limit" name="limit" value="100">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Run Backfill</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    Stuck Runs
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Cleanup Stuck Runs</h5>
+                    <p class="card-text">Mark runs as failed if they are older than the server start time and still Running/Scheduled.</p>
+                    <form action="/ui/admin/cleanup/stuck-runs" method="POST">
+                        <div class="mb-3">
+                            <label for="limit" class="form-label">Batch Size</label>
+                            <input type="number" class="form-control" id="limit" name="limit" value="100">
+                        </div>
+                        <button type="submit" class="btn btn-danger">Cleanup Stuck Runs</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{if .Message}}
+    <div class="alert alert-info mt-4" role="alert">
+        {{.Message}}
+    </div>
+    {{end}}
+
+    {{if .Error}}
+    <div class="alert alert-danger mt-4" role="alert">
+        {{.Error}}
+    </div>
+    {{end}}
+</div>
+{{end}}

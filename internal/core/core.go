@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/lucasew/mise-ci/internal/forge"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/repository"
 )
@@ -97,12 +98,14 @@ func (lb *LogBuffer) append(entry LogEntry) {
 type Core struct {
 	runs           map[string]*Run
 	repo           repository.Repository
+	forge          forge.Forge
 	mu             sync.RWMutex
 	logger         *slog.Logger
 	jwtSecret      []byte
 	logListener    map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
 	statusListener *ListenerManager[RunInfo]               // global status change listeners manager
 	logBuffers     map[string]*LogBuffer
+	StartTime      time.Time
 }
 
 type Run struct {
@@ -124,7 +127,14 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 		logListener:    make(map[string]*ListenerManager[[]LogEntry]),
 		statusListener: NewListenerManager[RunInfo](),
 		logBuffers:     make(map[string]*LogBuffer),
+		StartTime:      time.Now(),
 	}
+}
+
+func (c *Core) SetForge(f forge.Forge) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.forge = f
 }
 
 func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, branch string) *Run {
