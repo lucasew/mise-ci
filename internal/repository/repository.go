@@ -29,8 +29,6 @@ type Repository interface {
 // Repo represents a repository
 type Repo struct {
 	ID       string
-	Owner    string
-	Name     string
 	CloneURL string
 }
 

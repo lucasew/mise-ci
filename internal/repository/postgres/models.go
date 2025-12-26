@@ -19,8 +19,6 @@ type LogEntry struct {
 
 type Repo struct {
 	ID       string `json:"id"`
-	Owner    string `json:"owner"`
-	Name     string `json:"name"`
 	CloneUrl string `json:"clone_url"`
 }
 

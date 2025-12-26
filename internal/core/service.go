@@ -235,19 +235,9 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 		// Assume not found or error, try to create
 		// We might need better error handling to distinguish "not found"
 		repoID := fmt.Sprintf("repo-%d", time.Now().UnixNano())
-		// Parse owner and name from event if possible, or use placeholders
-		parts := strings.Split(event.Repo, "/")
-		owner := "unknown"
-		name := "unknown"
-		if len(parts) == 2 {
-			owner = parts[0]
-			name = parts[1]
-		}
 
 		newRepo := &repository.Repo{
 			ID:       repoID,
-			Owner:    owner,
-			Name:     name,
 			CloneURL: event.Clone,
 		}
 		if err := s.Core.repo.CreateRepo(ctx, newRepo); err != nil {

@@ -112,8 +112,6 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 func (r *Repository) CreateRepo(ctx context.Context, repo *repository.Repo) error {
 	return r.queries.CreateRepo(ctx, CreateRepoParams{
 		ID:       repo.ID,
-		Owner:    repo.Owner,
-		Name:     repo.Name,
 		CloneUrl: repo.CloneURL,
 	})
 }
@@ -125,8 +123,6 @@ func (r *Repository) GetRepo(ctx context.Context, cloneURL string) (*repository.
 	}
 	return &repository.Repo{
 		ID:       row.ID,
-		Owner:    row.Owner,
-		Name:     row.Name,
 		CloneURL: row.CloneUrl,
 	}, nil
 }

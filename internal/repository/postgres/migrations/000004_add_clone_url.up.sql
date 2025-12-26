@@ -1,7 +1,5 @@
 CREATE TABLE repos (
     id TEXT PRIMARY KEY,
-    owner TEXT NOT NULL,
-    name TEXT NOT NULL,
     clone_url TEXT NOT NULL UNIQUE
 );
 

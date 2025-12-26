@@ -34,24 +34,17 @@ func (q *Queries) AppendLog(ctx context.Context, arg AppendLogParams) error {
 }
 
 const createRepo = `-- name: CreateRepo :exec
-INSERT INTO repos (id, owner, name, clone_url)
-VALUES (?, ?, ?, ?)
+INSERT INTO repos (id, clone_url)
+VALUES (?, ?)
 `
 
 type CreateRepoParams struct {
 	ID       string `json:"id"`
-	Owner    string `json:"owner"`
-	Name     string `json:"name"`
 	CloneUrl string `json:"clone_url"`
 }
 
 func (q *Queries) CreateRepo(ctx context.Context, arg CreateRepoParams) error {
-	_, err := q.db.ExecContext(ctx, createRepo,
-		arg.ID,
-		arg.Owner,
-		arg.Name,
-		arg.CloneUrl,
-	)
+	_, err := q.db.ExecContext(ctx, createRepo, arg.ID, arg.CloneUrl)
 	return err
 }
 
@@ -128,7 +121,7 @@ func (q *Queries) GetLogs(ctx context.Context, runID string) ([]GetLogsRow, erro
 }
 
 const getRepo = `-- name: GetRepo :one
-SELECT id, owner, name, clone_url
+SELECT id, clone_url
 FROM repos
 WHERE clone_url = ?
 `
@@ -136,18 +129,13 @@ WHERE clone_url = ?
 func (q *Queries) GetRepo(ctx context.Context, cloneUrl string) (Repo, error) {
 	row := q.db.QueryRowContext(ctx, getRepo, cloneUrl)
 	var i Repo
-	err := row.Scan(
-		&i.ID,
-		&i.Owner,
-		&i.Name,
-		&i.CloneUrl,
-	)
+	err := row.Scan(&i.ID, &i.CloneUrl)
 	return i, err
 }
 
 const getRun = `-- name: GetRun :one
 SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url, re.owner, re.name as repo_name
+       re.clone_url
 FROM runs r
 JOIN repos re ON r.repo_id = re.id
 WHERE r.id = ?
@@ -166,8 +154,6 @@ type GetRunRow struct {
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
 	CloneUrl      string        `json:"clone_url"`
-	Owner         string        `json:"owner"`
-	RepoName      string        `json:"repo_name"`
 }
 
 func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
@@ -186,15 +172,13 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 		&i.Author,
 		&i.Branch,
 		&i.CloneUrl,
-		&i.Owner,
-		&i.RepoName,
 	)
 	return i, err
 }
 
 const listRuns = `-- name: ListRuns :many
 SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url, re.owner, re.name as repo_name
+       re.clone_url
 FROM runs r
 JOIN repos re ON r.repo_id = re.id
 ORDER BY r.started_at DESC
@@ -213,8 +197,6 @@ type ListRunsRow struct {
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
 	CloneUrl      string        `json:"clone_url"`
-	Owner         string        `json:"owner"`
-	RepoName      string        `json:"repo_name"`
 }
 
 func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
@@ -239,8 +221,6 @@ func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 			&i.Author,
 			&i.Branch,
 			&i.CloneUrl,
-			&i.Owner,
-			&i.RepoName,
 		); err != nil {
 			return nil, err
 		}

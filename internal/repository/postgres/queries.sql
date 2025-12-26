@@ -4,7 +4,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: GetRun :one
 SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url, re.owner, re.name as repo_name
+       re.clone_url
 FROM runs r
 JOIN repos re ON r.repo_id = re.id
 WHERE r.id = $1;
@@ -16,17 +16,17 @@ WHERE id = $1;
 
 -- name: ListRuns :many
 SELECT r.id, r.status, r.started_at, r.finished_at, r.exit_code, r.ui_token, r.git_link, r.repo_id, r.commit_message, r.author, r.branch,
-       re.clone_url, re.owner, re.name as repo_name
+       re.clone_url
 FROM runs r
 JOIN repos re ON r.repo_id = re.id
 ORDER BY r.started_at DESC;
 
 -- name: CreateRepo :exec
-INSERT INTO repos (id, owner, name, clone_url)
-VALUES ($1, $2, $3, $4);
+INSERT INTO repos (id, clone_url)
+VALUES ($1, $2);
 
 -- name: GetRepo :one
-SELECT id, owner, name, clone_url
+SELECT id, clone_url
 FROM repos
 WHERE clone_url = $1;
 
