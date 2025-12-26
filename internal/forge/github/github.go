@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/go-github/v66/github"
+	"github.com/google/go-github/v80/github"
 	"github.com/lucasew/mise-ci/internal/forge"
 )
 

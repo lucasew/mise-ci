@@ -6,7 +6,6 @@ require (
 	github.com/abiosoft/mold v0.0.0-20250328135240-0a4c28cb836a
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/google/go-github/v66 v66.0.0
 	github.com/google/go-github/v80 v80.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/nomad/api v0.0.0-20251222083347-1355d4cb1671
