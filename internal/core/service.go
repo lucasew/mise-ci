@@ -276,6 +276,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	creds, err := f.CloneCredentials(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Error("get credentials", "error", err)
+		s.Core.UpdateStatus(runID, StatusError, nil)
 		status.State = forge.StateError
 		status.Description = "Failed to get credentials"
 		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
@@ -288,6 +289,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
+		s.Core.UpdateStatus(runID, StatusError, nil)
 		return
 	}
 
@@ -321,6 +323,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	jobID, err := s.Runner.Dispatch(ctx, params)
 	if err != nil {
 		s.Logger.Error("dispatch job", "error", err)
+		s.Core.UpdateStatus(runID, StatusError, nil)
 		status.State = forge.StateError
 		status.Description = "Failed to dispatch job"
 		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
@@ -355,8 +358,14 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials) bool {
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	<-run.ConnectedCh
-	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+	select {
+	case <-run.ConnectedCh:
+		s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+	case <-time.After(10 * time.Minute):
+		s.Logger.Error("timeout waiting for worker to connect", "run_id", run.ID)
+		s.Core.UpdateStatus(run.ID, StatusError, nil)
+		return false
+	}
 
 	defer func() {
 		run.CommandCh <- &pb.ServerMessage{
