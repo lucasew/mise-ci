@@ -34,5 +34,5 @@ type Run struct {
 	CommitMessage string        `json:"commit_message"`
 	Author        string        `json:"author"`
 	Branch        string        `json:"branch"`
-	RepoID        string        `json:"repo_id"`
+	RepoUrl       string        `json:"repo_url"`
 }

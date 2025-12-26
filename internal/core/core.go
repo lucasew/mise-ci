@@ -46,7 +46,7 @@ type RunInfo struct {
 	ExitCode      *int32
 	UIToken       string
 	GitLink       string
-	RepoID        string
+	RepoURL       string
 	CommitMessage string
 	Author        string
 	Branch        string
@@ -127,7 +127,7 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 	}
 }
 
-func (c *Core) CreateRun(id string, gitLink, repoID, commitMessage, author, branch string) *Run {
+func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, branch string) *Run {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -154,7 +154,7 @@ func (c *Core) CreateRun(id string, gitLink, repoID, commitMessage, author, bran
 		StartedAt:     time.Now(),
 		UIToken:       uiToken,
 		GitLink:       gitLink,
-		RepoID:        repoID,
+		RepoURL:       repoURL,
 		CommitMessage: commitMessage,
 		Author:        author,
 		Branch:        branch,
@@ -172,7 +172,7 @@ func (c *Core) CreateRun(id string, gitLink, repoID, commitMessage, author, bran
 		StartedAt:     metadata.StartedAt,
 		UIToken:       uiToken,
 		GitLink:       gitLink,
-		RepoID:        repoID,
+		RepoURL:       repoURL,
 		CommitMessage: commitMessage,
 		Author:        author,
 		Branch:        branch,
@@ -358,7 +358,7 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 		ExitCode:      meta.ExitCode,
 		UIToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
-		RepoID:        meta.RepoID,
+		RepoURL:       meta.RepoURL,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
 		Branch:        meta.Branch,
@@ -381,7 +381,7 @@ func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
 		ExitCode:      meta.ExitCode,
 		UIToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
-		RepoID:        meta.RepoID,
+		RepoURL:       meta.RepoURL,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
 		Branch:        meta.Branch,
@@ -409,7 +409,7 @@ func (c *Core) GetAllRuns() []RunInfo {
 			ExitCode:      repoRun.ExitCode,
 			UIToken:       repoRun.UIToken,
 			GitLink:       repoRun.GitLink,
-			RepoID:        repoRun.RepoID,
+			RepoURL:       repoRun.RepoURL,
 			CommitMessage: repoRun.CommitMessage,
 			Author:        repoRun.Author,
 			Branch:        repoRun.Branch,

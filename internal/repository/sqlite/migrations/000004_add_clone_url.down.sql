@@ -1,2 +1,2 @@
-ALTER TABLE runs DROP COLUMN repo_id;
+ALTER TABLE runs DROP COLUMN repo_url;
 DROP TABLE repos;
