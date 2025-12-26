@@ -22,17 +22,17 @@ type Repo struct {
 }
 
 type Run struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	CreatedAt     sql.NullTime   `json:"created_at"`
-	UpdatedAt     sql.NullTime   `json:"updated_at"`
-	GitLink       string         `json:"git_link"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
-	RepoUrl       sql.NullString `json:"repo_url"`
+	ID            string        `json:"id"`
+	Status        string        `json:"status"`
+	StartedAt     time.Time     `json:"started_at"`
+	FinishedAt    sql.NullTime  `json:"finished_at"`
+	ExitCode      sql.NullInt32 `json:"exit_code"`
+	UiToken       string        `json:"ui_token"`
+	CreatedAt     sql.NullTime  `json:"created_at"`
+	UpdatedAt     sql.NullTime  `json:"updated_at"`
+	GitLink       string        `json:"git_link"`
+	CommitMessage string        `json:"commit_message"`
+	Author        string        `json:"author"`
+	Branch        string        `json:"branch"`
+	RepoUrl       string        `json:"repo_url"`
 }

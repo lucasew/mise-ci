@@ -49,17 +49,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateRunParams struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt64  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	ID            string        `json:"id"`
+	Status        string        `json:"status"`
+	StartedAt     time.Time     `json:"started_at"`
+	FinishedAt    sql.NullTime  `json:"finished_at"`
+	ExitCode      sql.NullInt64 `json:"exit_code"`
+	UiToken       string        `json:"ui_token"`
+	GitLink       string        `json:"git_link"`
+	RepoUrl       string        `json:"repo_url"`
+	CommitMessage string        `json:"commit_message"`
+	Author        string        `json:"author"`
+	Branch        string        `json:"branch"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
@@ -135,17 +135,17 @@ WHERE id = ?
 `
 
 type GetRunRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt64  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	ID            string        `json:"id"`
+	Status        string        `json:"status"`
+	StartedAt     time.Time     `json:"started_at"`
+	FinishedAt    sql.NullTime  `json:"finished_at"`
+	ExitCode      sql.NullInt64 `json:"exit_code"`
+	UiToken       string        `json:"ui_token"`
+	GitLink       string        `json:"git_link"`
+	RepoUrl       string        `json:"repo_url"`
+	CommitMessage string        `json:"commit_message"`
+	Author        string        `json:"author"`
+	Branch        string        `json:"branch"`
 }
 
 func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
@@ -174,17 +174,17 @@ ORDER BY started_at DESC
 `
 
 type ListRunsRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt64  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	ID            string        `json:"id"`
+	Status        string        `json:"status"`
+	StartedAt     time.Time     `json:"started_at"`
+	FinishedAt    sql.NullTime  `json:"finished_at"`
+	ExitCode      sql.NullInt64 `json:"exit_code"`
+	UiToken       string        `json:"ui_token"`
+	GitLink       string        `json:"git_link"`
+	RepoUrl       string        `json:"repo_url"`
+	CommitMessage string        `json:"commit_message"`
+	Author        string        `json:"author"`
+	Branch        string        `json:"branch"`
 }
 
 func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
