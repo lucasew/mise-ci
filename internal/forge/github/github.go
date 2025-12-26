@@ -218,8 +218,8 @@ func (g *GitHubForge) UpdateStatus(ctx context.Context, repo, sha string, status
 
 	// Try to find existing check run
 	opts := &github.ListCheckRunsOptions{
-		CheckName: github.String(status.Context),
-		Filter:    github.String("latest"),
+		CheckName: github.Ptr(status.Context),
+		Filter:    github.Ptr("latest"),
 	}
 	runs, _, err := client.Checks.ListCheckRunsForRef(ctx, owner, name, sha, opts)
 	if err != nil {
@@ -233,8 +233,8 @@ func (g *GitHubForge) UpdateStatus(ctx context.Context, repo, sha string, status
 	}
 
 	output := &github.CheckRunOutput{
-		Title:   github.String(status.Context),
-		Summary: github.String(status.Description),
+		Title:   github.Ptr(status.Context),
+		Summary: github.Ptr(status.Description),
 	}
 
 	if runID != 0 {
@@ -366,11 +366,11 @@ func (g *GitHubForge) CreatePullRequest(ctx context.Context, repo, baseBranch, h
 	instClient := github.NewClient(nil).WithAuthToken(token.GetToken())
 
 	newPR := &github.NewPullRequest{
-		Title:               github.String(title),
-		Head:                github.String(headBranch),
-		Base:                github.String(baseBranch),
-		Body:                github.String(body),
-		MaintainerCanModify: github.Bool(true),
+		Title:               github.Ptr(title),
+		Head:                github.Ptr(headBranch),
+		Base:                github.Ptr(baseBranch),
+		Body:                github.Ptr(body),
+		MaintainerCanModify: github.Ptr(true),
 	}
 
 	pr, _, err := instClient.PullRequests.Create(ctx, owner, nameRepo, newPR)
