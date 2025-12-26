@@ -96,6 +96,49 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 			Author:        e.PullRequest.User.GetLogin(),
 			Branch:        e.PullRequest.Head.GetRef(),
 		}, nil
+	case *github.CheckRunEvent:
+		if e.Action == nil || *e.Action != "rerequested" {
+			return nil, nil
+		}
+		if e.Repo == nil || e.Repo.FullName == nil || e.CheckRun == nil {
+			return nil, nil
+		}
+
+		// Try to find the branch from CheckSuite if available
+		branch := ""
+		if e.CheckRun.CheckSuite != nil && e.CheckRun.CheckSuite.HeadBranch != nil {
+			branch = *e.CheckRun.CheckSuite.HeadBranch
+		}
+
+		// Fallback or additional logic could be needed to find the Ref if not provided,
+		// but CheckRun typically operates on a commit SHA.
+		// Constructing a Ref might be needed for the runner.
+		ref := ""
+		if branch != "" {
+			ref = fmt.Sprintf("refs/heads/%s", branch)
+		}
+
+		link := ""
+		if e.CheckRun.HTMLURL != nil {
+			link = *e.CheckRun.HTMLURL
+		}
+
+		msg := "Re-run requested via GitHub"
+		if e.CheckRun.CheckSuite != nil && e.CheckRun.CheckSuite.HeadCommit != nil && e.CheckRun.CheckSuite.HeadCommit.Message != nil {
+			msg = fmt.Sprintf("(rerun) %s", *e.CheckRun.CheckSuite.HeadCommit.Message)
+		}
+
+		return &forge.WebhookEvent{
+			Type:          forge.EventTypeCheckRun,
+			Repo:          *e.Repo.FullName,
+			Ref:   ref,
+			SHA:   *e.CheckRun.HeadSHA,
+			Clone:         e.Repo.GetCloneURL(),
+			Link:          link,
+			CommitMessage: msg,
+			Author:        e.Sender.GetLogin(),
+			Branch:        branch,
+		}, nil
 	}
 
 	return nil, nil
@@ -395,9 +438,12 @@ func (g *GitHubForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 		"GITHUB_SERVER_URL": "https://github.com",
 	}
 
-	if event.Type == forge.EventTypePullRequest {
+	switch event.Type {
+	case forge.EventTypePullRequest:
 		env["GITHUB_EVENT_NAME"] = "pull_request"
-	} else {
+	case forge.EventTypeCheckRun:
+		env["GITHUB_EVENT_NAME"] = "check_run"
+	default:
 		env["GITHUB_EVENT_NAME"] = "push"
 	}
 

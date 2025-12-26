@@ -46,6 +46,7 @@ type EventType int
 const (
 	EventTypePush EventType = iota
 	EventTypePullRequest
+	EventTypeCheckRun
 )
 
 type Status struct {
