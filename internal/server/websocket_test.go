@@ -28,6 +28,8 @@ func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadat
 func (m *MockRepository) AppendLog(ctx context.Context, runID string, entry repository.LogEntry) error { return nil }
 func (m *MockRepository) AppendLogs(ctx context.Context, runID string, entries []repository.LogEntry) error { return nil }
 func (m *MockRepository) GetLogs(ctx context.Context, runID string) ([]repository.LogEntry, error) { return nil, nil }
+func (m *MockRepository) CreateRepo(ctx context.Context, repo *repository.Repo) error { return nil }
+func (m *MockRepository) GetRepo(ctx context.Context, cloneURL string) (*repository.Repo, error) { return nil, nil }
 func (m *MockRepository) Close() error { return nil }
 
 func TestWebSocketHandshake(t *testing.T) {
@@ -37,7 +39,7 @@ func TestWebSocketHandshake(t *testing.T) {
 
 	// Create run and set context env
 	runID := "test-run"
-	_ = c.CreateRun(runID, "", "", "", "")
+	_ = c.CreateRun(runID, "", "", "", "", "")
 
 	expectedEnv := map[string]string{
 		"TEST_VAR": "test-value",

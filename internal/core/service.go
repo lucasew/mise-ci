@@ -16,6 +16,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/httputil"
 	"github.com/lucasew/mise-ci/internal/msgutil"
+	"github.com/lucasew/mise-ci/internal/repository"
 	"github.com/lucasew/mise-ci/internal/orchestration"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/runner"
@@ -74,7 +75,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 
 	s.Logger.Info("test dispatch", "run_id", runID)
 
-	run := s.Core.CreateRun(runID, "", "Test Dispatch", "admin", "test")
+	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
 	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
 		s.Logger.Error("generate token", "error", err)
@@ -228,7 +229,33 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("starting run", "run_id", runID)
 
-	run := s.Core.CreateRun(runID, event.Link, event.CommitMessage, event.Author, event.Branch)
+	// Ensure Repo exists
+	repo, err := s.Core.repo.GetRepo(ctx, event.Clone)
+	if err != nil {
+		// Assume not found or error, try to create
+		newRepo := &repository.Repo{
+			CloneURL: event.Clone,
+		}
+		if err := s.Core.repo.CreateRepo(ctx, newRepo); err != nil {
+			s.Logger.Error("failed to create repo", "error", err)
+			// Proceeding might fail due to FK constraint if we don't have a valid repo_id?
+			// If CreateRepo failed, maybe it exists now (race condition)?
+			// Let's try to get it again
+			r, errGet := s.Core.repo.GetRepo(ctx, event.Clone)
+			if errGet == nil {
+				repo = r
+			} else {
+				// We can't proceed without a repo_id
+				s.Logger.Error("cannot link run to repo", "error", err)
+				return
+			}
+		} else {
+			repo = newRepo
+		}
+	}
+
+	// Clean clone URL is already in event.Clone (no credentials)
+	run := s.Core.CreateRun(runID, event.Link, repo.CloneURL, event.CommitMessage, event.Author, event.Branch)
 
 	publicURL := s.Config.Server.PublicURL
 	if publicURL == "" {

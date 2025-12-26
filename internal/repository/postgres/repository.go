@@ -78,6 +78,11 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 		exitCode = sql.NullInt32{Int32: *meta.ExitCode, Valid: true}
 	}
 
+	var repoURL sql.NullString
+	if meta.RepoURL != "" {
+		repoURL = sql.NullString{String: meta.RepoURL, Valid: true}
+	}
+
 	return r.queries.CreateRun(ctx, CreateRunParams{
 		ID:            meta.ID,
 		Status:        meta.Status,
@@ -86,10 +91,25 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 		ExitCode:      exitCode,
 		UiToken:       meta.UIToken,
 		GitLink:       meta.GitLink,
+		RepoUrl:       repoURL,
 		CommitMessage: meta.CommitMessage,
 		Author:        meta.Author,
 		Branch:        meta.Branch,
 	})
+}
+
+func (r *Repository) CreateRepo(ctx context.Context, repo *repository.Repo) error {
+	return r.queries.CreateRepo(ctx, repo.CloneURL)
+}
+
+func (r *Repository) GetRepo(ctx context.Context, cloneURL string) (*repository.Repo, error) {
+	row, err := r.queries.GetRepo(ctx, cloneURL)
+	if err != nil {
+		return nil, err
+	}
+	return &repository.Repo{
+		CloneURL: row,
+	}, nil
 }
 
 func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunMetadata, error) {
@@ -109,6 +129,11 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		exitCode = &code
 	}
 
+	var repoURL string
+	if row.RepoUrl.Valid {
+		repoURL = row.RepoUrl.String
+	}
+
 	return &repository.RunMetadata{
 		ID:            row.ID,
 		Status:        row.Status,
@@ -117,6 +142,7 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		ExitCode:      exitCode,
 		UIToken:       row.UiToken,
 		GitLink:       row.GitLink,
+		RepoURL:       repoURL,
 		CommitMessage: row.CommitMessage,
 		Author:        row.Author,
 		Branch:        row.Branch,
@@ -162,6 +188,11 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			exitCode = &code
 		}
 
+		var repoURL string
+		if row.RepoUrl.Valid {
+			repoURL = row.RepoUrl.String
+		}
+
 		runs[i] = &repository.RunMetadata{
 			ID:            row.ID,
 			Status:        row.Status,
@@ -170,6 +201,7 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 			ExitCode:      exitCode,
 			UIToken:       row.UiToken,
 			GitLink:       row.GitLink,
+			RepoURL:       repoURL,
 			CommitMessage: row.CommitMessage,
 			Author:        row.Author,
 			Branch:        row.Branch,

@@ -7,6 +7,10 @@ import (
 
 // Repository defines the storage abstraction for run information
 type Repository interface {
+	// Repo lifecycle
+	CreateRepo(ctx context.Context, repo *Repo) error
+	GetRepo(ctx context.Context, cloneURL string) (*Repo, error)
+
 	// Run lifecycle
 	CreateRun(ctx context.Context, meta *RunMetadata) error
 	GetRun(ctx context.Context, runID string) (*RunMetadata, error)
@@ -22,6 +26,11 @@ type Repository interface {
 	Close() error
 }
 
+// Repo represents a repository
+type Repo struct {
+	CloneURL string
+}
+
 // RunMetadata represents persistent run information (without logs)
 type RunMetadata struct {
 	ID            string
@@ -31,6 +40,7 @@ type RunMetadata struct {
 	ExitCode      *int32
 	UIToken       string
 	GitLink       string
+	RepoURL       string
 	CommitMessage string
 	Author        string
 	Branch        string
