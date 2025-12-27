@@ -45,7 +45,10 @@ func runWorker(cmd *cobra.Command, args []string) error {
 
 func performHandshake(conn *websocket.Conn) (map[string]string, error) {
 	// Send handshake
-	hostname, _ := os.Hostname()
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
 	info := &pb.WorkerMessage{
 		Payload: &pb.WorkerMessage_RunnerInfo{
 			RunnerInfo: &pb.RunnerInfo{
