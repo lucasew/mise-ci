@@ -108,75 +108,74 @@ func (c *Core) CleanupStuckRuns(ctx context.Context, olderThan time.Time, limit 
 
 	count := 0
 	for _, run := range runs {
-        // Try to update Forge status
-        // We only proceed to update DB if Forge update succeeds (or if there is no forge to update)
-        // This acts as our "transaction" per record.
+		if !c.updateForgeStatus(ctx, run) {
+			continue
+		}
 
-        forgeUpdated := false
-        if c.forge != nil {
-            sha := extractSHA(run)
-            if sha != "" && run.RepoURL != "" {
-                // We need to parse RepoURL to get "owner/repo" string if it's a URL
-                repoSlug := run.RepoURL
-                if strings.HasPrefix(repoSlug, "http") {
-                    // Extract path: https://github.com/owner/repo -> owner/repo
-                    parts := strings.Split(repoSlug, "/")
-                    if len(parts) >= 2 {
-                        repoSlug = strings.Join(parts[len(parts)-2:], "/")
-                        repoSlug = strings.TrimSuffix(repoSlug, ".git")
-                    }
-                }
+		// Update DB status
+		// Using StatusError as per prompt "marca como failed" (StatusError or StatusFailure?)
+		// "Internal error, please retry" suggests Error.
+		if err := c.repo.UpdateRunStatus(ctx, run.ID, string(StatusError), nil); err != nil {
+			c.logger.Error("failed to update run status in db", "run_id", run.ID, "error", err)
+			continue
+		}
 
-                err := c.forge.UpdateStatus(ctx, repoSlug, sha, forge.Status{
-                    State:       forge.StateError,
-                    Context:     "mise-ci",
-                    Description: "Internal error, please retry",
-                    TargetURL:   "", // No logs link available/relevant? Or maybe link to run page?
-                })
+		// Add a system log message
+		logEntry := repository.LogEntry{
+			Timestamp: time.Now(),
+			Stream:    "system",
+			Data:      "Run marked as failed by maintenance cleanup (stuck in scheduled/running)",
+		}
+		if err := c.repo.AppendLog(ctx, run.ID, logEntry); err != nil {
+			c.logger.Warn("failed to append system log", "run_id", run.ID, "error", err)
+		}
 
-                if err != nil {
-                    c.logger.Error("failed to update forge status", "run_id", run.ID, "error", err)
-                    // If forge update fails, we do NOT update DB.
-                    continue
-                }
-                forgeUpdated = true
-            } else {
-                 c.logger.Warn("skipping forge update due to missing info", "run_id", run.ID, "sha", sha, "repo_url", run.RepoURL)
-                 // If we can't identify the forge target, we might still want to clean up local DB?
-                 // Prompt says: "só commite quando tiver concluido os passos externos, se der erro o rollback é automágico"
-                 // This implies if external step *exists and fails*, rollback.
-                 // If external step is impossible (missing data), maybe we should still cleanup?
-                 // But safest is to skip cleanup if we can't update forge, to prompt manual intervention.
-                 // However, without SHA, manual intervention is also hard.
-                 // Let's assume we proceed if we simply CANNOT update forge (missing data), but fail if we TRY and fail.
-                 forgeUpdated = true // Treat as success/not-needed
-            }
-        } else {
-             forgeUpdated = true // No forge configured
-        }
-
-        if forgeUpdated {
-            // Update DB status
-            // Using StatusError as per prompt "marca como failed" (StatusError or StatusFailure?)
-            // "Internal error, please retry" suggests Error.
-            if err := c.repo.UpdateRunStatus(ctx, run.ID, string(StatusError), nil); err != nil {
-                c.logger.Error("failed to update run status in db", "run_id", run.ID, "error", err)
-                continue
-            }
-
-            // Add a system log message
-            logEntry := repository.LogEntry{
-                Timestamp: time.Now(),
-                Stream:    "system",
-                Data:      "Run marked as failed by maintenance cleanup (stuck in scheduled/running)",
-            }
-            if err := c.repo.AppendLog(ctx, run.ID, logEntry); err != nil {
-                c.logger.Warn("failed to append system log", "run_id", run.ID, "error", err)
-            }
-
-            count++
-        }
+		count++
 	}
 
 	return count, nil
+}
+
+func (c *Core) updateForgeStatus(ctx context.Context, run *repository.RunMetadata) bool {
+	if c.forge == nil {
+		return true
+	}
+
+	sha := extractSHA(run)
+	if sha == "" || run.RepoURL == "" {
+		c.logger.Warn("skipping forge update due to missing info", "run_id", run.ID, "sha", sha, "repo_url", run.RepoURL)
+		// If we can't identify the forge target, we might still want to clean up local DB?
+		// Prompt says: "só commite quando tiver concluido os passos externos, se der erro o rollback é automágico"
+		// This implies if external step *exists and fails*, rollback.
+		// If external step is impossible (missing data), maybe we should still cleanup?
+		// But safest is to skip cleanup if we can't update forge, to prompt manual intervention.
+		// However, without SHA, manual intervention is also hard.
+		// Let's assume we proceed if we simply CANNOT update forge (missing data), but fail if we TRY and fail.
+		return true // Treat as success/not-needed
+	}
+
+	// We need to parse RepoURL to get "owner/repo" string if it's a URL
+	repoSlug := run.RepoURL
+	if strings.HasPrefix(repoSlug, "http") {
+		// Extract path: https://github.com/owner/repo -> owner/repo
+		parts := strings.Split(repoSlug, "/")
+		if len(parts) >= 2 {
+			repoSlug = strings.Join(parts[len(parts)-2:], "/")
+			repoSlug = strings.TrimSuffix(repoSlug, ".git")
+		}
+	}
+
+	err := c.forge.UpdateStatus(ctx, repoSlug, sha, forge.Status{
+		State:       forge.StateError,
+		Context:     "mise-ci",
+		Description: "Internal error, please retry",
+		TargetURL:   "", // No logs link available/relevant? Or maybe link to run page?
+	})
+
+	if err != nil {
+		c.logger.Error("failed to update forge status", "run_id", run.ID, "error", err)
+		// If forge update fails, we do NOT update DB.
+		return false
+	}
+	return true
 }
