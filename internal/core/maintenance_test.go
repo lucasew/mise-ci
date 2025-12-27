@@ -110,7 +110,11 @@ func (m *MockForge) CreatePullRequest(ctx context.Context, repo, baseBranch, hea
 }
 func (m *MockForge) GetVariables(ctx context.Context, repo string) (map[string]string, error) {
 	args := m.Called(ctx, repo)
-	return args.Get(0).(map[string]string), args.Error(1)
+	var r0 map[string]string
+	if args.Get(0) != nil {
+		r0 = args.Get(0).(map[string]string)
+	}
+	return r0, args.Error(1)
 }
 func (m *MockForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 	args := m.Called(event)
