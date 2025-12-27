@@ -43,6 +43,54 @@ func runWorker(cmd *cobra.Command, args []string) error {
 	return startWorker()
 }
 
+func performHandshake(conn *websocket.Conn) (map[string]string, error) {
+	// Send handshake
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+	info := &pb.WorkerMessage{
+		Payload: &pb.WorkerMessage_RunnerInfo{
+			RunnerInfo: &pb.RunnerInfo{
+				Hostname: hostname,
+				Os:       runtime.GOOS,
+				Arch:     runtime.GOARCH,
+				Version:  version.Get(),
+			},
+		},
+	}
+	if err := wsafeSend(conn, info); err != nil {
+		return nil, fmt.Errorf("failed to send runner info: %w", err)
+	}
+
+	// Request context
+	if err := wsafeSend(conn, &pb.WorkerMessage{
+		Payload: &pb.WorkerMessage_ContextRequest{
+			ContextRequest: &pb.ContextRequest{},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("failed to send context request: %w", err)
+	}
+
+	// Receive context
+	_, msgData, err := conn.ReadMessage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read context response: %w", err)
+	}
+
+	var ctxMsg pb.ServerMessage
+	if err := proto.Unmarshal(msgData, &ctxMsg); err != nil {
+		return nil, fmt.Errorf("unmarshal error: %w", err)
+	}
+
+	ctxResp, ok := ctxMsg.Payload.(*pb.ServerMessage_ContextResponse)
+	if !ok {
+		return nil, fmt.Errorf("expected ContextResponse, got %T", ctxMsg.Payload)
+	}
+
+	return ctxResp.ContextResponse.Env, nil
+}
+
 func startWorker() error {
 	callback := viper.GetString("callback")
 	token := viper.GetString("token")
@@ -83,54 +131,19 @@ func startWorker() error {
 		}
 	}()
 
-	// Send handshake
-	hostname, _ := os.Hostname()
-	info := &pb.WorkerMessage{
-		Payload: &pb.WorkerMessage_RunnerInfo{
-			RunnerInfo: &pb.RunnerInfo{
-				Hostname: hostname,
-				Os:       runtime.GOOS,
-				Arch:     runtime.GOARCH,
-				Version:  version.Get(),
-			},
-		},
-	}
-	if err := wsafeSend(conn, info); err != nil {
-		return fmt.Errorf("failed to send runner info: %w", err)
-	}
-
-	// Request context
-	if err := wsafeSend(conn, &pb.WorkerMessage{
-		Payload: &pb.WorkerMessage_ContextRequest{
-			ContextRequest: &pb.ContextRequest{},
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to send context request: %w", err)
-	}
-
-	// Receive context
-	_, msgData, err := conn.ReadMessage()
+	// Perform handshake and get context
+	env, err := performHandshake(conn)
 	if err != nil {
-		return fmt.Errorf("failed to read context response: %w", err)
-	}
-
-	var ctxMsg pb.ServerMessage
-	if err := proto.Unmarshal(msgData, &ctxMsg); err != nil {
-		return fmt.Errorf("unmarshal error: %w", err)
-	}
-
-	ctxResp, ok := ctxMsg.Payload.(*pb.ServerMessage_ContextResponse)
-	if !ok {
-		return fmt.Errorf("expected ContextResponse, got %T", ctxMsg.Payload)
+		return fmt.Errorf("handshake failed: %w", err)
 	}
 
 	// Initialize environment
 	workerEnv = os.Environ()
-	for k, v := range ctxResp.ContextResponse.Env {
+	for k, v := range env {
 		workerEnv = append(workerEnv, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	logger.Info("connected and context received", "env_vars", len(ctxResp.ContextResponse.Env))
+	logger.Info("connected and context received", "env_vars", len(env))
 
 	var (
 		mu         sync.Mutex
