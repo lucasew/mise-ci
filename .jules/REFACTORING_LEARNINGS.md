@@ -1,0 +1,4 @@
+- Date: 2025-12-27
+- Task: #5
+- Result: Extracted updateForgeStatus helper, improving modularity and testability.
+- PR: refactor/task-5
