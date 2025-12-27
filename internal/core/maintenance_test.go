@@ -45,11 +45,7 @@ func (m *MockRepository) UpdateRunStatus(ctx context.Context, runID string, stat
 }
 func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx)
-	var r0 []*repository.RunMetadata
-	if args.Get(0) != nil {
-		r0 = args.Get(0).([]*repository.RunMetadata)
-	}
-	return r0, args.Error(1)
+	return args.Get(0).([]*repository.RunMetadata), args.Error(1)
 }
 func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx, limit)
@@ -114,11 +110,7 @@ func (m *MockForge) CreatePullRequest(ctx context.Context, repo, baseBranch, hea
 }
 func (m *MockForge) GetVariables(ctx context.Context, repo string) (map[string]string, error) {
 	args := m.Called(ctx, repo)
-	var r0 map[string]string
-	if args.Get(0) != nil {
-		r0 = args.Get(0).(map[string]string)
-	}
-	return r0, args.Error(1)
+	return args.Get(0).(map[string]string), args.Error(1)
 }
 func (m *MockForge) GetCIEnv(event *forge.WebhookEvent) map[string]string {
 	args := m.Called(event)

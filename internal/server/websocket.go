@@ -64,43 +64,31 @@ func (a *wsStreamAdapter) Recv() (*pb.WorkerMessage, error) {
 	return &workerMsg, nil
 }
 
-func (s *WebSocketServer) validateWorkerAuth(r *http.Request) (string, int, error) {
+func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
+	// 1. Auth - get token from Authorization header
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
-		return "", http.StatusUnauthorized, errors.New("missing authorization header")
+		http.Error(w, "missing authorization header", http.StatusUnauthorized)
+		return
 	}
 
 	token := strings.TrimPrefix(auth, "Bearer ")
 	runID, tokenType, err := s.core.ValidateToken(token)
 	if err != nil {
-		return "", http.StatusUnauthorized, fmt.Errorf("invalid token: %w", err)
+		s.logger.Error("invalid token", "error", err)
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
 	}
 
 	if tokenType != core.TokenTypeWorker {
-		return "", http.StatusForbidden, fmt.Errorf("invalid token type: %s", tokenType)
-	}
-
-	_, ok := s.core.GetRun(runID)
-	if !ok {
-		return "", http.StatusNotFound, fmt.Errorf("run not found: %s", runID)
-	}
-
-	return runID, 0, nil
-}
-
-func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
-	// 1. Auth - get token from Authorization header
-	runID, status, err := s.validateWorkerAuth(r)
-	if err != nil {
-		s.logger.Error("auth failed", "error", err, "status", status)
-		http.Error(w, err.Error(), status)
+		s.logger.Error("invalid token type for worker connection", "type", tokenType)
+		http.Error(w, "invalid token type", http.StatusForbidden)
 		return
 	}
 
 	run, ok := s.core.GetRun(runID)
 	if !ok {
-		// Should not happen as it was validated in validateWorkerAuth
-		s.logger.Error("run not found after validation", "run_id", runID)
+		s.logger.Error("run not found", "run_id", runID)
 		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
