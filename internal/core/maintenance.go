@@ -156,13 +156,13 @@ func (c *Core) updateForgeStatus(ctx context.Context, run *repository.RunMetadat
 
 	// We need to parse RepoURL to get "owner/repo" string if it's a URL
 	repoSlug := run.RepoURL
-	if strings.HasPrefix(repoSlug, "http") {
-		// Extract path: https://github.com/owner/repo -> owner/repo
-		parts := strings.Split(repoSlug, "/")
-		if len(parts) >= 2 {
-			repoSlug = strings.Join(parts[len(parts)-2:], "/")
+if strings.HasPrefix(repoSlug, "http") {
+		// We need to parse RepoURL to get "owner/repo" string if it's a URL
+		if parsedURL, err := url.Parse(repoSlug); err == nil {
+			repoSlug = strings.TrimPrefix(parsedURL.Path, "/")
 			repoSlug = strings.TrimSuffix(repoSlug, ".git")
 		}
+		// If parsing fails, we fall back to using repoSlug as is, which might be a non-URL slug.
 	}
 
 	err := c.forge.UpdateStatus(ctx, repoSlug, sha, forge.Status{
