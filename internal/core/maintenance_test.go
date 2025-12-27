@@ -45,7 +45,11 @@ func (m *MockRepository) UpdateRunStatus(ctx context.Context, runID string, stat
 }
 func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx)
-	return args.Get(0).([]*repository.RunMetadata), args.Error(1)
+	var r0 []*repository.RunMetadata
+	if args.Get(0) != nil {
+		r0 = args.Get(0).([]*repository.RunMetadata)
+	}
+	return r0, args.Error(1)
 }
 func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx, limit)
