@@ -68,7 +68,11 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		// Constant-time comparison to prevent timing attacks
+		// Both comparisons must be performed every time
+		usernameMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) == 1
+		passwordMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) == 1
+		if !ok || !usernameMatch || !passwordMatch {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -89,7 +93,10 @@ func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFun
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		// Constant-time comparison to prevent timing attacks
+		usernameMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) == 1
+		passwordMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) == 1
+		if !ok || !usernameMatch || !passwordMatch {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -125,7 +132,10 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		// Constant-time comparison to prevent timing attacks
+		usernameMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) == 1
+		passwordMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) == 1
+		if !ok || !usernameMatch || !passwordMatch {
 			// If they tried a token and it failed, we probably shouldn't prompt for Basic Auth if it was an API call?
 			// But since this is for SSE stream consumed by browser, browser handles 401 with WWW-Authenticate.
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
