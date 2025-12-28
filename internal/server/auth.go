@@ -68,7 +68,9 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
+		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		if !ok || userMatch != 1 || passMatch != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -89,7 +91,9 @@ func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFun
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
+		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		if !ok || userMatch != 1 || passMatch != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -125,7 +129,9 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		}
 
 		user, pass, ok := r.BasicAuth()
-		if !ok || subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword)) != 1 {
+		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
+		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		if !ok || userMatch != 1 || passMatch != 1 {
 			// If they tried a token and it failed, we probably shouldn't prompt for Basic Auth if it was an API call?
 			// But since this is for SSE stream consumed by browser, browser handles 401 with WWW-Authenticate.
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
