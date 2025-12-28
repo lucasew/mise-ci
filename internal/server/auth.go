@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
 	"strings"
@@ -14,14 +15,21 @@ type AuthConfig struct {
 }
 
 type AuthMiddleware struct {
-	core       *core.Core
-	authConfig *AuthConfig
+	core              *core.Core
+	authConfig        *AuthConfig
+	adminPasswordHash []byte
 }
 
 func NewAuthMiddleware(c *core.Core, config *AuthConfig) *AuthMiddleware {
+	var passHash []byte
+	if config.AdminPassword != "" {
+		hash := sha256.Sum256([]byte(config.AdminPassword))
+		passHash = hash[:]
+	}
 	return &AuthMiddleware{
-		core:       c,
-		authConfig: config,
+		core:              c,
+		authConfig:        config,
+		adminPasswordHash: passHash,
 	}
 }
 
@@ -68,8 +76,9 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 		}
 
 		user, pass, ok := r.BasicAuth()
+		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
 		if !ok || userMatch != 1 || passMatch != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -91,8 +100,9 @@ func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFun
 		}
 
 		user, pass, ok := r.BasicAuth()
+		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
 		if !ok || userMatch != 1 || passMatch != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -129,8 +139,9 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		}
 
 		user, pass, ok := r.BasicAuth()
+		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(m.authConfig.AdminPassword))
+		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
 		if !ok || userMatch != 1 || passMatch != 1 {
 			// If they tried a token and it failed, we probably shouldn't prompt for Basic Auth if it was an API call?
 			// But since this is for SSE stream consumed by browser, browser handles 401 with WWW-Authenticate.
