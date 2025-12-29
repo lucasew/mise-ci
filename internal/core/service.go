@@ -358,22 +358,6 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 }
 
 func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials, dispatchParams runner.RunParams) bool {
-	// Wait for worker to connect
-	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	if !s.waitForConnection(ctx, run, dispatchParams) {
-		return false
-	}
-	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
-
-	defer func() {
-		run.CommandCh <- &pb.ServerMessage{
-			Id: 9999,
-			Payload: &pb.ServerMessage_Close{
-				Close: &pb.Close{},
-			},
-		}
-	}()
-
 	// Prepare generic CI environment variables
 	env := map[string]string{
 		"CI":      "true",
@@ -400,6 +384,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	// Fetch variables from Forge (e.g., GitHub Variables)
 	// We cannot fetch Secrets as their values are never returned by the API.
 	// We handle errors softly to avoid breaking the build if permissions are missing.
+	// This is done BEFORE waiting for connection to avoid watchdog timeout on worker if this takes too long
 	vars, err := f.GetVariables(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Warn("failed to fetch repository variables", "error", err)
@@ -417,6 +402,22 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 	// Clarify regarding secrets
 	s.Core.AddLog(run.ID, "system", "Note: Only repository 'Variables' are fetched. 'Secrets' cannot be retrieved via API.")
+
+	// Wait for worker to connect
+	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
+	if !s.waitForConnection(ctx, run, dispatchParams) {
+		return false
+	}
+	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+
+	defer func() {
+		run.CommandCh <- &pb.ServerMessage{
+			Id: 9999,
+			Payload: &pb.ServerMessage_Close{
+				Close: &pb.Close{},
+			},
+		}
+	}()
 
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
