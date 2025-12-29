@@ -125,6 +125,11 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 					s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
 					if info.RunnerInfo.Version != version.Get() {
 						s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
+						// Signal retry
+						select {
+						case run.RetryCh <- struct{}{}:
+						default:
+						}
 						// Send close frame so worker exits with 0
 						cm := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "version mismatch")
 						_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)

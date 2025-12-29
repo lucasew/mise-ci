@@ -115,7 +115,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	s.Logger.Info("test job dispatched", "job_id", jobID, "run_id", runID)
 
 	// Run test orchestration in background
-	go s.TestOrchestrate(ctx, run)
+	go s.TestOrchestrate(ctx, run, params)
 
 	// Generate UI URL
 	// reusing publicURL defined earlier
@@ -136,10 +136,12 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
+func (s *Service) TestOrchestrate(ctx context.Context, run *Run, dispatchParams runner.RunParams) {
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	<-run.ConnectedCh
+	if !s.waitForConnection(ctx, run, dispatchParams) {
+		return
+	}
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
 
 	defer func() {
@@ -334,7 +336,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
 
-	success := s.Orchestrate(ctx, run, event, f, creds)
+	success := s.Orchestrate(ctx, run, event, f, creds, params)
 
 	status.State = forge.StateSuccess
 	status.Description = "Build passed"
@@ -355,27 +357,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 }
 
-func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials) bool {
-	// Wait for worker to connect
-	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	select {
-	case <-run.ConnectedCh:
-		s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
-	case <-time.After(10 * time.Minute):
-		s.Logger.Error("timeout waiting for worker to connect", "run_id", run.ID)
-		s.Core.UpdateStatus(run.ID, StatusError, nil)
-		return false
-	}
-
-	defer func() {
-		run.CommandCh <- &pb.ServerMessage{
-			Id: 9999,
-			Payload: &pb.ServerMessage_Close{
-				Close: &pb.Close{},
-			},
-		}
-	}()
-
+func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials, dispatchParams runner.RunParams) bool {
 	// Prepare generic CI environment variables
 	env := map[string]string{
 		"CI":      "true",
@@ -402,6 +384,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	// Fetch variables from Forge (e.g., GitHub Variables)
 	// We cannot fetch Secrets as their values are never returned by the API.
 	// We handle errors softly to avoid breaking the build if permissions are missing.
+	// This is done BEFORE waiting for connection to avoid watchdog timeout on worker if this takes too long
 	vars, err := f.GetVariables(ctx, event.Repo)
 	if err != nil {
 		s.Logger.Warn("failed to fetch repository variables", "error", err)
@@ -419,6 +402,22 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}
 	// Clarify regarding secrets
 	s.Core.AddLog(run.ID, "system", "Note: Only repository 'Variables' are fetched. 'Secrets' cannot be retrieved via API.")
+
+	// Wait for worker to connect
+	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
+	if !s.waitForConnection(ctx, run, dispatchParams) {
+		return false
+	}
+	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
+
+	defer func() {
+		run.CommandCh <- &pb.ServerMessage{
+			Id: 9999,
+			Payload: &pb.ServerMessage_Close{
+				Close: &pb.Close{},
+			},
+		}
+	}()
 
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
@@ -622,6 +621,27 @@ func (s *Service) copyFileFromWorker(run *Run, source, dest string) error {
 		return fmt.Errorf("failed to receive file: %s", source)
 	}
 	return nil
+}
+
+func (s *Service) waitForConnection(ctx context.Context, run *Run, dispatchParams runner.RunParams) bool {
+	for {
+		select {
+		case <-run.ConnectedCh:
+			return true
+		case <-run.RetryCh:
+			s.Logger.Info("received retry signal, redispatching worker", "run_id", run.ID)
+			s.Core.AddLog(run.ID, "system", "Worker handshake failed (version mismatch). Enqueuing another worker...")
+			if _, err := s.Runner.Dispatch(ctx, dispatchParams); err != nil {
+				s.Logger.Error("failed to redispatch worker", "error", err)
+				s.Core.AddLog(run.ID, "system", fmt.Sprintf("Failed to enqueue worker: %v", err))
+				// We don't return false here, we wait for next retry or timeout
+			}
+		case <-time.After(10 * time.Minute):
+			s.Logger.Error("timeout waiting for worker to connect", "run_id", run.ID)
+			s.Core.UpdateStatus(run.ID, StatusError, nil)
+			return false
+		}
+	}
 }
 
 func (s *Service) waitForDone(run *Run, context string) bool {
