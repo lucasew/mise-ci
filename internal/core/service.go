@@ -684,7 +684,7 @@ func (s *Service) HandleArtifact(runID, name string, data []byte) error {
 
 	// Save to storage
 	// We wrap data in a byte reader
-	if err := s.ArtifactStorage.Save(ctx, runID, name, strings.NewReader(string(data))); err != nil {
+	if err := s.ArtifactStorage.Save(ctx, runID, name, bytes.NewReader(data)); err != nil {
 		s.Logger.Error("failed to save artifact to storage", "error", err)
 		// Continue to ingestion even if storage fails? Maybe not.
 	}
