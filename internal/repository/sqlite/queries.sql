@@ -56,24 +56,24 @@ WHERE clone_url = ?;
 SELECT 1 FROM repos WHERE clone_url = ? LIMIT 1;
 
 -- name: UpsertIssue :exec
-INSERT INTO issues (id, rule_id, message, severity, tool)
+INSERT INTO sarif_issues (id, rule_id, message, severity, tool)
 VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(id) DO NOTHING;
 
 -- name: CreateOccurrence :exec
-INSERT INTO issue_occurrences (issue_id, run_id, path, line)
+INSERT INTO sarif_occurrences (issue_id, run_id, path, line)
 VALUES (?, ?, ?, ?);
 
 -- name: ListSarifIssuesForRun :many
 SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool
-FROM issue_occurrences o
-JOIN issues i ON o.issue_id = i.id
+FROM sarif_occurrences o
+JOIN sarif_issues i ON o.issue_id = i.id
 WHERE o.run_id = ?;
 
 -- name: ListSarifIssuesForRepo :many
 SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool, runs.id as run_id, runs.commit_message
-FROM issue_occurrences o
-JOIN issues i ON o.issue_id = i.id
+FROM sarif_occurrences o
+JOIN sarif_issues i ON o.issue_id = i.id
 JOIN runs ON o.run_id = runs.id
 WHERE runs.repo_url = ?
 ORDER BY runs.created_at DESC

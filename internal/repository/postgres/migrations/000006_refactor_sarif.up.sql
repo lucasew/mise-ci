@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS sarif_issues;
 DROP TABLE IF EXISTS sarif_runs;
 
-CREATE TABLE issues (
+CREATE TABLE sarif_issues (
     id TEXT PRIMARY KEY, -- fingerprint (hash of rule_id + message + tool)
     rule_id TEXT NOT NULL,
     message TEXT NOT NULL,
@@ -11,13 +11,13 @@ CREATE TABLE issues (
     UNIQUE(rule_id, message, tool)
 );
 
-CREATE TABLE issue_occurrences (
+CREATE TABLE sarif_occurrences (
     id SERIAL PRIMARY KEY,
-    issue_id TEXT NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    issue_id TEXT NOT NULL REFERENCES sarif_issues(id) ON DELETE CASCADE,
     run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
     path TEXT NOT NULL,
     line INTEGER
 );
 
-CREATE INDEX idx_issue_occurrences_run_id ON issue_occurrences(run_id);
-CREATE INDEX idx_issue_occurrences_issue_id ON issue_occurrences(issue_id);
+CREATE INDEX idx_sarif_occurrences_run_id ON sarif_occurrences(run_id);
+CREATE INDEX idx_sarif_occurrences_issue_id ON sarif_occurrences(issue_id);

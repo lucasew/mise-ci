@@ -45,7 +45,7 @@ func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int64, 
 }
 
 const createOccurrence = `-- name: CreateOccurrence :exec
-INSERT INTO issue_occurrences (issue_id, run_id, path, line)
+INSERT INTO sarif_occurrences (issue_id, run_id, path, line)
 VALUES (?, ?, ?, ?)
 `
 
@@ -413,8 +413,8 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 
 const listSarifIssuesForRepo = `-- name: ListSarifIssuesForRepo :many
 SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool, runs.id as run_id, runs.commit_message
-FROM issue_occurrences o
-JOIN issues i ON o.issue_id = i.id
+FROM sarif_occurrences o
+JOIN sarif_issues i ON o.issue_id = i.id
 JOIN runs ON o.run_id = runs.id
 WHERE runs.repo_url = ?
 ORDER BY runs.created_at DESC
@@ -471,8 +471,8 @@ func (q *Queries) ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssue
 
 const listSarifIssuesForRun = `-- name: ListSarifIssuesForRun :many
 SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool
-FROM issue_occurrences o
-JOIN issues i ON o.issue_id = i.id
+FROM sarif_occurrences o
+JOIN sarif_issues i ON o.issue_id = i.id
 WHERE o.run_id = ?
 `
 
@@ -555,7 +555,7 @@ func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams
 }
 
 const upsertIssue = `-- name: UpsertIssue :exec
-INSERT INTO issues (id, rule_id, message, severity, tool)
+INSERT INTO sarif_issues (id, rule_id, message, severity, tool)
 VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(id) DO NOTHING
 `
