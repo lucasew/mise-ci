@@ -194,11 +194,9 @@ func (r *Repository) ListRuns(ctx context.Context, filter repository.RunFilter) 
 	if offset < 0 {
 		offset = 0
 	}
-	var repoUrl interface{}
+	var repoUrl sql.NullString
 	if filter.RepoURL != nil {
-		repoUrl = *filter.RepoURL
-	} else {
-		repoUrl = sql.NullString{Valid: false}
+		repoUrl = sql.NullString{String: *filter.RepoURL, Valid: true}
 	}
 
 	rows, err := r.queries.ListRuns(ctx, ListRunsParams{
