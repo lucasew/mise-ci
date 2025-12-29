@@ -67,14 +67,25 @@ function copyContext() {
         }
     });
 
-    let xml = '<context>\n  <issues>\n';
-    issues.forEach(i => {
-        // Simple XML escaping for attributes/content could be improved if needed
-        xml += `    <issue tool="${i.tool}" rule="${i.rule}" location="${i.location}" severity="${i.severity}">${i.message}</issue>\n`;
-    });
-    xml += '  </issues>\n</context>';
+    // Build XML using DOM to ensure correct escaping
+    const doc = document.implementation.createDocument(null, 'context', null);
+    const issuesElem = doc.createElement('issues');
+    doc.documentElement.appendChild(issuesElem);
 
-    navigator.clipboard.writeText(xml).then(() => {
+    issues.forEach(i => {
+        const issueElem = doc.createElement('issue');
+        issueElem.setAttribute('tool', i.tool);
+        issueElem.setAttribute('rule', i.rule);
+        issueElem.setAttribute('location', i.location);
+        issueElem.setAttribute('severity', i.severity);
+        issueElem.textContent = i.message;
+        issuesElem.appendChild(issueElem);
+    });
+
+    const serializer = new XMLSerializer();
+    const xmlStr = serializer.serializeToString(doc);
+
+    navigator.clipboard.writeText(xmlStr).then(() => {
         alert('Context copied to clipboard!');
     }).catch(err => {
         console.error('Failed to copy: ', err);
