@@ -21,12 +21,12 @@ type Repository interface {
 	ListRepos(ctx context.Context) ([]string, error)
 
 	// SARIF operations
-	UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error
-	CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error
-	BatchUpsertIssues(ctx context.Context, issues []Issue) error
-	BatchCreateOccurrences(ctx context.Context, occurrences []Occurrence) error
-	ListSarifIssuesForRun(ctx context.Context, runID string) ([]SarifIssue, error)
-	ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]SarifIssue, error)
+	UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error
+	CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error
+	BatchUpsertRules(ctx context.Context, rules []Rule) error
+	BatchCreateFindings(ctx context.Context, findings []Finding) error
+	ListFindingsForRun(ctx context.Context, runID string) ([]SarifFinding, error)
+	ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]SarifFinding, error)
 
 	// Maintenance
 	GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*RunMetadata, error)
@@ -70,8 +70,8 @@ type LogEntry struct {
 	Data      string
 }
 
-// SarifIssue represents a single issue found by a linter
-type SarifIssue struct {
+// SarifFinding represents a single issue finding
+type SarifFinding struct {
 	RuleID        string
 	Message       string
 	Path          string
@@ -82,17 +82,17 @@ type SarifIssue struct {
 	CommitMessage string // for repo view
 }
 
-type Issue struct {
+type Rule struct {
 	ID       string
 	RuleID   string
-	Message  string
 	Severity string
 	Tool     string
 }
 
-type Occurrence struct {
-	IssueID string
+type Finding struct {
 	RunID   string
+	RuleRef string
+	Message string
 	Path    string
 	Line    int
 }

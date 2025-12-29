@@ -39,12 +39,12 @@ func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) (
 func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error { return nil }
 func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
-func (m *MockRepository) UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error { return nil }
-func (m *MockRepository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error { return nil }
-func (m *MockRepository) BatchUpsertIssues(ctx context.Context, issues []repository.Issue) error { return nil }
-func (m *MockRepository) BatchCreateOccurrences(ctx context.Context, occurrences []repository.Occurrence) error { return nil }
-func (m *MockRepository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) { return nil, nil }
-func (m *MockRepository) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) { return nil, nil }
+func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error { return nil }
+func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error { return nil }
+func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error { return nil }
+func (m *MockRepository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error { return nil }
+func (m *MockRepository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) { return nil, nil }
+func (m *MockRepository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) { return nil, nil }
 
 func TestWebSocketHandshake(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

@@ -106,7 +106,7 @@ func main() {
 	require.NoError(t, err)
 
 	// 5. Verify DB (New Schema)
-	issues, err := repo.ListSarifIssuesForRepo(ctx, repoURL, 10)
+	issues, err := repo.ListFindingsForRepo(ctx, repoURL, 10)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, issues)

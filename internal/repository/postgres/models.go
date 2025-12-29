@@ -37,19 +37,19 @@ type Run struct {
 	RepoUrl       sql.NullString `json:"repo_url"`
 }
 
-type SarifIssue struct {
-	ID        string       `json:"id"`
-	RuleID    string       `json:"rule_id"`
-	Message   string       `json:"message"`
-	Severity  string       `json:"severity"`
-	Tool      string       `json:"tool"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-type SarifOccurrence struct {
+type SarifFinding struct {
 	ID      int32         `json:"id"`
-	IssueID string        `json:"issue_id"`
 	RunID   string        `json:"run_id"`
+	RuleRef string        `json:"rule_ref"`
+	Message string        `json:"message"`
 	Path    string        `json:"path"`
 	Line    sql.NullInt32 `json:"line"`
+}
+
+type SarifRule struct {
+	ID        string       `json:"id"`
+	RuleID    string       `json:"rule_id"`
+	Tool      string       `json:"tool"`
+	Severity  string       `json:"severity"`
+	CreatedAt sql.NullTime `json:"created_at"`
 }

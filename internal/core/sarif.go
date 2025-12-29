@@ -48,8 +48,8 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 		return fmt.Errorf("failed to parse sarif: %w", err)
 	}
 
-	var issues []repository.Issue
-	var occurrences []repository.Occurrence
+	var rules []repository.Rule
+	var findings []repository.Finding
 
 	for _, run := range report.Runs {
 		toolName := run.Tool.Driver.Name
@@ -70,38 +70,37 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 				severity = "warning" // default
 			}
 
-			// Generate fingerprint for the issue (Rule + Message + Tool)
-			// Ideally we would use more stable properties, but this matches the request.
-			fingerprintInput := fmt.Sprintf("%s|%s|%s", result.RuleID, result.Message.Text, toolName)
-			hash := sha256.Sum256([]byte(fingerprintInput))
-			issueID := hex.EncodeToString(hash[:])
+			// Generate rule ID (hash of rule_id + tool)
+			ruleFingerprintInput := fmt.Sprintf("%s|%s", result.RuleID, toolName)
+			hash := sha256.Sum256([]byte(ruleFingerprintInput))
+			ruleID := hex.EncodeToString(hash[:])
 
-			issues = append(issues, repository.Issue{
-				ID:       issueID,
+			rules = append(rules, repository.Rule{
+				ID:       ruleID,
 				RuleID:   result.RuleID,
-				Message:  result.Message.Text,
 				Severity: severity,
 				Tool:     toolName,
 			})
 
-			occurrences = append(occurrences, repository.Occurrence{
-				IssueID: issueID,
+			findings = append(findings, repository.Finding{
 				RunID:   runID,
+				RuleRef: ruleID,
+				Message: result.Message.Text,
 				Path:    path,
 				Line:    line,
 			})
 		}
 	}
 
-	if len(issues) > 0 {
-		if err := s.Core.repo.BatchUpsertIssues(ctx, issues); err != nil {
-			return fmt.Errorf("failed to batch upsert issues: %w", err)
+	if len(rules) > 0 {
+		if err := s.Core.repo.BatchUpsertRules(ctx, rules); err != nil {
+			return fmt.Errorf("failed to batch upsert rules: %w", err)
 		}
 	}
 
-	if len(occurrences) > 0 {
-		if err := s.Core.repo.BatchCreateOccurrences(ctx, occurrences); err != nil {
-			return fmt.Errorf("failed to batch create occurrences: %w", err)
+	if len(findings) > 0 {
+		if err := s.Core.repo.BatchCreateFindings(ctx, findings); err != nil {
+			return fmt.Errorf("failed to batch create findings: %w", err)
 		}
 	}
 

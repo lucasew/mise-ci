@@ -491,6 +491,6 @@ func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEn
 	return logs, nil
 }
 
-func (c *Core) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) {
-	return c.repo.ListSarifIssuesForRepo(ctx, repoURL, limit)
+func (c *Core) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) {
+	return c.repo.ListFindingsForRepo(ctx, repoURL, limit)
 }

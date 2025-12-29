@@ -169,7 +169,7 @@ func (s *UIServer) HandleRepoIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	issues, err := s.core.ListSarifIssuesForRepo(r.Context(), repo, 1000) // limit 1000
+	issues, err := s.core.ListFindingsForRepo(r.Context(), repo, 1000) // limit 1000
 	if err != nil {
 		s.logger.Error("failed to list issues", "repo", repo, "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "Failed to fetch issues")

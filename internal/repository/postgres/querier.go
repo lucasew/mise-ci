@@ -12,7 +12,7 @@ import (
 type Querier interface {
 	AppendLog(ctx context.Context, arg AppendLogParams) error
 	CheckRepoExists(ctx context.Context, cloneUrl string) (int32, error)
-	CreateOccurrence(ctx context.Context, arg CreateOccurrenceParams) error
+	CreateFinding(ctx context.Context, arg CreateFindingParams) error
 	CreateRepo(ctx context.Context, cloneUrl string) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
@@ -20,13 +20,13 @@ type Querier interface {
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
 	GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]GetRunsWithoutRepoURLRow, error)
 	GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error)
+	ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error)
+	ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error)
 	ListRepos(ctx context.Context) ([]sql.NullString, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
-	ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssuesForRepoParams) ([]ListSarifIssuesForRepoRow, error)
-	ListSarifIssuesForRun(ctx context.Context, runID string) ([]ListSarifIssuesForRunRow, error)
 	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
-	UpsertIssue(ctx context.Context, arg UpsertIssueParams) error
+	UpsertRule(ctx context.Context, arg UpsertRuleParams) error
 }
 
 var _ Querier = (*Queries)(nil)

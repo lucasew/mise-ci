@@ -243,30 +243,30 @@ func (r *Repository) ListRepos(ctx context.Context) ([]string, error) {
 	return repos, nil
 }
 
-func (r *Repository) UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error {
-	return r.queries.UpsertIssue(ctx, UpsertIssueParams{
+func (r *Repository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error {
+	return r.queries.UpsertRule(ctx, UpsertRuleParams{
 		ID:       id,
 		RuleID:   ruleID,
-		Message:  message,
 		Severity: severity,
 		Tool:     tool,
 	})
 }
 
-func (r *Repository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error {
+func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error {
 	var lineNull sql.NullInt32
 	if line > 0 {
 		lineNull = sql.NullInt32{Int32: int32(line), Valid: true}
 	}
-	return r.queries.CreateOccurrence(ctx, CreateOccurrenceParams{
-		IssueID: issueID,
+	return r.queries.CreateFinding(ctx, CreateFindingParams{
 		RunID:   runID,
+		RuleRef: ruleRef,
+		Message: message,
 		Path:    path,
 		Line:    lineNull,
 	})
 }
 
-func (r *Repository) BatchUpsertIssues(ctx context.Context, issues []repository.Issue) error {
+func (r *Repository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -275,13 +275,12 @@ func (r *Repository) BatchUpsertIssues(ctx context.Context, issues []repository.
 
 	qtx := r.queries.WithTx(tx)
 
-	for _, issue := range issues {
-		if err := qtx.UpsertIssue(ctx, UpsertIssueParams{
-			ID:       issue.ID,
-			RuleID:   issue.RuleID,
-			Message:  issue.Message,
-			Severity: issue.Severity,
-			Tool:     issue.Tool,
+	for _, rule := range rules {
+		if err := qtx.UpsertRule(ctx, UpsertRuleParams{
+			ID:       rule.ID,
+			RuleID:   rule.RuleID,
+			Severity: rule.Severity,
+			Tool:     rule.Tool,
 		}); err != nil {
 			return err
 		}
@@ -290,7 +289,7 @@ func (r *Repository) BatchUpsertIssues(ctx context.Context, issues []repository.
 	return tx.Commit()
 }
 
-func (r *Repository) BatchCreateOccurrences(ctx context.Context, occurrences []repository.Occurrence) error {
+func (r *Repository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -299,15 +298,16 @@ func (r *Repository) BatchCreateOccurrences(ctx context.Context, occurrences []r
 
 	qtx := r.queries.WithTx(tx)
 
-	for _, occ := range occurrences {
+	for _, f := range findings {
 		var lineNull sql.NullInt32
-		if occ.Line > 0 {
-			lineNull = sql.NullInt32{Int32: int32(occ.Line), Valid: true}
+		if f.Line > 0 {
+			lineNull = sql.NullInt32{Int32: int32(f.Line), Valid: true}
 		}
-		if err := qtx.CreateOccurrence(ctx, CreateOccurrenceParams{
-			IssueID: occ.IssueID,
-			RunID:   occ.RunID,
-			Path:    occ.Path,
+		if err := qtx.CreateFinding(ctx, CreateFindingParams{
+			RunID:   f.RunID,
+			RuleRef: f.RuleRef,
+			Message: f.Message,
+			Path:    f.Path,
 			Line:    lineNull,
 		}); err != nil {
 			return err
@@ -317,14 +317,14 @@ func (r *Repository) BatchCreateOccurrences(ctx context.Context, occurrences []r
 	return tx.Commit()
 }
 
-func (r *Repository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
-	rows, err := r.queries.ListSarifIssuesForRun(ctx, runID)
+func (r *Repository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) {
+	rows, err := r.queries.ListFindingsForRun(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	issues := make([]repository.SarifIssue, len(rows))
+	findings := make([]repository.SarifFinding, len(rows))
 	for i, row := range rows {
-		issues[i] = repository.SarifIssue{
+		findings[i] = repository.SarifFinding{
 			RuleID:   row.RuleID,
 			Message:  row.Message,
 			Path:     row.Path,
@@ -333,20 +333,20 @@ func (r *Repository) ListSarifIssuesForRun(ctx context.Context, runID string) ([
 			Tool:     row.Tool,
 		}
 	}
-	return issues, nil
+	return findings, nil
 }
 
-func (r *Repository) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) {
-	rows, err := r.queries.ListSarifIssuesForRepo(ctx, ListSarifIssuesForRepoParams{
+func (r *Repository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) {
+	rows, err := r.queries.ListFindingsForRepo(ctx, ListFindingsForRepoParams{
 		RepoUrl: sql.NullString{String: repoURL, Valid: true},
 		Limit:   int32(limit),
 	})
 	if err != nil {
 		return nil, err
 	}
-	issues := make([]repository.SarifIssue, len(rows))
+	findings := make([]repository.SarifFinding, len(rows))
 	for i, row := range rows {
-		issues[i] = repository.SarifIssue{
+		findings[i] = repository.SarifFinding{
 			RuleID:        row.RuleID,
 			Message:       row.Message,
 			Path:          row.Path,
@@ -357,7 +357,7 @@ func (r *Repository) ListSarifIssuesForRepo(ctx context.Context, repoURL string,
 			CommitMessage: row.CommitMessage,
 		}
 	}
-	return issues, nil
+	return findings, nil
 }
 
 func (r *Repository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
