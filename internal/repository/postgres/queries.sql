@@ -55,7 +55,6 @@ WHERE clone_url = $1;
 -- name: CheckRepoExists :one
 SELECT 1 FROM repos WHERE clone_url = $1 LIMIT 1;
 
--- name: CreateSarifRun :exec
 -- name: UpsertIssue :exec
 INSERT INTO issues (id, rule_id, message, severity, tool)
 VALUES ($1, $2, $3, $4, $5)

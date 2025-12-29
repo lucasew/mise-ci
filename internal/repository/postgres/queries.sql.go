@@ -112,31 +112,6 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 	return err
 }
 
-const createSarifRun = `-- name: CreateSarifRun :exec
-INSERT INTO issues (id, rule_id, message, severity, tool)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT(id) DO NOTHING
-`
-
-type CreateSarifRunParams struct {
-	ID       string `json:"id"`
-	RuleID   string `json:"rule_id"`
-	Message  string `json:"message"`
-	Severity string `json:"severity"`
-	Tool     string `json:"tool"`
-}
-
-func (q *Queries) CreateSarifRun(ctx context.Context, arg CreateSarifRunParams) error {
-	_, err := q.db.ExecContext(ctx, createSarifRun,
-		arg.ID,
-		arg.RuleID,
-		arg.Message,
-		arg.Severity,
-		arg.Tool,
-	)
-	return err
-}
-
 const getLogs = `-- name: GetLogs :many
 SELECT timestamp, stream, data
 FROM log_entries
@@ -575,6 +550,31 @@ func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams
 		arg.Status,
 		arg.ExitCode,
 		arg.FinishedAt,
+	)
+	return err
+}
+
+const upsertIssue = `-- name: UpsertIssue :exec
+INSERT INTO issues (id, rule_id, message, severity, tool)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT(id) DO NOTHING
+`
+
+type UpsertIssueParams struct {
+	ID       string `json:"id"`
+	RuleID   string `json:"rule_id"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+	Tool     string `json:"tool"`
+}
+
+func (q *Queries) UpsertIssue(ctx context.Context, arg UpsertIssueParams) error {
+	_, err := q.db.ExecContext(ctx, upsertIssue,
+		arg.ID,
+		arg.RuleID,
+		arg.Message,
+		arg.Severity,
+		arg.Tool,
 	)
 	return err
 }
