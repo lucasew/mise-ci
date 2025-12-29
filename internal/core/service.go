@@ -682,19 +682,20 @@ func (s *Service) waitForDone(run *Run, context string) bool {
 func (s *Service) HandleArtifact(runID, name string, data []byte) error {
 	ctx := context.Background()
 
-	// Save to storage
-	// We wrap data in a byte reader
-	if err := s.ArtifactStorage.Save(ctx, runID, name, strings.NewReader(string(data))); err != nil {
-		s.Logger.Error("failed to save artifact to storage", "error", err)
-		// Continue to ingestion even if storage fails? Maybe not.
-	}
-
 	// If it is a SARIF file, ingest it
 	if strings.HasSuffix(name, ".sarif") {
 		s.Logger.Info("ingesting sarif file", "run_id", runID, "name", name)
 		if err := s.IngestSARIF(ctx, runID, data); err != nil {
 			return fmt.Errorf("failed to ingest sarif: %w", err)
 		}
+		return nil
+	}
+
+	// Save other artifacts to storage
+	// We wrap data in a byte reader
+	if err := s.ArtifactStorage.Save(ctx, runID, name, strings.NewReader(string(data))); err != nil {
+		s.Logger.Error("failed to save artifact to storage", "error", err)
+		return err
 	}
 
 	return nil
