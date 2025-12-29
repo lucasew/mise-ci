@@ -90,6 +90,48 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 	return err
 }
 
+const createSarifIssue = `-- name: CreateSarifIssue :exec
+INSERT INTO sarif_issues (sarif_run_id, rule_id, message, path, line, severity)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateSarifIssueParams struct {
+	SarifRunID string         `json:"sarif_run_id"`
+	RuleID     string         `json:"rule_id"`
+	Message    string         `json:"message"`
+	Path       string         `json:"path"`
+	Line       sql.NullInt64  `json:"line"`
+	Severity   sql.NullString `json:"severity"`
+}
+
+func (q *Queries) CreateSarifIssue(ctx context.Context, arg CreateSarifIssueParams) error {
+	_, err := q.db.ExecContext(ctx, createSarifIssue,
+		arg.SarifRunID,
+		arg.RuleID,
+		arg.Message,
+		arg.Path,
+		arg.Line,
+		arg.Severity,
+	)
+	return err
+}
+
+const createSarifRun = `-- name: CreateSarifRun :exec
+INSERT INTO sarif_runs (id, run_id, tool)
+VALUES (?, ?, ?)
+`
+
+type CreateSarifRunParams struct {
+	ID    string `json:"id"`
+	RunID string `json:"run_id"`
+	Tool  string `json:"tool"`
+}
+
+func (q *Queries) CreateSarifRun(ctx context.Context, arg CreateSarifRunParams) error {
+	_, err := q.db.ExecContext(ctx, createSarifRun, arg.ID, arg.RunID, arg.Tool)
+	return err
+}
+
 const getLogs = `-- name: GetLogs :many
 SELECT timestamp, stream, data
 FROM log_entries
@@ -296,11 +338,49 @@ func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]G
 	return items, nil
 }
 
+const listRepos = `-- name: ListRepos :many
+SELECT DISTINCT repo_url
+FROM runs
+WHERE repo_url IS NOT NULL AND repo_url != ''
+ORDER BY repo_url
+`
+
+func (q *Queries) ListRepos(ctx context.Context) ([]sql.NullString, error) {
+	rows, err := q.db.QueryContext(ctx, listRepos)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []sql.NullString{}
+	for rows.Next() {
+		var repo_url sql.NullString
+		if err := rows.Scan(&repo_url); err != nil {
+			return nil, err
+		}
+		items = append(items, repo_url)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRuns = `-- name: ListRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
+WHERE (?1 IS NULL OR repo_url = ?1)
 ORDER BY started_at DESC
+LIMIT ?3 OFFSET ?2
 `
+
+type ListRunsParams struct {
+	RepoUrl interface{} `json:"repo_url"`
+	Offset  int64       `json:"offset"`
+	Limit   int64       `json:"limit"`
+}
 
 type ListRunsRow struct {
 	ID            string         `json:"id"`
@@ -316,8 +396,8 @@ type ListRunsRow struct {
 	Branch        string         `json:"branch"`
 }
 
-func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRuns)
+func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRuns, arg.RepoUrl, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -337,6 +417,110 @@ func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
 			&i.CommitMessage,
 			&i.Author,
 			&i.Branch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSarifIssuesForRepo = `-- name: ListSarifIssuesForRepo :many
+SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool, runs.id as run_id, runs.commit_message
+FROM sarif_issues i
+JOIN sarif_runs r ON i.sarif_run_id = r.id
+JOIN runs ON r.run_id = runs.id
+WHERE runs.repo_url = ?
+ORDER BY runs.created_at DESC
+LIMIT ?
+`
+
+type ListSarifIssuesForRepoParams struct {
+	RepoUrl sql.NullString `json:"repo_url"`
+	Limit   int64          `json:"limit"`
+}
+
+type ListSarifIssuesForRepoRow struct {
+	RuleID        string         `json:"rule_id"`
+	Message       string         `json:"message"`
+	Path          string         `json:"path"`
+	Line          sql.NullInt64  `json:"line"`
+	Severity      sql.NullString `json:"severity"`
+	Tool          string         `json:"tool"`
+	RunID         string         `json:"run_id"`
+	CommitMessage string         `json:"commit_message"`
+}
+
+func (q *Queries) ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssuesForRepoParams) ([]ListSarifIssuesForRepoRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSarifIssuesForRepo, arg.RepoUrl, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSarifIssuesForRepoRow{}
+	for rows.Next() {
+		var i ListSarifIssuesForRepoRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Message,
+			&i.Path,
+			&i.Line,
+			&i.Severity,
+			&i.Tool,
+			&i.RunID,
+			&i.CommitMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSarifIssuesForRun = `-- name: ListSarifIssuesForRun :many
+SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool
+FROM sarif_issues i
+JOIN sarif_runs r ON i.sarif_run_id = r.id
+WHERE r.run_id = ?
+`
+
+type ListSarifIssuesForRunRow struct {
+	RuleID   string         `json:"rule_id"`
+	Message  string         `json:"message"`
+	Path     string         `json:"path"`
+	Line     sql.NullInt64  `json:"line"`
+	Severity sql.NullString `json:"severity"`
+	Tool     string         `json:"tool"`
+}
+
+func (q *Queries) ListSarifIssuesForRun(ctx context.Context, runID string) ([]ListSarifIssuesForRunRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSarifIssuesForRun, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSarifIssuesForRunRow{}
+	for rows.Next() {
+		var i ListSarifIssuesForRunRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Message,
+			&i.Path,
+			&i.Line,
+			&i.Severity,
+			&i.Tool,
 		); err != nil {
 			return nil, err
 		}

@@ -36,3 +36,20 @@ type Run struct {
 	Branch        string         `json:"branch"`
 	RepoUrl       sql.NullString `json:"repo_url"`
 }
+
+type SarifIssue struct {
+	ID         int64          `json:"id"`
+	SarifRunID string         `json:"sarif_run_id"`
+	RuleID     string         `json:"rule_id"`
+	Message    string         `json:"message"`
+	Path       string         `json:"path"`
+	Line       sql.NullInt64  `json:"line"`
+	Severity   sql.NullString `json:"severity"`
+}
+
+type SarifRun struct {
+	ID        string       `json:"id"`
+	RunID     string       `json:"run_id"`
+	Tool      string       `json:"tool"`
+	CreatedAt sql.NullTime `json:"created_at"`
+}

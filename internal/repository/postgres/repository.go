@@ -169,8 +169,25 @@ func (r *Repository) UpdateRunStatus(ctx context.Context, runID string, status s
 	})
 }
 
-func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
-	rows, err := r.queries.ListRuns(ctx)
+func (r *Repository) ListRuns(ctx context.Context, filter repository.RunFilter) ([]*repository.RunMetadata, error) {
+	limit := int64(filter.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+	offset := int64(filter.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+	var repoUrl sql.NullString
+	if filter.RepoURL != nil {
+		repoUrl = sql.NullString{String: *filter.RepoURL, Valid: true}
+	}
+
+	rows, err := r.queries.ListRuns(ctx, ListRunsParams{
+		RepoUrl: repoUrl,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +226,87 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 	}
 
 	return runs, nil
+}
+
+func (r *Repository) ListRepos(ctx context.Context) ([]string, error) {
+	rows, err := r.queries.ListRepos(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list repos: %w", err)
+	}
+
+	repos := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Valid && row.String != "" {
+			repos = append(repos, row.String)
+		}
+	}
+	return repos, nil
+}
+
+func (r *Repository) CreateSarifRun(ctx context.Context, id, runID, tool string) error {
+	return r.queries.CreateSarifRun(ctx, CreateSarifRunParams{
+		ID:    id,
+		RunID: runID,
+		Tool:  tool,
+	})
+}
+
+func (r *Repository) CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error {
+	var lineNull sql.NullInt32
+	if line > 0 {
+		lineNull = sql.NullInt32{Int32: int32(line), Valid: true}
+	}
+	return r.queries.CreateSarifIssue(ctx, CreateSarifIssueParams{
+		SarifRunID: sarifRunID,
+		RuleID:     ruleID,
+		Message:    message,
+		Path:       path,
+		Line:       lineNull,
+		Severity:   sql.NullString{String: severity, Valid: true},
+	})
+}
+
+func (r *Repository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
+	rows, err := r.queries.ListSarifIssuesForRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	issues := make([]repository.SarifIssue, len(rows))
+	for i, row := range rows {
+		issues[i] = repository.SarifIssue{
+			RuleID:   row.RuleID,
+			Message:  row.Message,
+			Path:     row.Path,
+			Line:     int(row.Line.Int32),
+			Severity: row.Severity.String,
+			Tool:     row.Tool,
+		}
+	}
+	return issues, nil
+}
+
+func (r *Repository) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) {
+	rows, err := r.queries.ListSarifIssuesForRepo(ctx, ListSarifIssuesForRepoParams{
+		RepoUrl: sql.NullString{String: repoURL, Valid: true},
+		Limit:   int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	issues := make([]repository.SarifIssue, len(rows))
+	for i, row := range rows {
+		issues[i] = repository.SarifIssue{
+			RuleID:        row.RuleID,
+			Message:       row.Message,
+			Path:          row.Path,
+			Line:          int(row.Line.Int32),
+			Severity:      row.Severity.String,
+			Tool:          row.Tool,
+			RunID:         row.RunID,
+			CommitMessage: row.CommitMessage,
+		}
+	}
+	return issues, nil
 }
 
 func (r *Repository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {

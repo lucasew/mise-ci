@@ -4,7 +4,20 @@
     <button class="refresh-btn" onclick="location.reload()">Refresh</button>
     <button class="dispatch-btn" onclick="dispatchTestJob()">Dispatch Test Job</button>
 
-    <h2>Runs</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Runs</h2>
+        <form action="/ui/" method="GET" style="margin: 0;">
+            <select name="repo" onchange="this.form.submit()" style="padding: 5px;">
+                <option value="">All Repositories</option>
+                {{range .Repos}}
+                <option value="{{.}}" {{if eq . $.CurrentRepo}}selected{{end}}>{{.}}</option>
+                {{end}}
+            </select>
+            {{if .CurrentRepo}}
+            <a href="/ui/" style="text-decoration: none; margin-left: 10px; color: #666;">Clear</a>
+            {{end}}
+        </form>
+    </div>
 
     {{if .Runs}}
     <table>

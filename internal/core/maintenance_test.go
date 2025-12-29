@@ -43,9 +43,14 @@ func (m *MockRepository) GetRun(ctx context.Context, runID string) (*repository.
 func (m *MockRepository) UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error {
 	return m.Called(ctx, runID, status, exitCode).Error(0)
 }
-func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
-	args := m.Called(ctx)
+func (m *MockRepository) ListRuns(ctx context.Context, filter repository.RunFilter) ([]*repository.RunMetadata, error) {
+	args := m.Called(ctx, filter)
 	return args.Get(0).([]*repository.RunMetadata), args.Error(1)
+}
+
+func (m *MockRepository) ListRepos(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]string), args.Error(1)
 }
 func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx, limit)
@@ -77,6 +82,21 @@ func (m *MockRepository) GetLogs(ctx context.Context, runID string) ([]repositor
 }
 func (m *MockRepository) Close() error {
 	return m.Called().Error(0)
+}
+
+func (m *MockRepository) CreateSarifRun(ctx context.Context, id, runID, tool string) error {
+	return m.Called(ctx, id, runID, tool).Error(0)
+}
+func (m *MockRepository) CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error {
+	return m.Called(ctx, sarifRunID, ruleID, message, path, line, severity).Error(0)
+}
+func (m *MockRepository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
+	args := m.Called(ctx, runID)
+	return args.Get(0).([]repository.SarifIssue), args.Error(1)
+}
+func (m *MockRepository) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) {
+	args := m.Called(ctx, repoURL, limit)
+	return args.Get(0).([]repository.SarifIssue), args.Error(1)
 }
 
 // MockForge for testing

@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
@@ -13,12 +14,17 @@ type Querier interface {
 	CheckRepoExists(ctx context.Context, cloneUrl string) (int32, error)
 	CreateRepo(ctx context.Context, cloneUrl string) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
+	CreateSarifIssue(ctx context.Context, arg CreateSarifIssueParams) error
+	CreateSarifRun(ctx context.Context, arg CreateSarifRunParams) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
 	GetRepo(ctx context.Context, cloneUrl string) (string, error)
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
 	GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]GetRunsWithoutRepoURLRow, error)
 	GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error)
-	ListRuns(ctx context.Context) ([]ListRunsRow, error)
+	ListRepos(ctx context.Context) ([]sql.NullString, error)
+	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
+	ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssuesForRepoParams) ([]ListSarifIssuesForRepoRow, error)
+	ListSarifIssuesForRun(ctx context.Context, runID string) ([]ListSarifIssuesForRunRow, error)
 	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
 }

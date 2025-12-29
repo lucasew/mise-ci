@@ -15,7 +15,15 @@ WHERE id = ?;
 -- name: ListRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
-ORDER BY started_at DESC;
+WHERE (sqlc.narg('repo_url') IS NULL OR repo_url = sqlc.narg('repo_url'))
+ORDER BY started_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: ListRepos :many
+SELECT DISTINCT repo_url
+FROM runs
+WHERE repo_url IS NOT NULL AND repo_url != ''
+ORDER BY repo_url;
 
 -- name: GetRunsWithoutRepoURL :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
@@ -46,6 +54,29 @@ WHERE clone_url = ?;
 
 -- name: CheckRepoExists :one
 SELECT 1 FROM repos WHERE clone_url = ? LIMIT 1;
+
+-- name: CreateSarifRun :exec
+INSERT INTO sarif_runs (id, run_id, tool)
+VALUES (?, ?, ?);
+
+-- name: CreateSarifIssue :exec
+INSERT INTO sarif_issues (sarif_run_id, rule_id, message, path, line, severity)
+VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: ListSarifIssuesForRun :many
+SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool
+FROM sarif_issues i
+JOIN sarif_runs r ON i.sarif_run_id = r.id
+WHERE r.run_id = ?;
+
+-- name: ListSarifIssuesForRepo :many
+SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool, runs.id as run_id, runs.commit_message
+FROM sarif_issues i
+JOIN sarif_runs r ON i.sarif_run_id = r.id
+JOIN runs ON r.run_id = runs.id
+WHERE runs.repo_url = ?
+ORDER BY runs.created_at DESC
+LIMIT ?;
 
 -- name: AppendLog :exec
 INSERT INTO log_entries (run_id, timestamp, stream, data)

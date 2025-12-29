@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -338,10 +339,22 @@ func sendFile(ctx context.Context, conn *websocket.Conn, id uint64, path string,
 func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run, logger *slog.Logger) error {
 	logger.Info("handling run", "cmd", cmd.Cmd, "args", cmd.Args)
 
+	// Create temp dir for SARIF reports
+	sarifDir, err := os.MkdirTemp("", "mise-ci-sarif-*")
+	if err != nil {
+		return fmt.Errorf("failed to create sarif temp dir: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(sarifDir); err != nil {
+			logger.Warn("failed to remove sarif temp dir", "error", err)
+		}
+	}()
+
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
 	c.Dir = cmd.Workdir
-	c.Env = make([]string, 0, len(workerEnv)+len(cmd.Env))
+	c.Env = make([]string, 0, len(workerEnv)+len(cmd.Env)+1)
 	c.Env = append(c.Env, workerEnv...)
+	c.Env = append(c.Env, fmt.Sprintf("MISE_CI_SARIF_OUTPUT_DIR=%s", sarifDir))
 	for k, v := range cmd.Env {
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
 	}
@@ -381,6 +394,35 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 
 	err = c.Wait()
 	wg.Wait()
+
+	// Check for SARIF files and upload them
+	// We do this regardless of exit code, as linters might fail the build but produce reports
+	if entries, err := os.ReadDir(sarifDir); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".sarif") {
+				logger.Info("found sarif report", "name", entry.Name())
+				data, err := os.ReadFile(filepath.Join(sarifDir, entry.Name()))
+				if err != nil {
+					logger.Error("failed to read sarif file", "name", entry.Name(), "error", err)
+					continue
+				}
+
+				if err := wsafeSend(conn, &pb.WorkerMessage{
+					Id: id, // Associate with the run command
+					Payload: &pb.WorkerMessage_SaveArtifact{
+						SaveArtifact: &pb.SaveArtifact{
+							Name: entry.Name(),
+							Data: data,
+						},
+					},
+				}); err != nil {
+					logger.Error("failed to send sarif artifact", "error", err)
+				}
+			}
+		}
+	} else {
+		logger.Warn("failed to read sarif dir", "error", err)
+	}
 
 	exitCode := 0
 	if err != nil {
