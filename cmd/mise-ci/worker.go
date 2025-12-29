@@ -145,10 +145,7 @@ func startWorker() error {
 
 	logger.Info("connected and context received", "env_vars", len(env))
 
-	var (
-		mu         sync.Mutex
-		cancelFunc context.CancelFunc
-	)
+	var cancelFunc context.CancelFunc
 
 	for {
 		_, msgData, err := conn.ReadMessage()
@@ -166,14 +163,14 @@ func startWorker() error {
 		}
 
 		// Cancel previous operation if any
-		mu.Lock()
 		if cancelFunc != nil {
 			cancelFunc()
 		}
 		// Create new context for this operation
 		opCtx, cancel := context.WithCancel(context.Background())
 		cancelFunc = cancel
-		mu.Unlock()
+
+		logger.Debug("received message", "type", fmt.Sprintf("%T", msg.Payload), "id", msg.Id)
 
 		switch payload := msg.Payload.(type) {
 		case *pb.ServerMessage_Copy:
@@ -333,11 +330,11 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 
 	c := exec.CommandContext(ctx, cmd.Cmd, cmd.Args...)
 	c.Dir = cmd.Workdir
-c.Env = make([]string, 0, len(workerEnv)+len(cmd.Env))
-c.Env = append(c.Env, workerEnv...)
-for k, v := range cmd.Env {
-	c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
-}
+	c.Env = make([]string, 0, len(workerEnv)+len(cmd.Env))
+	c.Env = append(c.Env, workerEnv...)
+	for k, v := range cmd.Env {
+		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
+	}
 
 	// Log environment keys for debugging
 	envKeys := make([]string, 0, len(c.Env))
