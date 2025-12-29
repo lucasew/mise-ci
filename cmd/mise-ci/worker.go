@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
@@ -99,6 +100,13 @@ func startWorker() error {
 		return fmt.Errorf("callback and token must be set (via flags or env MISE_CI_CALLBACK/MISE_CI_TOKEN)")
 	}
 
+	// Watchdog: kill worker if handshake not finished or no command received in 30s
+	watchdog := time.AfterFunc(30*time.Second, func() {
+		logger.Error("watchdog timeout: handshake not finished or no command received in 30s")
+		os.Exit(1)
+	})
+	defer watchdog.Stop()
+
 	// Build WebSocket URL
 	wsURL := callback
 	if u, err := url.Parse(callback); err == nil {
@@ -174,6 +182,7 @@ func startWorker() error {
 
 		switch payload := msg.Payload.(type) {
 		case *pb.ServerMessage_Copy:
+			watchdog.Stop()
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -194,6 +203,7 @@ func startWorker() error {
 				}
 			}()
 		case *pb.ServerMessage_Run:
+			watchdog.Stop()
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {

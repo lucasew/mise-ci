@@ -114,6 +114,7 @@ type Run struct {
 	ResultCh    chan *pb.WorkerMessage // Results from worker (for logic to consume)
 	DoneCh      chan struct{}
 	ConnectedCh chan struct{} // Signals when worker connects
+	RetryCh     chan struct{} // Signals when a retry is needed (e.g. handshake failure)
 	Env         map[string]string
 	NextOpID    atomic.Uint64
 }
@@ -147,6 +148,7 @@ func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, bra
 		ResultCh:    make(chan *pb.WorkerMessage, 10),
 		DoneCh:      make(chan struct{}),
 		ConnectedCh: make(chan struct{}),
+		RetryCh:     make(chan struct{}, 1),
 		Env:         make(map[string]string),
 	}
 	c.runs[id] = run
