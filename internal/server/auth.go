@@ -79,7 +79,8 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
 		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		if !ok || userMatch != 1 || passMatch != 1 {
+		// Use a bitwise AND to prevent timing attacks from short-circuiting
+		if !ok || (userMatch&passMatch) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -103,7 +104,8 @@ func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFun
 		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
 		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		if !ok || userMatch != 1 || passMatch != 1 {
+		// Use a bitwise AND to prevent timing attacks from short-circuiting
+		if !ok || (userMatch&passMatch) != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -142,7 +144,8 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		passHash := sha256.Sum256([]byte(pass))
 		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
 		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		if !ok || userMatch != 1 || passMatch != 1 {
+		// Use a bitwise AND to prevent timing attacks from short-circuiting
+		if !ok || (userMatch&passMatch) != 1 {
 			// If they tried a token and it failed, we probably shouldn't prompt for Basic Auth if it was an API call?
 			// But since this is for SSE stream consumed by browser, browser handles 401 with WWW-Authenticate.
 			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
