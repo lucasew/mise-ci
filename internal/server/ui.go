@@ -163,23 +163,6 @@ func (s *UIServer) HandleRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *UIServer) HandleRepoIssues(w http.ResponseWriter, r *http.Request) {
-	repoEncoded := strings.TrimPrefix(r.URL.Path, "/ui/repos/")
-	repoEncoded = strings.TrimSuffix(repoEncoded, "/issues")
-
-	// If the path didn't match cleanly, maybe we need to be more careful?
-	// Assuming /ui/repos/{repo}/issues
-	// But repo can contain slashes, so simple prefix/suffix might fail if not encoded.
-	// But usually it's better to use query param for complex strings like URLs.
-	// However, the plan said /ui/repos/{repo}/issues.
-	// If repo is encoded, we need to decode it.
-	// Or we can just use query param: /ui/issues?repo=...
-
-	// Let's stick to query param for safety as repo URL has slashes.
-	// Wait, I updated index.html to link to /ui/?repo=...
-	// The user asked "make a page where I can filter runs by repo", which I did.
-	// AND "link sarif issues to repos so one can track what linters are finding".
-	// So a new page /ui/issues?repo=... is good.
-
 	repo := r.URL.Query().Get("repo")
 	if repo == "" {
 		httputil.WriteErrorMessage(w, http.StatusBadRequest, "Missing repo parameter")

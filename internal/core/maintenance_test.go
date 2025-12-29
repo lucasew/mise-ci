@@ -90,6 +90,12 @@ func (m *MockRepository) UpsertIssue(ctx context.Context, id, ruleID, message, s
 func (m *MockRepository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error {
 	return m.Called(ctx, issueID, runID, path, line).Error(0)
 }
+func (m *MockRepository) BatchUpsertIssues(ctx context.Context, issues []repository.Issue) error {
+	return m.Called(ctx, issues).Error(0)
+}
+func (m *MockRepository) BatchCreateOccurrences(ctx context.Context, occurrences []repository.Occurrence) error {
+	return m.Called(ctx, occurrences).Error(0)
+}
 func (m *MockRepository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
 	args := m.Called(ctx, runID)
 	return args.Get(0).([]repository.SarifIssue), args.Error(1)

@@ -23,6 +23,8 @@ type Repository interface {
 	// SARIF operations
 	UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error
 	CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error
+	BatchUpsertIssues(ctx context.Context, issues []Issue) error
+	BatchCreateOccurrences(ctx context.Context, occurrences []Occurrence) error
 	ListSarifIssuesForRun(ctx context.Context, runID string) ([]SarifIssue, error)
 	ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]SarifIssue, error)
 
@@ -78,4 +80,19 @@ type SarifIssue struct {
 	Tool          string
 	RunID         string // for repo view
 	CommitMessage string // for repo view
+}
+
+type Issue struct {
+	ID       string
+	RuleID   string
+	Message  string
+	Severity string
+	Tool     string
+}
+
+type Occurrence struct {
+	IssueID string
+	RunID   string
+	Path    string
+	Line    int
 }

@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
+	"github.com/lucasew/mise-ci/internal/repository"
 )
 
 // Minimal SARIF structure to extract what we need
@@ -46,6 +48,9 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 		return fmt.Errorf("failed to parse sarif: %w", err)
 	}
 
+	var issues []repository.Issue
+	var occurrences []repository.Occurrence
+
 	for _, run := range report.Runs {
 		toolName := run.Tool.Driver.Name
 		if toolName == "" {
@@ -71,15 +76,32 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 			hash := sha256.Sum256([]byte(fingerprintInput))
 			issueID := hex.EncodeToString(hash[:])
 
-			// 1. Upsert Issue
-			if err := s.Core.repo.UpsertIssue(ctx, issueID, result.RuleID, result.Message.Text, severity, toolName); err != nil {
-				return fmt.Errorf("failed to upsert issue: %w", err)
-			}
+			issues = append(issues, repository.Issue{
+				ID:       issueID,
+				RuleID:   result.RuleID,
+				Message:  result.Message.Text,
+				Severity: severity,
+				Tool:     toolName,
+			})
 
-			// 2. Create Occurrence
-			if err := s.Core.repo.CreateOccurrence(ctx, issueID, runID, path, line); err != nil {
-				return fmt.Errorf("failed to create occurrence: %w", err)
-			}
+			occurrences = append(occurrences, repository.Occurrence{
+				IssueID: issueID,
+				RunID:   runID,
+				Path:    path,
+				Line:    line,
+			})
+		}
+	}
+
+	if len(issues) > 0 {
+		if err := s.Core.repo.BatchUpsertIssues(ctx, issues); err != nil {
+			return fmt.Errorf("failed to batch upsert issues: %w", err)
+		}
+	}
+
+	if len(occurrences) > 0 {
+		if err := s.Core.repo.BatchCreateOccurrences(ctx, occurrences); err != nil {
+			return fmt.Errorf("failed to batch create occurrences: %w", err)
 		}
 	}
 

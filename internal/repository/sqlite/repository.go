@@ -284,6 +284,57 @@ func (r *Repository) CreateOccurrence(ctx context.Context, issueID, runID, path 
 	})
 }
 
+func (r *Repository) BatchUpsertIssues(ctx context.Context, issues []repository.Issue) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := r.queries.WithTx(tx)
+
+	for _, issue := range issues {
+		if err := qtx.UpsertIssue(ctx, UpsertIssueParams{
+			ID:       issue.ID,
+			RuleID:   issue.RuleID,
+			Message:  issue.Message,
+			Severity: issue.Severity,
+			Tool:     issue.Tool,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) BatchCreateOccurrences(ctx context.Context, occurrences []repository.Occurrence) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := r.queries.WithTx(tx)
+
+	for _, occ := range occurrences {
+		var lineNull sql.NullInt64
+		if occ.Line > 0 {
+			lineNull = sql.NullInt64{Int64: int64(occ.Line), Valid: true}
+		}
+		if err := qtx.CreateOccurrence(ctx, CreateOccurrenceParams{
+			IssueID: occ.IssueID,
+			RunID:   occ.RunID,
+			Path:    occ.Path,
+			Line:    lineNull,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 func (r *Repository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
 	rows, err := r.queries.ListSarifIssuesForRun(ctx, runID)
 	if err != nil {
