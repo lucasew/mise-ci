@@ -2,9 +2,10 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 // Minimal SARIF structure to extract what we need
@@ -51,13 +52,6 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 			toolName = "unknown"
 		}
 
-		// Create SARIF run record
-		sarifRunID := fmt.Sprintf("%s-%s-%d", runID, toolName, time.Now().UnixNano())
-
-		if err := s.Core.repo.CreateSarifRun(ctx, sarifRunID, runID, toolName); err != nil {
-			return fmt.Errorf("failed to create sarif run: %w", err)
-		}
-
 		for _, result := range run.Results {
 			path := ""
 			line := 0
@@ -71,8 +65,20 @@ func (s *Service) IngestSARIF(ctx context.Context, runID string, data []byte) er
 				severity = "warning" // default
 			}
 
-			if err := s.Core.repo.CreateSarifIssue(ctx, sarifRunID, result.RuleID, result.Message.Text, path, line, severity); err != nil {
-				return fmt.Errorf("failed to create sarif issue: %w", err)
+			// Generate fingerprint for the issue (Rule + Message + Tool)
+			// Ideally we would use more stable properties, but this matches the request.
+			fingerprintInput := fmt.Sprintf("%s|%s|%s", result.RuleID, result.Message.Text, toolName)
+			hash := sha256.Sum256([]byte(fingerprintInput))
+			issueID := hex.EncodeToString(hash[:])
+
+			// 1. Upsert Issue
+			if err := s.Core.repo.UpsertIssue(ctx, issueID, result.RuleID, result.Message.Text, severity, toolName); err != nil {
+				return fmt.Errorf("failed to upsert issue: %w", err)
+			}
+
+			// 2. Create Occurrence
+			if err := s.Core.repo.CreateOccurrence(ctx, issueID, runID, path, line); err != nil {
+				return fmt.Errorf("failed to create occurrence: %w", err)
 			}
 		}
 	}

@@ -9,6 +9,23 @@ import (
 	"time"
 )
 
+type Issue struct {
+	ID        string       `json:"id"`
+	RuleID    string       `json:"rule_id"`
+	Message   string       `json:"message"`
+	Severity  string       `json:"severity"`
+	Tool      string       `json:"tool"`
+	CreatedAt sql.NullTime `json:"created_at"`
+}
+
+type IssueOccurrence struct {
+	ID      int64         `json:"id"`
+	IssueID string        `json:"issue_id"`
+	RunID   string        `json:"run_id"`
+	Path    string        `json:"path"`
+	Line    sql.NullInt64 `json:"line"`
+}
+
 type LogEntry struct {
 	ID        int64     `json:"id"`
 	RunID     string    `json:"run_id"`
@@ -35,21 +52,4 @@ type Run struct {
 	Author        string         `json:"author"`
 	Branch        string         `json:"branch"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-}
-
-type SarifIssue struct {
-	ID         int64          `json:"id"`
-	SarifRunID string         `json:"sarif_run_id"`
-	RuleID     string         `json:"rule_id"`
-	Message    string         `json:"message"`
-	Path       string         `json:"path"`
-	Line       sql.NullInt64  `json:"line"`
-	Severity   sql.NullString `json:"severity"`
-}
-
-type SarifRun struct {
-	ID        string       `json:"id"`
-	RunID     string       `json:"run_id"`
-	Tool      string       `json:"tool"`
-	CreatedAt sql.NullTime `json:"created_at"`
 }

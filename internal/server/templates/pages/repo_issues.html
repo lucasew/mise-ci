@@ -4,7 +4,12 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Issues for {{.Repo}}</h1>
-        <a href="/ui/" class="btn btn-outline-secondary">Back to Runs</a>
+        <div>
+            <button class="btn btn-outline-primary me-2" onclick="copyContext()">
+                Copy Context
+            </button>
+            <a href="/ui/" class="btn btn-outline-secondary">Back to Runs</a>
+        </div>
     </div>
 
     {{if .Issues}}
@@ -44,4 +49,37 @@
     <p class="text-muted">No issues found.</p>
     {{end}}
 </div>
+
+<script>
+function copyContext() {
+    const issues = [];
+    document.querySelectorAll('tbody tr').forEach(row => {
+        const cols = row.querySelectorAll('td');
+        // Extract data (robustness check: ensure row has expected columns)
+        if (cols.length >= 5) {
+            issues.push({
+                severity: cols[0].innerText.trim(),
+                tool: cols[1].innerText.trim(),
+                rule: cols[2].innerText.trim(),
+                message: cols[3].innerText.trim(),
+                location: cols[4].innerText.trim()
+            });
+        }
+    });
+
+    let xml = '<context>\n  <issues>\n';
+    issues.forEach(i => {
+        // Simple XML escaping for attributes/content could be improved if needed
+        xml += `    <issue tool="${i.tool}" rule="${i.rule}" location="${i.location}" severity="${i.severity}">${i.message}</issue>\n`;
+    });
+    xml += '  </issues>\n</context>';
+
+    navigator.clipboard.writeText(xml).then(() => {
+        alert('Context copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy context.');
+    });
+}
+</script>
 {{end}}

@@ -56,24 +56,26 @@ WHERE clone_url = $1;
 SELECT 1 FROM repos WHERE clone_url = $1 LIMIT 1;
 
 -- name: CreateSarifRun :exec
-INSERT INTO sarif_runs (id, run_id, tool)
-VALUES ($1, $2, $3);
+-- name: UpsertIssue :exec
+INSERT INTO issues (id, rule_id, message, severity, tool)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT(id) DO NOTHING;
 
--- name: CreateSarifIssue :exec
-INSERT INTO sarif_issues (sarif_run_id, rule_id, message, path, line, severity)
-VALUES ($1, $2, $3, $4, $5, $6);
+-- name: CreateOccurrence :exec
+INSERT INTO issue_occurrences (issue_id, run_id, path, line)
+VALUES ($1, $2, $3, $4);
 
 -- name: ListSarifIssuesForRun :many
-SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool
-FROM sarif_issues i
-JOIN sarif_runs r ON i.sarif_run_id = r.id
-WHERE r.run_id = $1;
+SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool
+FROM issue_occurrences o
+JOIN issues i ON o.issue_id = i.id
+WHERE o.run_id = $1;
 
 -- name: ListSarifIssuesForRepo :many
-SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool, runs.id as run_id, runs.commit_message
-FROM sarif_issues i
-JOIN sarif_runs r ON i.sarif_run_id = r.id
-JOIN runs ON r.run_id = runs.id
+SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool, runs.id as run_id, runs.commit_message
+FROM issue_occurrences o
+JOIN issues i ON o.issue_id = i.id
+JOIN runs ON o.run_id = runs.id
 WHERE runs.repo_url = $1
 ORDER BY runs.created_at DESC
 LIMIT $2;

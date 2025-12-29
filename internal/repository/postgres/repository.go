@@ -243,26 +243,26 @@ func (r *Repository) ListRepos(ctx context.Context) ([]string, error) {
 	return repos, nil
 }
 
-func (r *Repository) CreateSarifRun(ctx context.Context, id, runID, tool string) error {
-	return r.queries.CreateSarifRun(ctx, CreateSarifRunParams{
-		ID:    id,
-		RunID: runID,
-		Tool:  tool,
+func (r *Repository) UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error {
+	return r.queries.UpsertIssue(ctx, UpsertIssueParams{
+		ID:       id,
+		RuleID:   ruleID,
+		Message:  message,
+		Severity: severity,
+		Tool:     tool,
 	})
 }
 
-func (r *Repository) CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error {
+func (r *Repository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error {
 	var lineNull sql.NullInt32
 	if line > 0 {
 		lineNull = sql.NullInt32{Int32: int32(line), Valid: true}
 	}
-	return r.queries.CreateSarifIssue(ctx, CreateSarifIssueParams{
-		SarifRunID: sarifRunID,
-		RuleID:     ruleID,
-		Message:    message,
-		Path:       path,
-		Line:       lineNull,
-		Severity:   sql.NullString{String: severity, Valid: true},
+	return r.queries.CreateOccurrence(ctx, CreateOccurrenceParams{
+		IssueID: issueID,
+		RunID:   runID,
+		Path:    path,
+		Line:    lineNull,
 	})
 }
 
@@ -278,7 +278,7 @@ func (r *Repository) ListSarifIssuesForRun(ctx context.Context, runID string) ([
 			Message:  row.Message,
 			Path:     row.Path,
 			Line:     int(row.Line.Int32),
-			Severity: row.Severity.String,
+			Severity: row.Severity,
 			Tool:     row.Tool,
 		}
 	}
@@ -300,7 +300,7 @@ func (r *Repository) ListSarifIssuesForRepo(ctx context.Context, repoURL string,
 			Message:       row.Message,
 			Path:          row.Path,
 			Line:          int(row.Line.Int32),
-			Severity:      row.Severity.String,
+			Severity:      row.Severity,
 			Tool:          row.Tool,
 			RunID:         row.RunID,
 			CommitMessage: row.CommitMessage,

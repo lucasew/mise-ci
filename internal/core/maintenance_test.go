@@ -84,11 +84,11 @@ func (m *MockRepository) Close() error {
 	return m.Called().Error(0)
 }
 
-func (m *MockRepository) CreateSarifRun(ctx context.Context, id, runID, tool string) error {
-	return m.Called(ctx, id, runID, tool).Error(0)
+func (m *MockRepository) UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error {
+	return m.Called(ctx, id, ruleID, message, severity, tool).Error(0)
 }
-func (m *MockRepository) CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error {
-	return m.Called(ctx, sarifRunID, ruleID, message, path, line, severity).Error(0)
+func (m *MockRepository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error {
+	return m.Called(ctx, issueID, runID, path, line).Error(0)
 }
 func (m *MockRepository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) {
 	args := m.Called(ctx, runID)

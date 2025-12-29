@@ -21,8 +21,8 @@ type Repository interface {
 	ListRepos(ctx context.Context) ([]string, error)
 
 	// SARIF operations
-	CreateSarifRun(ctx context.Context, id, runID, tool string) error
-	CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error
+	UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error
+	CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error
 	ListSarifIssuesForRun(ctx context.Context, runID string) ([]SarifIssue, error)
 	ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]SarifIssue, error)
 

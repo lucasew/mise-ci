@@ -39,8 +39,8 @@ func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) (
 func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error { return nil }
 func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
-func (m *MockRepository) CreateSarifRun(ctx context.Context, id, runID, tool string) error { return nil }
-func (m *MockRepository) CreateSarifIssue(ctx context.Context, sarifRunID, ruleID, message, path string, line int, severity string) error { return nil }
+func (m *MockRepository) UpsertIssue(ctx context.Context, id, ruleID, message, severity, tool string) error { return nil }
+func (m *MockRepository) CreateOccurrence(ctx context.Context, issueID, runID, path string, line int) error { return nil }
 func (m *MockRepository) ListSarifIssuesForRun(ctx context.Context, runID string) ([]repository.SarifIssue, error) { return nil, nil }
 func (m *MockRepository) ListSarifIssuesForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifIssue, error) { return nil, nil }
 

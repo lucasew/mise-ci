@@ -44,6 +44,28 @@ func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int64, 
 	return column_1, err
 }
 
+const createOccurrence = `-- name: CreateOccurrence :exec
+INSERT INTO issue_occurrences (issue_id, run_id, path, line)
+VALUES (?, ?, ?, ?)
+`
+
+type CreateOccurrenceParams struct {
+	IssueID string        `json:"issue_id"`
+	RunID   string        `json:"run_id"`
+	Path    string        `json:"path"`
+	Line    sql.NullInt64 `json:"line"`
+}
+
+func (q *Queries) CreateOccurrence(ctx context.Context, arg CreateOccurrenceParams) error {
+	_, err := q.db.ExecContext(ctx, createOccurrence,
+		arg.IssueID,
+		arg.RunID,
+		arg.Path,
+		arg.Line,
+	)
+	return err
+}
+
 const createRepo = `-- name: CreateRepo :exec
 INSERT INTO repos (clone_url)
 VALUES (?)
@@ -87,48 +109,6 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 		arg.Author,
 		arg.Branch,
 	)
-	return err
-}
-
-const createSarifIssue = `-- name: CreateSarifIssue :exec
-INSERT INTO sarif_issues (sarif_run_id, rule_id, message, path, line, severity)
-VALUES (?, ?, ?, ?, ?, ?)
-`
-
-type CreateSarifIssueParams struct {
-	SarifRunID string         `json:"sarif_run_id"`
-	RuleID     string         `json:"rule_id"`
-	Message    string         `json:"message"`
-	Path       string         `json:"path"`
-	Line       sql.NullInt64  `json:"line"`
-	Severity   sql.NullString `json:"severity"`
-}
-
-func (q *Queries) CreateSarifIssue(ctx context.Context, arg CreateSarifIssueParams) error {
-	_, err := q.db.ExecContext(ctx, createSarifIssue,
-		arg.SarifRunID,
-		arg.RuleID,
-		arg.Message,
-		arg.Path,
-		arg.Line,
-		arg.Severity,
-	)
-	return err
-}
-
-const createSarifRun = `-- name: CreateSarifRun :exec
-INSERT INTO sarif_runs (id, run_id, tool)
-VALUES (?, ?, ?)
-`
-
-type CreateSarifRunParams struct {
-	ID    string `json:"id"`
-	RunID string `json:"run_id"`
-	Tool  string `json:"tool"`
-}
-
-func (q *Queries) CreateSarifRun(ctx context.Context, arg CreateSarifRunParams) error {
-	_, err := q.db.ExecContext(ctx, createSarifRun, arg.ID, arg.RunID, arg.Tool)
 	return err
 }
 
@@ -432,10 +412,10 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 }
 
 const listSarifIssuesForRepo = `-- name: ListSarifIssuesForRepo :many
-SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool, runs.id as run_id, runs.commit_message
-FROM sarif_issues i
-JOIN sarif_runs r ON i.sarif_run_id = r.id
-JOIN runs ON r.run_id = runs.id
+SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool, runs.id as run_id, runs.commit_message
+FROM issue_occurrences o
+JOIN issues i ON o.issue_id = i.id
+JOIN runs ON o.run_id = runs.id
 WHERE runs.repo_url = ?
 ORDER BY runs.created_at DESC
 LIMIT ?
@@ -447,14 +427,14 @@ type ListSarifIssuesForRepoParams struct {
 }
 
 type ListSarifIssuesForRepoRow struct {
-	RuleID        string         `json:"rule_id"`
-	Message       string         `json:"message"`
-	Path          string         `json:"path"`
-	Line          sql.NullInt64  `json:"line"`
-	Severity      sql.NullString `json:"severity"`
-	Tool          string         `json:"tool"`
-	RunID         string         `json:"run_id"`
-	CommitMessage string         `json:"commit_message"`
+	RuleID        string        `json:"rule_id"`
+	Message       string        `json:"message"`
+	Path          string        `json:"path"`
+	Line          sql.NullInt64 `json:"line"`
+	Severity      string        `json:"severity"`
+	Tool          string        `json:"tool"`
+	RunID         string        `json:"run_id"`
+	CommitMessage string        `json:"commit_message"`
 }
 
 func (q *Queries) ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssuesForRepoParams) ([]ListSarifIssuesForRepoRow, error) {
@@ -490,19 +470,19 @@ func (q *Queries) ListSarifIssuesForRepo(ctx context.Context, arg ListSarifIssue
 }
 
 const listSarifIssuesForRun = `-- name: ListSarifIssuesForRun :many
-SELECT i.rule_id, i.message, i.path, i.line, i.severity, r.tool
-FROM sarif_issues i
-JOIN sarif_runs r ON i.sarif_run_id = r.id
-WHERE r.run_id = ?
+SELECT i.rule_id, i.message, o.path, o.line, i.severity, i.tool
+FROM issue_occurrences o
+JOIN issues i ON o.issue_id = i.id
+WHERE o.run_id = ?
 `
 
 type ListSarifIssuesForRunRow struct {
-	RuleID   string         `json:"rule_id"`
-	Message  string         `json:"message"`
-	Path     string         `json:"path"`
-	Line     sql.NullInt64  `json:"line"`
-	Severity sql.NullString `json:"severity"`
-	Tool     string         `json:"tool"`
+	RuleID   string        `json:"rule_id"`
+	Message  string        `json:"message"`
+	Path     string        `json:"path"`
+	Line     sql.NullInt64 `json:"line"`
+	Severity string        `json:"severity"`
+	Tool     string        `json:"tool"`
 }
 
 func (q *Queries) ListSarifIssuesForRun(ctx context.Context, runID string) ([]ListSarifIssuesForRunRow, error) {
@@ -570,6 +550,31 @@ func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams
 		arg.ExitCode,
 		arg.FinishedAt,
 		arg.ID,
+	)
+	return err
+}
+
+const upsertIssue = `-- name: UpsertIssue :exec
+INSERT INTO issues (id, rule_id, message, severity, tool)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(id) DO NOTHING
+`
+
+type UpsertIssueParams struct {
+	ID       string `json:"id"`
+	RuleID   string `json:"rule_id"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+	Tool     string `json:"tool"`
+}
+
+func (q *Queries) UpsertIssue(ctx context.Context, arg UpsertIssueParams) error {
+	_, err := q.db.ExecContext(ctx, upsertIssue,
+		arg.ID,
+		arg.RuleID,
+		arg.Message,
+		arg.Severity,
+		arg.Tool,
 	)
 	return err
 }

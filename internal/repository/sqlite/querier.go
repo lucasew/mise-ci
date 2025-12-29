@@ -12,10 +12,9 @@ import (
 type Querier interface {
 	AppendLog(ctx context.Context, arg AppendLogParams) error
 	CheckRepoExists(ctx context.Context, cloneUrl string) (int64, error)
+	CreateOccurrence(ctx context.Context, arg CreateOccurrenceParams) error
 	CreateRepo(ctx context.Context, cloneUrl string) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
-	CreateSarifIssue(ctx context.Context, arg CreateSarifIssueParams) error
-	CreateSarifRun(ctx context.Context, arg CreateSarifRunParams) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
 	GetRepo(ctx context.Context, cloneUrl string) (string, error)
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
@@ -27,6 +26,7 @@ type Querier interface {
 	ListSarifIssuesForRun(ctx context.Context, runID string) ([]ListSarifIssuesForRunRow, error)
 	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
+	UpsertIssue(ctx context.Context, arg UpsertIssueParams) error
 }
 
 var _ Querier = (*Queries)(nil)
