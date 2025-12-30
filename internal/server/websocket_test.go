@@ -40,7 +40,7 @@ func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, rep
 func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
 func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error { return nil }
-func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error { return nil }
+func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error { return nil }
 func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error { return nil }
 func (m *MockRepository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error { return nil }
 func (m *MockRepository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) { return nil, nil }

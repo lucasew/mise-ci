@@ -22,7 +22,7 @@ type Repository interface {
 
 	// SARIF operations
 	UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error
-	CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error
+	CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error
 	BatchUpsertRules(ctx context.Context, rules []Rule) error
 	BatchCreateFindings(ctx context.Context, findings []Finding) error
 	ListFindingsForRun(ctx context.Context, runID string) ([]SarifFinding, error)
@@ -78,6 +78,7 @@ type SarifFinding struct {
 	Line          int
 	Severity      string
 	Tool          string
+	Fingerprint   string
 	RunID         string // for repo view
 	CommitMessage string // for repo view
 }
@@ -90,9 +91,10 @@ type Rule struct {
 }
 
 type Finding struct {
-	RunID   string
-	RuleRef string
-	Message string
-	Path    string
-	Line    int
+	RunID       string
+	RuleRef     string
+	Message     string
+	Path        string
+	Line        int
+	Fingerprint string
 }

@@ -45,16 +45,17 @@ func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int32, 
 }
 
 const createFinding = `-- name: CreateFinding :exec
-INSERT INTO sarif_findings (run_id, rule_ref, message, path, line)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO sarif_findings (run_id, rule_ref, message, path, line, fingerprint)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type CreateFindingParams struct {
-	RunID   string        `json:"run_id"`
-	RuleRef string        `json:"rule_ref"`
-	Message string        `json:"message"`
-	Path    string        `json:"path"`
-	Line    sql.NullInt32 `json:"line"`
+	RunID       string         `json:"run_id"`
+	RuleRef     string         `json:"rule_ref"`
+	Message     string         `json:"message"`
+	Path        string         `json:"path"`
+	Line        sql.NullInt32  `json:"line"`
+	Fingerprint sql.NullString `json:"fingerprint"`
 }
 
 func (q *Queries) CreateFinding(ctx context.Context, arg CreateFindingParams) error {
@@ -64,6 +65,7 @@ func (q *Queries) CreateFinding(ctx context.Context, arg CreateFindingParams) er
 		arg.Message,
 		arg.Path,
 		arg.Line,
+		arg.Fingerprint,
 	)
 	return err
 }
@@ -321,7 +323,7 @@ func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]G
 }
 
 const listFindingsForRepo = `-- name: ListFindingsForRepo :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, runs.id as run_id, runs.commit_message
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint, runs.id as run_id, runs.commit_message
 FROM sarif_findings f
 JOIN sarif_rules r ON f.rule_ref = r.id
 JOIN runs ON f.run_id = runs.id
@@ -336,14 +338,15 @@ type ListFindingsForRepoParams struct {
 }
 
 type ListFindingsForRepoRow struct {
-	RuleID        string        `json:"rule_id"`
-	Message       string        `json:"message"`
-	Path          string        `json:"path"`
-	Line          sql.NullInt32 `json:"line"`
-	Severity      string        `json:"severity"`
-	Tool          string        `json:"tool"`
-	RunID         string        `json:"run_id"`
-	CommitMessage string        `json:"commit_message"`
+	RuleID        string         `json:"rule_id"`
+	Message       string         `json:"message"`
+	Path          string         `json:"path"`
+	Line          sql.NullInt32  `json:"line"`
+	Severity      string         `json:"severity"`
+	Tool          string         `json:"tool"`
+	Fingerprint   sql.NullString `json:"fingerprint"`
+	RunID         string         `json:"run_id"`
+	CommitMessage string         `json:"commit_message"`
 }
 
 func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error) {
@@ -362,6 +365,7 @@ func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRe
 			&i.Line,
 			&i.Severity,
 			&i.Tool,
+			&i.Fingerprint,
 			&i.RunID,
 			&i.CommitMessage,
 		); err != nil {
@@ -379,19 +383,20 @@ func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRe
 }
 
 const listFindingsForRun = `-- name: ListFindingsForRun :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint
 FROM sarif_findings f
 JOIN sarif_rules r ON f.rule_ref = r.id
 WHERE f.run_id = $1
 `
 
 type ListFindingsForRunRow struct {
-	RuleID   string        `json:"rule_id"`
-	Message  string        `json:"message"`
-	Path     string        `json:"path"`
-	Line     sql.NullInt32 `json:"line"`
-	Severity string        `json:"severity"`
-	Tool     string        `json:"tool"`
+	RuleID      string         `json:"rule_id"`
+	Message     string         `json:"message"`
+	Path        string         `json:"path"`
+	Line        sql.NullInt32  `json:"line"`
+	Severity    string         `json:"severity"`
+	Tool        string         `json:"tool"`
+	Fingerprint sql.NullString `json:"fingerprint"`
 }
 
 func (q *Queries) ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error) {
@@ -410,6 +415,7 @@ func (q *Queries) ListFindingsForRun(ctx context.Context, runID string) ([]ListF
 			&i.Line,
 			&i.Severity,
 			&i.Tool,
+			&i.Fingerprint,
 		); err != nil {
 			return nil, err
 		}

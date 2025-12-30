@@ -16,7 +16,8 @@ CREATE TABLE sarif_findings (
     rule_ref TEXT NOT NULL REFERENCES sarif_rules(id) ON DELETE CASCADE,
     message TEXT NOT NULL,
     path TEXT NOT NULL,
-    line INTEGER
+    line INTEGER,
+    fingerprint TEXT -- external fingerprint specific to this finding
 );
 
 CREATE INDEX idx_sarif_findings_run_id ON sarif_findings(run_id);

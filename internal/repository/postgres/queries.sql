@@ -61,17 +61,17 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT(id) DO NOTHING;
 
 -- name: CreateFinding :exec
-INSERT INTO sarif_findings (run_id, rule_ref, message, path, line)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO sarif_findings (run_id, rule_ref, message, path, line, fingerprint)
+VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: ListFindingsForRun :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint
 FROM sarif_findings f
 JOIN sarif_rules r ON f.rule_ref = r.id
 WHERE f.run_id = $1;
 
 -- name: ListFindingsForRepo :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, runs.id as run_id, runs.commit_message
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint, runs.id as run_id, runs.commit_message
 FROM sarif_findings f
 JOIN sarif_rules r ON f.rule_ref = r.id
 JOIN runs ON f.run_id = runs.id

@@ -87,8 +87,8 @@ func (m *MockRepository) Close() error {
 func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error {
 	return m.Called(ctx, id, ruleID, severity, tool).Error(0)
 }
-func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error {
-	return m.Called(ctx, runID, ruleRef, message, path, line).Error(0)
+func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error {
+	return m.Called(ctx, runID, ruleRef, message, path, line, fingerprint).Error(0)
 }
 func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error {
 	return m.Called(ctx, rules).Error(0)

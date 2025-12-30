@@ -303,12 +303,17 @@ func (r *Repository) BatchCreateFindings(ctx context.Context, findings []reposit
 		if f.Line > 0 {
 			lineNull = sql.NullInt32{Int32: int32(f.Line), Valid: true}
 		}
+		var fingerprintNull sql.NullString
+		if f.Fingerprint != "" {
+			fingerprintNull = sql.NullString{String: f.Fingerprint, Valid: true}
+		}
 		if err := qtx.CreateFinding(ctx, CreateFindingParams{
-			RunID:   f.RunID,
-			RuleRef: f.RuleRef,
-			Message: f.Message,
-			Path:    f.Path,
-			Line:    lineNull,
+			RunID:       f.RunID,
+			RuleRef:     f.RuleRef,
+			Message:     f.Message,
+			Path:        f.Path,
+			Line:        lineNull,
+			Fingerprint: fingerprintNull,
 		}); err != nil {
 			return err
 		}
@@ -325,12 +330,13 @@ func (r *Repository) ListFindingsForRun(ctx context.Context, runID string) ([]re
 	findings := make([]repository.SarifFinding, len(rows))
 	for i, row := range rows {
 		findings[i] = repository.SarifFinding{
-			RuleID:   row.RuleID,
-			Message:  row.Message,
-			Path:     row.Path,
-			Line:     int(row.Line.Int32),
-			Severity: row.Severity,
-			Tool:     row.Tool,
+			RuleID:      row.RuleID,
+			Message:     row.Message,
+			Path:        row.Path,
+			Line:        int(row.Line.Int32),
+			Severity:    row.Severity,
+			Tool:        row.Tool,
+			Fingerprint: row.Fingerprint.String,
 		}
 	}
 	return findings, nil
@@ -353,6 +359,7 @@ func (r *Repository) ListFindingsForRepo(ctx context.Context, repoURL string, li
 			Line:          int(row.Line.Int32),
 			Severity:      row.Severity,
 			Tool:          row.Tool,
+			Fingerprint:   row.Fingerprint.String,
 			RunID:         row.RunID,
 			CommitMessage: row.CommitMessage,
 		}

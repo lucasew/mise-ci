@@ -38,12 +38,13 @@ type Run struct {
 }
 
 type SarifFinding struct {
-	ID      int32         `json:"id"`
-	RunID   string        `json:"run_id"`
-	RuleRef string        `json:"rule_ref"`
-	Message string        `json:"message"`
-	Path    string        `json:"path"`
-	Line    sql.NullInt32 `json:"line"`
+	ID          int32          `json:"id"`
+	RunID       string         `json:"run_id"`
+	RuleRef     string         `json:"rule_ref"`
+	Message     string         `json:"message"`
+	Path        string         `json:"path"`
+	Line        sql.NullInt32  `json:"line"`
+	Fingerprint sql.NullString `json:"fingerprint"`
 }
 
 type SarifRule struct {

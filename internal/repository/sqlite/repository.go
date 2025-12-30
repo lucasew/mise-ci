@@ -268,17 +268,22 @@ func (r *Repository) UpsertRule(ctx context.Context, id, ruleID, severity, tool 
 	})
 }
 
-func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error {
+func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error {
 	var lineNull sql.NullInt64
 	if line > 0 {
 		lineNull = sql.NullInt64{Int64: int64(line), Valid: true}
 	}
+	var fingerprintNull sql.NullString
+	if fingerprint != "" {
+		fingerprintNull = sql.NullString{String: fingerprint, Valid: true}
+	}
 	return r.queries.CreateFinding(ctx, CreateFindingParams{
-		RunID:   runID,
-		RuleRef: ruleRef,
-		Message: message,
-		Path:    path,
-		Line:    lineNull,
+		RunID:       runID,
+		RuleRef:     ruleRef,
+		Message:     message,
+		Path:        path,
+		Line:        lineNull,
+		Fingerprint: fingerprintNull,
 	})
 }
 
@@ -319,12 +324,17 @@ func (r *Repository) BatchCreateFindings(ctx context.Context, findings []reposit
 		if f.Line > 0 {
 			lineNull = sql.NullInt64{Int64: int64(f.Line), Valid: true}
 		}
+		var fingerprintNull sql.NullString
+		if f.Fingerprint != "" {
+			fingerprintNull = sql.NullString{String: f.Fingerprint, Valid: true}
+		}
 		if err := qtx.CreateFinding(ctx, CreateFindingParams{
-			RunID:   f.RunID,
-			RuleRef: f.RuleRef,
-			Message: f.Message,
-			Path:    f.Path,
-			Line:    lineNull,
+			RunID:       f.RunID,
+			RuleRef:     f.RuleRef,
+			Message:     f.Message,
+			Path:        f.Path,
+			Line:        lineNull,
+			Fingerprint: fingerprintNull,
 		}); err != nil {
 			return err
 		}
@@ -341,12 +351,13 @@ func (r *Repository) ListFindingsForRun(ctx context.Context, runID string) ([]re
 	findings := make([]repository.SarifFinding, len(rows))
 	for i, row := range rows {
 		findings[i] = repository.SarifFinding{
-			RuleID:   row.RuleID,
-			Message:  row.Message,
-			Path:     row.Path,
-			Line:     int(row.Line.Int64),
-			Severity: row.Severity,
-			Tool:     row.Tool,
+			RuleID:      row.RuleID,
+			Message:     row.Message,
+			Path:        row.Path,
+			Line:        int(row.Line.Int64),
+			Severity:    row.Severity,
+			Tool:        row.Tool,
+			Fingerprint: row.Fingerprint.String,
 		}
 	}
 	return findings, nil
@@ -369,6 +380,7 @@ func (r *Repository) ListFindingsForRepo(ctx context.Context, repoURL string, li
 			Line:          int(row.Line.Int64),
 			Severity:      row.Severity,
 			Tool:          row.Tool,
+			Fingerprint:   row.Fingerprint.String,
 			RunID:         row.RunID,
 			CommitMessage: row.CommitMessage,
 		}
