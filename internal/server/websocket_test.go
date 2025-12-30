@@ -25,7 +25,8 @@ func (m *MockRepository) GetRun(ctx context.Context, runID string) (*repository.
 	return &repository.RunMetadata{ID: runID, Status: "running", UIToken: "test-token"}, nil
 }
 func (m *MockRepository) UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error { return nil }
-func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) { return nil, nil }
+func (m *MockRepository) ListRuns(ctx context.Context, filter repository.RunFilter) ([]*repository.RunMetadata, error) { return nil, nil }
+func (m *MockRepository) ListRepos(ctx context.Context) ([]string, error) { return nil, nil }
 func (m *MockRepository) AppendLog(ctx context.Context, runID string, entry repository.LogEntry) error { return nil }
 func (m *MockRepository) AppendLogs(ctx context.Context, runID string, entries []repository.LogEntry) error { return nil }
 func (m *MockRepository) GetLogs(ctx context.Context, runID string) ([]repository.LogEntry, error) { return nil, nil }
@@ -38,6 +39,12 @@ func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) (
 func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error { return nil }
 func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
+func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error { return nil }
+func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error { return nil }
+func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error { return nil }
+func (m *MockRepository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error { return nil }
+func (m *MockRepository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) { return nil, nil }
+func (m *MockRepository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) { return nil, nil }
 
 func TestWebSocketHandshake(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

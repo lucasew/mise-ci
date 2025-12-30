@@ -20,6 +20,7 @@ message WorkerMessage {
     FileChunk file_chunk = 5;      // file chunk being sent
     Error error = 6;               // command error
     ContextRequest context_request = 7; // request for context
+    SaveArtifact save_artifact = 8; // save artifact (e.g. sarif report)
   }
 }
 
@@ -115,3 +116,9 @@ message Error {
 
 // Close connection
 message Close {}
+
+// Save artifact (simple one-shot upload for reports)
+message SaveArtifact {
+  string name = 1;
+  bytes data = 2;
+}

@@ -43,9 +43,14 @@ func (m *MockRepository) GetRun(ctx context.Context, runID string) (*repository.
 func (m *MockRepository) UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error {
 	return m.Called(ctx, runID, status, exitCode).Error(0)
 }
-func (m *MockRepository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
-	args := m.Called(ctx)
+func (m *MockRepository) ListRuns(ctx context.Context, filter repository.RunFilter) ([]*repository.RunMetadata, error) {
+	args := m.Called(ctx, filter)
 	return args.Get(0).([]*repository.RunMetadata), args.Error(1)
+}
+
+func (m *MockRepository) ListRepos(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]string), args.Error(1)
 }
 func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
 	args := m.Called(ctx, limit)
@@ -77,6 +82,27 @@ func (m *MockRepository) GetLogs(ctx context.Context, runID string) ([]repositor
 }
 func (m *MockRepository) Close() error {
 	return m.Called().Error(0)
+}
+
+func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error {
+	return m.Called(ctx, id, ruleID, severity, tool).Error(0)
+}
+func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error {
+	return m.Called(ctx, runID, ruleRef, message, path, line, fingerprint).Error(0)
+}
+func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error {
+	return m.Called(ctx, rules).Error(0)
+}
+func (m *MockRepository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error {
+	return m.Called(ctx, findings).Error(0)
+}
+func (m *MockRepository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) {
+	args := m.Called(ctx, runID)
+	return args.Get(0).([]repository.SarifFinding), args.Error(1)
+}
+func (m *MockRepository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) {
+	args := m.Called(ctx, repoURL, limit)
+	return args.Get(0).([]repository.SarifFinding), args.Error(1)
 }
 
 // MockForge for testing

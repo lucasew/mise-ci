@@ -125,6 +125,7 @@ type WorkerMessage struct {
 	//	*WorkerMessage_FileChunk
 	//	*WorkerMessage_Error
 	//	*WorkerMessage_ContextRequest
+	//	*WorkerMessage_SaveArtifact
 	Payload       isWorkerMessage_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -228,6 +229,15 @@ func (x *WorkerMessage) GetContextRequest() *ContextRequest {
 	return nil
 }
 
+func (x *WorkerMessage) GetSaveArtifact() *SaveArtifact {
+	if x != nil {
+		if x, ok := x.Payload.(*WorkerMessage_SaveArtifact); ok {
+			return x.SaveArtifact
+		}
+	}
+	return nil
+}
+
 type isWorkerMessage_Payload interface {
 	isWorkerMessage_Payload()
 }
@@ -256,6 +266,10 @@ type WorkerMessage_ContextRequest struct {
 	ContextRequest *ContextRequest `protobuf:"bytes,7,opt,name=context_request,json=contextRequest,proto3,oneof"` // request for context
 }
 
+type WorkerMessage_SaveArtifact struct {
+	SaveArtifact *SaveArtifact `protobuf:"bytes,8,opt,name=save_artifact,json=saveArtifact,proto3,oneof"` // save artifact (e.g. sarif report)
+}
+
 func (*WorkerMessage_RunnerInfo) isWorkerMessage_Payload() {}
 
 func (*WorkerMessage_Output) isWorkerMessage_Payload() {}
@@ -267,6 +281,8 @@ func (*WorkerMessage_FileChunk) isWorkerMessage_Payload() {}
 func (*WorkerMessage_Error) isWorkerMessage_Payload() {}
 
 func (*WorkerMessage_ContextRequest) isWorkerMessage_Payload() {}
+
+func (*WorkerMessage_SaveArtifact) isWorkerMessage_Payload() {}
 
 // Messages from server to worker
 type ServerMessage struct {
@@ -1063,11 +1079,64 @@ func (*Close) Descriptor() ([]byte, []int) {
 	return file_internal_proto_ci_proto_rawDescGZIP(), []int{13}
 }
 
+// Save artifact (simple one-shot upload for reports)
+type SaveArtifact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SaveArtifact) Reset() {
+	*x = SaveArtifact{}
+	mi := &file_internal_proto_ci_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SaveArtifact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SaveArtifact) ProtoMessage() {}
+
+func (x *SaveArtifact) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_proto_ci_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SaveArtifact.ProtoReflect.Descriptor instead.
+func (*SaveArtifact) Descriptor() ([]byte, []int) {
+	return file_internal_proto_ci_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *SaveArtifact) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SaveArtifact) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
 var File_internal_proto_ci_proto protoreflect.FileDescriptor
 
 const file_internal_proto_ci_proto_rawDesc = "" +
 	"\n" +
-	"\x17internal/proto/ci.proto\x12\x02ci\"\xb5\x02\n" +
+	"\x17internal/proto/ci.proto\x12\x02ci\"\xee\x02\n" +
 	"\rWorkerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x121\n" +
 	"\vrunner_info\x18\x02 \x01(\v2\x0e.ci.RunnerInfoH\x00R\n" +
@@ -1078,7 +1147,8 @@ const file_internal_proto_ci_proto_rawDesc = "" +
 	"\n" +
 	"file_chunk\x18\x05 \x01(\v2\r.ci.FileChunkH\x00R\tfileChunk\x12!\n" +
 	"\x05error\x18\x06 \x01(\v2\t.ci.ErrorH\x00R\x05error\x12=\n" +
-	"\x0fcontext_request\x18\a \x01(\v2\x12.ci.ContextRequestH\x00R\x0econtextRequestB\t\n" +
+	"\x0fcontext_request\x18\a \x01(\v2\x12.ci.ContextRequestH\x00R\x0econtextRequest\x127\n" +
+	"\rsave_artifact\x18\b \x01(\v2\x10.ci.SaveArtifactH\x00R\fsaveArtifactB\t\n" +
 	"\apayload\"\xcc\x01\n" +
 	"\rServerMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x1e\n" +
@@ -1143,7 +1213,10 @@ const file_internal_proto_ci_proto_rawDesc = "" +
 	"\x03eof\x18\x02 \x01(\bR\x03eof\"!\n" +
 	"\x05Error\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"\a\n" +
-	"\x05Close2=\n" +
+	"\x05Close\"6\n" +
+	"\fSaveArtifact\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data2=\n" +
 	"\x06Server\x123\n" +
 	"\aConnect\x12\x11.ci.WorkerMessage\x1a\x11.ci.ServerMessage(\x010\x01B\x10Z\x0einternal/protob\x06proto3"
 
@@ -1160,7 +1233,7 @@ func file_internal_proto_ci_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_proto_ci_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_internal_proto_ci_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_internal_proto_ci_proto_goTypes = []any{
 	(Copy_Direction)(0),     // 0: ci.Copy.Direction
 	(Output_Stream)(0),      // 1: ci.Output.Stream
@@ -1178,9 +1251,10 @@ var file_internal_proto_ci_proto_goTypes = []any{
 	(*FileChunk)(nil),       // 13: ci.FileChunk
 	(*Error)(nil),           // 14: ci.Error
 	(*Close)(nil),           // 15: ci.Close
-	nil,                     // 16: ci.ContextResponse.EnvEntry
-	nil,                     // 17: ci.RunnerInfo.ExtraEntry
-	nil,                     // 18: ci.Run.EnvEntry
+	(*SaveArtifact)(nil),    // 16: ci.SaveArtifact
+	nil,                     // 17: ci.ContextResponse.EnvEntry
+	nil,                     // 18: ci.RunnerInfo.ExtraEntry
+	nil,                     // 19: ci.Run.EnvEntry
 }
 var file_internal_proto_ci_proto_depIdxs = []int32{
 	6,  // 0: ci.WorkerMessage.runner_info:type_name -> ci.RunnerInfo
@@ -1189,24 +1263,25 @@ var file_internal_proto_ci_proto_depIdxs = []int32{
 	13, // 3: ci.WorkerMessage.file_chunk:type_name -> ci.FileChunk
 	14, // 4: ci.WorkerMessage.error:type_name -> ci.Error
 	4,  // 5: ci.WorkerMessage.context_request:type_name -> ci.ContextRequest
-	7,  // 6: ci.ServerMessage.copy:type_name -> ci.Copy
-	10, // 7: ci.ServerMessage.run:type_name -> ci.Run
-	15, // 8: ci.ServerMessage.close:type_name -> ci.Close
-	5,  // 9: ci.ServerMessage.context_response:type_name -> ci.ContextResponse
-	16, // 10: ci.ContextResponse.env:type_name -> ci.ContextResponse.EnvEntry
-	17, // 11: ci.RunnerInfo.extra:type_name -> ci.RunnerInfo.ExtraEntry
-	0,  // 12: ci.Copy.direction:type_name -> ci.Copy.Direction
-	8,  // 13: ci.Copy.creds:type_name -> ci.Credentials
-	9,  // 14: ci.Credentials.basic:type_name -> ci.BasicAuth
-	18, // 15: ci.Run.env:type_name -> ci.Run.EnvEntry
-	1,  // 16: ci.Output.stream:type_name -> ci.Output.Stream
-	2,  // 17: ci.Server.Connect:input_type -> ci.WorkerMessage
-	3,  // 18: ci.Server.Connect:output_type -> ci.ServerMessage
-	18, // [18:19] is the sub-list for method output_type
-	17, // [17:18] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	16, // 6: ci.WorkerMessage.save_artifact:type_name -> ci.SaveArtifact
+	7,  // 7: ci.ServerMessage.copy:type_name -> ci.Copy
+	10, // 8: ci.ServerMessage.run:type_name -> ci.Run
+	15, // 9: ci.ServerMessage.close:type_name -> ci.Close
+	5,  // 10: ci.ServerMessage.context_response:type_name -> ci.ContextResponse
+	17, // 11: ci.ContextResponse.env:type_name -> ci.ContextResponse.EnvEntry
+	18, // 12: ci.RunnerInfo.extra:type_name -> ci.RunnerInfo.ExtraEntry
+	0,  // 13: ci.Copy.direction:type_name -> ci.Copy.Direction
+	8,  // 14: ci.Copy.creds:type_name -> ci.Credentials
+	9,  // 15: ci.Credentials.basic:type_name -> ci.BasicAuth
+	19, // 16: ci.Run.env:type_name -> ci.Run.EnvEntry
+	1,  // 17: ci.Output.stream:type_name -> ci.Output.Stream
+	2,  // 18: ci.Server.Connect:input_type -> ci.WorkerMessage
+	3,  // 19: ci.Server.Connect:output_type -> ci.ServerMessage
+	19, // [19:20] is the sub-list for method output_type
+	18, // [18:19] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_internal_proto_ci_proto_init() }
@@ -1221,6 +1296,7 @@ func file_internal_proto_ci_proto_init() {
 		(*WorkerMessage_FileChunk)(nil),
 		(*WorkerMessage_Error)(nil),
 		(*WorkerMessage_ContextRequest)(nil),
+		(*WorkerMessage_SaveArtifact)(nil),
 	}
 	file_internal_proto_ci_proto_msgTypes[1].OneofWrappers = []any{
 		(*ServerMessage_Copy)(nil),
@@ -1238,7 +1314,7 @@ func file_internal_proto_ci_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_ci_proto_rawDesc), len(file_internal_proto_ci_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

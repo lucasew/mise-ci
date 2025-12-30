@@ -14,6 +14,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/httputil"
 	"github.com/lucasew/mise-ci/internal/markdown"
+	"github.com/lucasew/mise-ci/internal/repository"
 	"github.com/lucasew/mise-ci/internal/sseutil"
 	"github.com/lucasew/mise-ci/internal/version"
 )
@@ -81,12 +82,21 @@ func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 }
 
 func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
-	runs := s.core.GetAllRuns()
+	repoFilter := r.URL.Query().Get("repo")
+	var filter repository.RunFilter
+	filter.Limit = 100
+	if repoFilter != "" {
+		filter.RepoURL = &repoFilter
+	}
+
+	runs := s.core.ListRuns(filter)
 
 	// Sort by start time, newest first
 	sort.Slice(runs, func(i, j int) bool {
 		return runs[i].StartedAt.After(runs[j].StartedAt)
 	})
+
+	repos := s.core.GetRepos()
 
 	// Ensure we have a token for the status stream
 	token := r.URL.Query().Get("token")
@@ -101,10 +111,12 @@ func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":   "Runs",
-		"Runs":    runs,
-		"Token":   token,
-		"Version": version.Get(),
+		"Title":      "Runs",
+		"Runs":       runs,
+		"Repos":      repos,
+		"CurrentRepo": repoFilter,
+		"Token":      token,
+		"Version":    version.Get(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/index.html", data); err != nil {
@@ -146,6 +158,33 @@ func (s *UIServer) HandleRun(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.engine.Render(w, "templates/pages/run.html", data); err != nil {
 		s.logger.Error("failed to render template", "template", "run", "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func (s *UIServer) HandleRepoIssues(w http.ResponseWriter, r *http.Request) {
+	repo := r.URL.Query().Get("repo")
+	if repo == "" {
+		httputil.WriteErrorMessage(w, http.StatusBadRequest, "Missing repo parameter")
+		return
+	}
+
+	issues, err := s.core.ListFindingsForRepo(r.Context(), repo, 1000) // limit 1000
+	if err != nil {
+		s.logger.Error("failed to list issues", "repo", repo, "error", err)
+		httputil.WriteError(w, http.StatusInternalServerError, "Failed to fetch issues")
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":  fmt.Sprintf("Issues - %s", repo),
+		"Repo":   repo,
+		"Issues": issues,
+		"Version": version.Get(),
+	}
+
+	if err := s.engine.Render(w, "templates/pages/repo_issues.html", data); err != nil {
+		s.logger.Error("failed to render template", "template", "repo_issues", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "Internal Server Error")
 	}
 }

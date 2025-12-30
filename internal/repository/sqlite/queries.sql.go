@@ -44,6 +44,32 @@ func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int64, 
 	return column_1, err
 }
 
+const createFinding = `-- name: CreateFinding :exec
+INSERT INTO sarif_findings (run_id, rule_ref, message, path, line, fingerprint)
+VALUES (?, ?, ?, ?, ?, ?)
+`
+
+type CreateFindingParams struct {
+	RunID       string         `json:"run_id"`
+	RuleRef     string         `json:"rule_ref"`
+	Message     string         `json:"message"`
+	Path        string         `json:"path"`
+	Line        sql.NullInt64  `json:"line"`
+	Fingerprint sql.NullString `json:"fingerprint"`
+}
+
+func (q *Queries) CreateFinding(ctx context.Context, arg CreateFindingParams) error {
+	_, err := q.db.ExecContext(ctx, createFinding,
+		arg.RunID,
+		arg.RuleRef,
+		arg.Message,
+		arg.Path,
+		arg.Line,
+		arg.Fingerprint,
+	)
+	return err
+}
+
 const createRepo = `-- name: CreateRepo :exec
 INSERT INTO repos (clone_url)
 VALUES (?)
@@ -296,11 +322,157 @@ func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]G
 	return items, nil
 }
 
+const listFindingsForRepo = `-- name: ListFindingsForRepo :many
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint, runs.id as run_id, runs.commit_message
+FROM sarif_findings f
+JOIN sarif_rules r ON f.rule_ref = r.id
+JOIN runs ON f.run_id = runs.id
+WHERE runs.repo_url = ?
+ORDER BY runs.created_at DESC
+LIMIT ?
+`
+
+type ListFindingsForRepoParams struct {
+	RepoUrl sql.NullString `json:"repo_url"`
+	Limit   int64          `json:"limit"`
+}
+
+type ListFindingsForRepoRow struct {
+	RuleID        string         `json:"rule_id"`
+	Message       string         `json:"message"`
+	Path          string         `json:"path"`
+	Line          sql.NullInt64  `json:"line"`
+	Severity      string         `json:"severity"`
+	Tool          string         `json:"tool"`
+	Fingerprint   sql.NullString `json:"fingerprint"`
+	RunID         string         `json:"run_id"`
+	CommitMessage string         `json:"commit_message"`
+}
+
+func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFindingsForRepo, arg.RepoUrl, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFindingsForRepoRow{}
+	for rows.Next() {
+		var i ListFindingsForRepoRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Message,
+			&i.Path,
+			&i.Line,
+			&i.Severity,
+			&i.Tool,
+			&i.Fingerprint,
+			&i.RunID,
+			&i.CommitMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFindingsForRun = `-- name: ListFindingsForRun :many
+SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint
+FROM sarif_findings f
+JOIN sarif_rules r ON f.rule_ref = r.id
+WHERE f.run_id = ?
+`
+
+type ListFindingsForRunRow struct {
+	RuleID      string         `json:"rule_id"`
+	Message     string         `json:"message"`
+	Path        string         `json:"path"`
+	Line        sql.NullInt64  `json:"line"`
+	Severity    string         `json:"severity"`
+	Tool        string         `json:"tool"`
+	Fingerprint sql.NullString `json:"fingerprint"`
+}
+
+func (q *Queries) ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFindingsForRun, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFindingsForRunRow{}
+	for rows.Next() {
+		var i ListFindingsForRunRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Message,
+			&i.Path,
+			&i.Line,
+			&i.Severity,
+			&i.Tool,
+			&i.Fingerprint,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRepos = `-- name: ListRepos :many
+SELECT DISTINCT repo_url
+FROM runs
+WHERE repo_url IS NOT NULL AND repo_url != ''
+ORDER BY repo_url
+`
+
+func (q *Queries) ListRepos(ctx context.Context) ([]sql.NullString, error) {
+	rows, err := q.db.QueryContext(ctx, listRepos)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []sql.NullString{}
+	for rows.Next() {
+		var repo_url sql.NullString
+		if err := rows.Scan(&repo_url); err != nil {
+			return nil, err
+		}
+		items = append(items, repo_url)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRuns = `-- name: ListRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
+WHERE (?1 IS NULL OR repo_url = ?1)
 ORDER BY started_at DESC
+LIMIT ?3 OFFSET ?2
 `
+
+type ListRunsParams struct {
+	RepoUrl interface{} `json:"repo_url"`
+	Offset  int64       `json:"offset"`
+	Limit   int64       `json:"limit"`
+}
 
 type ListRunsRow struct {
 	ID            string         `json:"id"`
@@ -316,8 +488,8 @@ type ListRunsRow struct {
 	Branch        string         `json:"branch"`
 }
 
-func (q *Queries) ListRuns(ctx context.Context) ([]ListRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRuns)
+func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRuns, arg.RepoUrl, arg.Offset, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -386,6 +558,29 @@ func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams
 		arg.ExitCode,
 		arg.FinishedAt,
 		arg.ID,
+	)
+	return err
+}
+
+const upsertRule = `-- name: UpsertRule :exec
+INSERT INTO sarif_rules (id, rule_id, tool, severity)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(id) DO NOTHING
+`
+
+type UpsertRuleParams struct {
+	ID       string `json:"id"`
+	RuleID   string `json:"rule_id"`
+	Tool     string `json:"tool"`
+	Severity string `json:"severity"`
+}
+
+func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) error {
+	_, err := q.db.ExecContext(ctx, upsertRule,
+		arg.ID,
+		arg.RuleID,
+		arg.Tool,
+		arg.Severity,
 	)
 	return err
 }

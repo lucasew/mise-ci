@@ -69,6 +69,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	}))
 	mux.HandleFunc("/ui/logs/", s.authMiddleware.RequireRunToken(s.uiServer.HandleLogs))
 	mux.HandleFunc("/ui/status-stream", s.authMiddleware.RequireStatusStreamAuth(s.uiServer.HandleStatusStream))
+	mux.HandleFunc("/ui/issues", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleRepoIssues))
 
 	// Admin routes
 	mux.HandleFunc("/ui/admin/cleanup", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminCleanup))

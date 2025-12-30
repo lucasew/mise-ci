@@ -15,7 +15,18 @@ type Repository interface {
 	CreateRun(ctx context.Context, meta *RunMetadata) error
 	GetRun(ctx context.Context, runID string) (*RunMetadata, error)
 	UpdateRunStatus(ctx context.Context, runID string, status string, exitCode *int32) error
-	ListRuns(ctx context.Context) ([]*RunMetadata, error)
+	ListRuns(ctx context.Context, filter RunFilter) ([]*RunMetadata, error)
+
+	// Repo operations
+	ListRepos(ctx context.Context) ([]string, error)
+
+	// SARIF operations
+	UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error
+	CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error
+	BatchUpsertRules(ctx context.Context, rules []Rule) error
+	BatchCreateFindings(ctx context.Context, findings []Finding) error
+	ListFindingsForRun(ctx context.Context, runID string) ([]SarifFinding, error)
+	ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]SarifFinding, error)
 
 	// Maintenance
 	GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*RunMetadata, error)
@@ -57,4 +68,33 @@ type LogEntry struct {
 	Timestamp time.Time
 	Stream    string // "stdout", "stderr", "system"
 	Data      string
+}
+
+// SarifFinding represents a single issue finding
+type SarifFinding struct {
+	RuleID        string
+	Message       string
+	Path          string
+	Line          int
+	Severity      string
+	Tool          string
+	Fingerprint   string
+	RunID         string // for repo view
+	CommitMessage string // for repo view
+}
+
+type Rule struct {
+	ID       string
+	RuleID   string
+	Severity string
+	Tool     string
+}
+
+type Finding struct {
+	RunID       string
+	RuleRef     string
+	Message     string
+	Path        string
+	Line        int
+	Fingerprint string
 }

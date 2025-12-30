@@ -402,9 +402,23 @@ func (c *Core) GetRunInfo(runID string) (*RunInfo, bool) {
 }
 
 func (c *Core) GetAllRuns() []RunInfo {
+	return c.ListRuns(repository.RunFilter{Limit: 100})
+}
+
+func (c *Core) GetRepos() []string {
+	ctx := context.Background()
+	repos, err := c.repo.ListRepos(ctx)
+	if err != nil {
+		c.logger.Error("failed to list repos", "error", err)
+		return []string{}
+	}
+	return repos
+}
+
+func (c *Core) ListRuns(filter repository.RunFilter) []RunInfo {
 	ctx := context.Background()
 
-	repoRuns, err := c.repo.ListRuns(ctx)
+	repoRuns, err := c.repo.ListRuns(ctx, filter)
 	if err != nil {
 		c.logger.Error("failed to list runs from repository", "error", err)
 		return []RunInfo{}
@@ -475,4 +489,8 @@ func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEn
 	}
 
 	return logs, nil
+}
+
+func (c *Core) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) {
+	return c.repo.ListFindingsForRepo(ctx, repoURL, limit)
 }

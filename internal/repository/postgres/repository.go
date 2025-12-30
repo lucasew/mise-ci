@@ -169,8 +169,25 @@ func (r *Repository) UpdateRunStatus(ctx context.Context, runID string, status s
 	})
 }
 
-func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, error) {
-	rows, err := r.queries.ListRuns(ctx)
+func (r *Repository) ListRuns(ctx context.Context, filter repository.RunFilter) ([]*repository.RunMetadata, error) {
+	limit := int64(filter.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+	offset := int64(filter.Offset)
+	if offset < 0 {
+		offset = 0
+	}
+	var repoUrl sql.NullString
+	if filter.RepoURL != nil {
+		repoUrl = sql.NullString{String: *filter.RepoURL, Valid: true}
+	}
+
+	rows, err := r.queries.ListRuns(ctx, ListRunsParams{
+		RepoUrl: repoUrl,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +226,150 @@ func (r *Repository) ListRuns(ctx context.Context) ([]*repository.RunMetadata, e
 	}
 
 	return runs, nil
+}
+
+func (r *Repository) ListRepos(ctx context.Context) ([]string, error) {
+	rows, err := r.queries.ListRepos(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list repos: %w", err)
+	}
+
+	repos := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if row.Valid && row.String != "" {
+			repos = append(repos, row.String)
+		}
+	}
+	return repos, nil
+}
+
+func (r *Repository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error {
+	return r.queries.UpsertRule(ctx, UpsertRuleParams{
+		ID:       id,
+		RuleID:   ruleID,
+		Severity: severity,
+		Tool:     tool,
+	})
+}
+
+func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error {
+	var lineNull sql.NullInt32
+	if line > 0 {
+		lineNull = sql.NullInt32{Int32: int32(line), Valid: true}
+	}
+	var fingerprintNull sql.NullString
+	if fingerprint != "" {
+		fingerprintNull = sql.NullString{String: fingerprint, Valid: true}
+	}
+	return r.queries.CreateFinding(ctx, CreateFindingParams{
+		RunID:       runID,
+		RuleRef:     ruleRef,
+		Message:     message,
+		Path:        path,
+		Line:        lineNull,
+		Fingerprint: fingerprintNull,
+	})
+}
+
+func (r *Repository) BatchUpsertRules(ctx context.Context, rules []repository.Rule) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := r.queries.WithTx(tx)
+
+	for _, rule := range rules {
+		if err := qtx.UpsertRule(ctx, UpsertRuleParams{
+			ID:       rule.ID,
+			RuleID:   rule.RuleID,
+			Severity: rule.Severity,
+			Tool:     rule.Tool,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	qtx := r.queries.WithTx(tx)
+
+	for _, f := range findings {
+		var lineNull sql.NullInt32
+		if f.Line > 0 {
+			lineNull = sql.NullInt32{Int32: int32(f.Line), Valid: true}
+		}
+		var fingerprintNull sql.NullString
+		if f.Fingerprint != "" {
+			fingerprintNull = sql.NullString{String: f.Fingerprint, Valid: true}
+		}
+		if err := qtx.CreateFinding(ctx, CreateFindingParams{
+			RunID:       f.RunID,
+			RuleRef:     f.RuleRef,
+			Message:     f.Message,
+			Path:        f.Path,
+			Line:        lineNull,
+			Fingerprint: fingerprintNull,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) {
+	rows, err := r.queries.ListFindingsForRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	findings := make([]repository.SarifFinding, len(rows))
+	for i, row := range rows {
+		findings[i] = repository.SarifFinding{
+			RuleID:      row.RuleID,
+			Message:     row.Message,
+			Path:        row.Path,
+			Line:        int(row.Line.Int32),
+			Severity:    row.Severity,
+			Tool:        row.Tool,
+			Fingerprint: row.Fingerprint.String,
+		}
+	}
+	return findings, nil
+}
+
+func (r *Repository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) {
+	rows, err := r.queries.ListFindingsForRepo(ctx, ListFindingsForRepoParams{
+		RepoUrl: sql.NullString{String: repoURL, Valid: true},
+		Limit:   int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	findings := make([]repository.SarifFinding, len(rows))
+	for i, row := range rows {
+		findings[i] = repository.SarifFinding{
+			RuleID:        row.RuleID,
+			Message:       row.Message,
+			Path:          row.Path,
+			Line:          int(row.Line.Int32),
+			Severity:      row.Severity,
+			Tool:          row.Tool,
+			Fingerprint:   row.Fingerprint.String,
+			RunID:         row.RunID,
+			CommitMessage: row.CommitMessage,
+		}
+	}
+	return findings, nil
 }
 
 func (r *Repository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) {
