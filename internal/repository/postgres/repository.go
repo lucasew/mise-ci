@@ -252,17 +252,22 @@ func (r *Repository) UpsertRule(ctx context.Context, id, ruleID, severity, tool 
 	})
 }
 
-func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int) error {
+func (r *Repository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error {
 	var lineNull sql.NullInt32
 	if line > 0 {
 		lineNull = sql.NullInt32{Int32: int32(line), Valid: true}
 	}
+	var fingerprintNull sql.NullString
+	if fingerprint != "" {
+		fingerprintNull = sql.NullString{String: fingerprint, Valid: true}
+	}
 	return r.queries.CreateFinding(ctx, CreateFindingParams{
-		RunID:   runID,
-		RuleRef: ruleRef,
-		Message: message,
-		Path:    path,
-		Line:    lineNull,
+		RunID:       runID,
+		RuleRef:     ruleRef,
+		Message:     message,
+		Path:        path,
+		Line:        lineNull,
+		Fingerprint: fingerprintNull,
 	})
 }
 
