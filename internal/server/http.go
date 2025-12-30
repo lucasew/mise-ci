@@ -27,6 +27,22 @@ func getInstanceID() string {
 	return instanceID
 }
 
+// securityHeadersMiddleware adds common security headers to each response.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Content-Security-Policy: Restrict sources for content.
+		// 'unsafe-inline' is needed for SSE script and inline styles, which is a compromise.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
+		// X-Content-Type-Options: Prevent MIME-sniffing.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// X-Frame-Options: Prevent clickjacking.
+		w.Header().Set("X-Frame-Options", "DENY")
+		// Referrer-Policy: Control what referrer information is sent.
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 type HttpServer struct {
 	addr           string
 	service        *core.Service
@@ -83,7 +99,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 		}
 	})
 
-	return http.Serve(l, mux)
+	return http.Serve(l, securityHeadersMiddleware(mux))
 }
 
 func (s *HttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
