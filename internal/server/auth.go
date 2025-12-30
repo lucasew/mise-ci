@@ -33,6 +33,30 @@ func NewAuthMiddleware(c *core.Core, config *AuthConfig) *AuthMiddleware {
 	}
 }
 
+// checkBasicAuth handles the logic for validating a user's basic authentication credentials.
+// It returns true if the user is authenticated, false otherwise.
+// If authentication fails, it writes the appropriate error response and headers.
+func (m *AuthMiddleware) checkBasicAuth(w http.ResponseWriter, r *http.Request) bool {
+	if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
+		return false
+	}
+
+	user, pass, ok := r.BasicAuth()
+	passHash := sha256.Sum256([]byte(pass))
+	userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
+	passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
+	// Use a bitwise AND to prevent timing attacks from short-circuiting
+	if !ok || (userMatch&passMatch) != 1 {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return false
+	}
+
+	return true
+}
+
 // Helper: extract token from query parameter
 func extractTokenFromQuery(r *http.Request) string {
 	return r.URL.Query().Get("token")
@@ -69,21 +93,8 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 		}
 
 		// Fallback to Basic Auth for admins
-		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
-			return
-		}
-
-		user, pass, ok := r.BasicAuth()
-		passHash := sha256.Sum256([]byte(pass))
-		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		// Use a bitwise AND to prevent timing attacks from short-circuiting
-		if !ok || (userMatch&passMatch) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+		if !m.checkBasicAuth(w, r) {
+			return // checkBasicAuth handles the error response
 		}
 
 		next(w, r)
@@ -93,24 +104,9 @@ func (m *AuthMiddleware) RequireRunToken(next http.HandlerFunc) http.HandlerFunc
 // RequireBasicAuth protects admin endpoints (e.g. /ui/)
 func (m *AuthMiddleware) RequireBasicAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// If no credentials configured, deny access (always secure by default)
-		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
-			return
+		if !m.checkBasicAuth(w, r) {
+			return // checkBasicAuth handles the error response
 		}
-
-		user, pass, ok := r.BasicAuth()
-		passHash := sha256.Sum256([]byte(pass))
-		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		// Use a bitwise AND to prevent timing attacks from short-circuiting
-		if !ok || (userMatch&passMatch) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		next(w, r)
 	}
 }
@@ -132,27 +128,9 @@ func (m *AuthMiddleware) RequireStatusStreamAuth(next http.HandlerFunc) http.Han
 		}
 
 		// 2. Fallback to Basic Auth
-		// If no credentials configured, allow access (graceful degradation)
-		// but status stream requires auth, so we deny access if no credentials
-		if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
-			return
+		if !m.checkBasicAuth(w, r) {
+			return // checkBasicAuth handles the error response
 		}
-
-		user, pass, ok := r.BasicAuth()
-		passHash := sha256.Sum256([]byte(pass))
-		userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-		passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-		// Use a bitwise AND to prevent timing attacks from short-circuiting
-		if !ok || (userMatch&passMatch) != 1 {
-			// If they tried a token and it failed, we probably shouldn't prompt for Basic Auth if it was an API call?
-			// But since this is for SSE stream consumed by browser, browser handles 401 with WWW-Authenticate.
-			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
 		next(w, r)
 	}
 }
