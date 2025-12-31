@@ -1,12 +1,12 @@
 package server
 
 import (
-	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
 	"strings"
 
 	"github.com/lucasew/mise-ci/internal/core"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthConfig struct {
@@ -23,8 +23,11 @@ type AuthMiddleware struct {
 func NewAuthMiddleware(c *core.Core, config *AuthConfig) *AuthMiddleware {
 	var passHash []byte
 	if config.AdminPassword != "" {
-		hash := sha256.Sum256([]byte(config.AdminPassword))
-		passHash = hash[:]
+		// Panics on invalid cost, which is a programming error.
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPassword), bcrypt.DefaultCost)
+		if err == nil {
+			passHash = hashedPassword
+		}
 	}
 	return &AuthMiddleware{
 		core:              c,
@@ -37,18 +40,22 @@ func NewAuthMiddleware(c *core.Core, config *AuthConfig) *AuthMiddleware {
 // It returns true if the user is authenticated, false otherwise.
 // If authentication fails, it writes the appropriate error response and headers.
 func (m *AuthMiddleware) checkBasicAuth(w http.ResponseWriter, r *http.Request) bool {
-	if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" {
+	if m.authConfig.AdminUsername == "" || m.authConfig.AdminPassword == "" || len(m.adminPasswordHash) == 0 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 		http.Error(w, "Authentication required but not configured", http.StatusUnauthorized)
 		return false
 	}
 
 	user, pass, ok := r.BasicAuth()
-	passHash := sha256.Sum256([]byte(pass))
+
+	// Constant-time comparison for username
 	userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
-	passMatch := subtle.ConstantTimeCompare(passHash[:], m.adminPasswordHash)
-	// Use a bitwise AND to prevent timing attacks from short-circuiting
-	if !ok || (userMatch&passMatch) != 1 {
+
+	// bcrypt.CompareHashAndPassword is inherently resistant to timing attacks
+	err := bcrypt.CompareHashAndPassword(m.adminPasswordHash, []byte(pass))
+	passMatch := (err == nil)
+
+	if !ok || userMatch != 1 || !passMatch {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return false
