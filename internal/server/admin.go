@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/lucasew/mise-ci/internal/version"
 )
 
 func (s *UIServer) HandleAdminCleanup(w http.ResponseWriter, r *http.Request) {
@@ -15,7 +17,7 @@ func (s *UIServer) HandleAdminCleanup(w http.ResponseWriter, r *http.Request) {
 
 	data := map[string]interface{}{
 		"Title": "Maintenance",
-        "Version": "1.0.0", // TODO: use actual version
+        "Version": version.Get(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/admin_cleanup.html", data); err != nil {
