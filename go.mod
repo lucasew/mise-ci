@@ -8,7 +8,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/go-github/v80 v80.0.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/hashicorp/nomad/api v0.0.0-20251229083939-6c0bb0a00afe
+	github.com/hashicorp/nomad/api v0.0.0-20251230091655-8d07c2995a61
 	github.com/lib/pq v1.10.9
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/spf13/cobra v1.10.2
