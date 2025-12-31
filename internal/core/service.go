@@ -704,13 +704,16 @@ func (s *Service) HandleArtifact(runID, name string, data []byte) error {
 func (s *Service) sanitizeArgs(args []string) []string {
 	sanitized := make([]string, len(args))
 	for i, arg := range args {
-		if strings.Contains(arg, "x-access-token") {
-			if u, err := url.Parse(arg); err == nil && u.User != nil {
+		// Attempt to parse the argument as a URL to find and redact credentials.
+		if u, err := url.Parse(arg); err == nil && u.User != nil {
+			// If the URL has user info and a password is set, redact it.
+			if _, isSet := u.User.Password(); isSet {
 				u.User = url.UserPassword(u.User.Username(), "REDACTED")
 				sanitized[i] = u.String()
 				continue
 			}
 		}
+		// If it's not a URL with credentials, keep the original argument.
 		sanitized[i] = arg
 	}
 	return sanitized

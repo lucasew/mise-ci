@@ -1,0 +1,4 @@
+## 2024-08-01 - Robust Credential Sanitization
+**Vulnerability:** The `sanitizeArgs` function in `internal/core/service.go` used a highly specific, case-sensitive check for the username `x-access-token` to redact credentials from URLs. This approach was brittle and could easily fail to prevent the leakage of credentials in logs if different usernames or casing were used.
+**Learning:** Relying on specific string checks for credential sanitization is a flawed security practice. A more robust, generalized approach is required to effectively prevent sensitive data exposure. The solution is to parse arguments as URLs and redact any password found in the user information, regardless of the username.
+**Prevention:** Implement generalized sanitization routines that do not depend on specific credential formats. Always assume that credentials can appear in unexpected formats and design sanitization logic to be as comprehensive as possible.
