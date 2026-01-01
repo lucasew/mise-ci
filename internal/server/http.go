@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/lucasew/mise-ci/internal/core"
@@ -61,7 +62,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	// This avoids Go 1.22+ routing issues with wildcards containing dots
 	mux.HandleFunc("/ui/run/{run_id}", s.authMiddleware.RequireRunToken(func(w http.ResponseWriter, r *http.Request) {
 		runID := r.PathValue("run_id")
-		if len(runID) > 4 && runID[len(runID)-4:] == ".log" {
+		if strings.HasSuffix(runID, ".log") {
 			s.uiServer.HandleRunLogsText(w, r)
 		} else {
 			s.uiServer.HandleRun(w, r)
