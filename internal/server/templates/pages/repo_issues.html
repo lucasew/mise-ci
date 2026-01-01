@@ -1,44 +1,53 @@
-{{template "layout" .}}
-
 {{define "content"}}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Issues for {{.Repo}}</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h1>Issues: {{.Repo}}</h1>
         <div>
-            <button class="btn btn-outline-primary me-2" onclick="copyContext()">
-                Copy Context
-            </button>
-            <a href="/ui/" class="btn btn-outline-secondary">Back to Runs</a>
+            <button onclick="copyContext()" style="margin-right: 10px;">Copy Context</button>
+            <a href="/ui/?repo={{.Repo}}" class="button">Back to Runs</a>
         </div>
     </div>
 
     {{if .Issues}}
-    <table class="table table-striped table-hover">
+    <div id="issues-context" style="display: none;">
+        <issues>
+            {{range .Issues}}
+            <issue>
+                <severity>{{.Severity}}</severity>
+                <message>{{.Message}}</message>
+                <location>{{.Path}}:{{.Line}}</location>
+                <rule>{{.RuleID}}</rule>
+                <tool>{{.Tool}}</tool>
+            </issue>
+            {{end}}
+        </issues>
+    </div>
+
+    <table>
         <thead>
             <tr>
                 <th>Severity</th>
-                <th>Tool</th>
-                <th>Rule ID</th>
                 <th>Message</th>
                 <th>Location</th>
-                <th>Commit</th>
+                <th>Rule</th>
+                <th>Tool</th>
+                <th>Run</th>
             </tr>
         </thead>
         <tbody>
             {{range .Issues}}
             <tr>
                 <td>
-                    <span class="badge {{if eq .Severity "error"}}bg-danger{{else if eq .Severity "warning"}}bg-warning text-dark{{else}}bg-info text-dark{{end}}">
+                    <span class="status-badge {{if eq .Severity "error"}}failure{{else if eq .Severity "warning"}}error{{else}}scheduled{{end}}">
                         {{.Severity}}
                     </span>
                 </td>
-                <td>{{.Tool}}</td>
-                <td><code>{{.RuleID}}</code></td>
                 <td>{{.Message}}</td>
                 <td>{{.Path}}:{{.Line}}</td>
+                <td>{{.RuleID}}</td>
+                <td>{{.Tool}}</td>
                 <td>
                     <a href="/ui/run/{{.RunID}}">
-                        {{if .CommitMessage}}{{.CommitMessage | subject}}{{else}}{{.RunID}}{{end}}
+                        {{if .CommitMessage}}{{.CommitMessage | subject}}{{else}}Run #{{.RunID}}{{end}}
                     </a>
                 </td>
             </tr>
@@ -46,51 +55,17 @@
         </tbody>
     </table>
     {{else}}
-    <p class="text-muted">No issues found.</p>
+    <p>No issues found for this repository.</p>
     {{end}}
-</div>
 
-<script>
-function copyContext() {
-    const issues = [];
-    document.querySelectorAll('tbody tr').forEach(row => {
-        const cols = row.querySelectorAll('td');
-        // Extract data (robustness check: ensure row has expected columns)
-        if (cols.length >= 5) {
-            issues.push({
-                severity: cols[0].innerText.trim(),
-                tool: cols[1].innerText.trim(),
-                rule: cols[2].innerText.trim(),
-                message: cols[3].innerText.trim(),
-                location: cols[4].innerText.trim()
+    <script>
+        function copyContext() {
+            const context = document.getElementById('issues-context').innerHTML;
+            navigator.clipboard.writeText(context).then(function() {
+                alert('Issues context copied to clipboard!');
+            }, function(err) {
+                console.error('Async: Could not copy text: ', err);
             });
         }
-    });
-
-    // Build XML using DOM to ensure correct escaping
-    const doc = document.implementation.createDocument(null, 'context', null);
-    const issuesElem = doc.createElement('issues');
-    doc.documentElement.appendChild(issuesElem);
-
-    issues.forEach(i => {
-        const issueElem = doc.createElement('issue');
-        issueElem.setAttribute('tool', i.tool);
-        issueElem.setAttribute('rule', i.rule);
-        issueElem.setAttribute('location', i.location);
-        issueElem.setAttribute('severity', i.severity);
-        issueElem.textContent = i.message;
-        issuesElem.appendChild(issueElem);
-    });
-
-    const serializer = new XMLSerializer();
-    const xmlStr = serializer.serializeToString(doc);
-
-    navigator.clipboard.writeText(xmlStr).then(() => {
-        alert('Context copied to clipboard!');
-    }).catch(err => {
-        console.error('Failed to copy: ', err);
-        alert('Failed to copy context.');
-    });
-}
-</script>
+    </script>
 {{end}}
