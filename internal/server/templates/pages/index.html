@@ -15,6 +15,8 @@
             </select>
             {{if .CurrentRepo}}
             <a href="/ui/" style="text-decoration: none; margin-left: 10px; color: #666;">Clear</a>
+            <span style="margin: 0 5px;">|</span>
+            <a href="/ui/issues?repo={{.CurrentRepo}}" style="text-decoration: none; color: #666;">Issues</a>
             {{end}}
         </form>
     </div>
