@@ -10,33 +10,41 @@
             color: #f0f0f0;
             padding: 2px 0;
             display: inline-block;
-            width: 100%;
         }
-        /* Basic Terminal Colors */
-        .term-fg1 { color: #cc0000; } /* Red */
-        .term-fg2 { color: #4e9a06; } /* Green */
-        .term-fg3 { color: #c4a000; } /* Yellow */
-        .term-fg4 { color: #3465a4; } /* Blue */
-        .term-fg5 { color: #75507b; } /* Magenta */
-        .term-fg6 { color: #06989a; } /* Cyan */
-        .term-fg7 { color: #d3d7cf; } /* White */
+        /* Terminal Styles */
+        .term-fg1 { font-weight: bold; }
+        .term-fg2 { opacity: 0.7; }
+        .term-fg4 { text-decoration: underline; }
 
-        .term-bg1 { background-color: #cc0000; }
-        .term-bg2 { background-color: #4e9a06; }
-        .term-bg3 { background-color: #c4a000; }
-        .term-bg4 { background-color: #3465a4; }
-        .term-bg5 { background-color: #75507b; }
-        .term-bg6 { background-color: #06989a; }
-        .term-bg7 { background-color: #d3d7cf; }
+        /* Standard Foreground Colors (30-37) */
+        .term-fg30 { color: #2e3436; } /* Black */
+        .term-fg31 { color: #cc0000; } /* Red */
+        .term-fg32 { color: #4e9a06; } /* Green */
+        .term-fg33 { color: #c4a000; } /* Yellow */
+        .term-fg34 { color: #3465a4; } /* Blue */
+        .term-fg35 { color: #75507b; } /* Magenta */
+        .term-fg36 { color: #06989a; } /* Cyan */
+        .term-fg37 { color: #d3d7cf; } /* White */
 
-        /* Bright variants if needed, mapping to standard for simplicity */
-        .term-fg9 { color: #ef2929; }
-        .term-fg10 { color: #8ae234; }
-        .term-fg11 { color: #fce94f; }
-        .term-fg12 { color: #729fcf; }
-        .term-fg13 { color: #ad7fa8; }
-        .term-fg14 { color: #34e2e2; }
-        .term-fg15 { color: #eeeeec; }
+        /* Standard Background Colors (40-47) */
+        .term-bg40 { background-color: #2e3436; }
+        .term-bg41 { background-color: #cc0000; }
+        .term-bg42 { background-color: #4e9a06; }
+        .term-bg43 { background-color: #c4a000; }
+        .term-bg44 { background-color: #3465a4; }
+        .term-bg45 { background-color: #75507b; }
+        .term-bg46 { background-color: #06989a; }
+        .term-bg47 { background-color: #d3d7cf; }
+
+        /* High Intensity Foreground Colors (90-97) */
+        .term-fgi90 { color: #555753; } /* Bright Black (Gray) */
+        .term-fgi91 { color: #ef2929; } /* Bright Red */
+        .term-fgi92 { color: #8ae234; } /* Bright Green */
+        .term-fgi93 { color: #fce94f; } /* Bright Yellow */
+        .term-fgi94 { color: #729fcf; } /* Bright Blue */
+        .term-fgi95 { color: #ad7fa8; } /* Bright Magenta */
+        .term-fgi96 { color: #34e2e2; } /* Bright Cyan */
+        .term-fgi97 { color: #eeeeec; } /* Bright White */
     </style>
     <h1 class="run-title">Run: {{if .Run.CommitMessage}}{{.Run.CommitMessage | subject | markdown}}{{else}}{{.Run.ID}}{{end}}</h1>
 
