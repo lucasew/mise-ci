@@ -51,13 +51,14 @@
             font-family: 'Courier New', monospace;
             font-size: 0.9em;
             max-height: 600px;
-            overflow-y: auto;
+            overflow: auto;
         }
 
         .log-entry {
             margin: 0;
             white-space: pre;
-            overflow-x: auto;
+            min-width: 100%;
+            width: fit-content;
         }
 
         .log-timestamp {
