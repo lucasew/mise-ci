@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/abiosoft/mold v0.0.0-20250328135240-0a4c28cb836a
+	github.com/buildkite/terminal-to-html/v3 v3.16.8
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/go-github/v80 v80.0.0
