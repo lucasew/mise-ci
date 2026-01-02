@@ -456,7 +456,6 @@ func (g *GitHubForge) getAppClient() (*github.Client, error) {
 		"iss": g.appID,
 		"iat": time.Now().Add(-1 * time.Minute).Unix(),
 		"exp": time.Now().Add(10 * time.Minute).Unix(),
-		"alg": "RS256",
 	})
 
 	key, err := jwt.ParseRSAPrivateKeyFromPEM(g.privateKey)
