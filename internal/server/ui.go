@@ -218,10 +218,14 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to get logs from repository", "error", err)
 		// Continue mesmo com erro (run pode não ter logs ainda)
 	} else {
+		// Create a policy that allows terminal classes
+		p := bluemonday.NewPolicy()
+		p.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("span")
+
 		// Send historical logs
 		for _, log := range historicalLogs {
 			rendered := terminal.Render([]byte(log.Data))
-			sanitized := bluemonday.UGCPolicy().SanitizeBytes([]byte(rendered))
+			sanitized := p.SanitizeBytes([]byte(rendered))
 			if err := sseutil.WriteEvent(w, map[string]interface{}{
 				"timestamp": log.Timestamp.Format(time.RFC3339),
 				"stream":    log.Stream,
@@ -234,6 +238,9 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stream new logs
+	p := bluemonday.NewPolicy()
+	p.AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("span")
+
 	for {
 		select {
 		case logs, ok := <-logCh:
@@ -242,7 +249,7 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 			}
 			for _, log := range logs {
 				rendered := terminal.Render([]byte(log.Data))
-				sanitized := bluemonday.UGCPolicy().SanitizeBytes([]byte(rendered))
+				sanitized := p.SanitizeBytes([]byte(rendered))
 				if err := sseutil.WriteEvent(w, map[string]interface{}{
 					"timestamp": log.Timestamp.Format(time.RFC3339),
 					"stream":    log.Stream,
