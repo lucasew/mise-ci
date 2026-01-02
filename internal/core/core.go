@@ -250,9 +250,20 @@ func (c *Core) GenerateUIToken(runID string) (string, error) {
 }
 
 func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) {
+	now := time.Now()
+	var expiresAt *jwt.NumericDate
+	if tokenType == TokenTypeUI {
+		expiresAt = jwt.NewNumericDate(now.Add(24 * time.Hour))
+	} else {
+		expiresAt = jwt.NewNumericDate(now.Add(1 * time.Hour))
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"run_id": runID,
 		"type":   tokenType,
+		"exp":    expiresAt,
+		"nbf":    jwt.NewNumericDate(now),
+		"iat":    jwt.NewNumericDate(now),
 	})
 	return token.SignedString(c.jwtSecret)
 }
