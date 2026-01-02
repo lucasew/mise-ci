@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/abiosoft/mold"
+	"github.com/buildkite/terminal-to-html/v3"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/httputil"
 	"github.com/lucasew/mise-ci/internal/markdown"
@@ -218,10 +220,12 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Send historical logs
 		for _, log := range historicalLogs {
+			rendered := terminal.Render([]byte(log.Data))
+			sanitized := bluemonday.UGCPolicy().SanitizeBytes([]byte(rendered))
 			if err := sseutil.WriteEvent(w, map[string]interface{}{
 				"timestamp": log.Timestamp.Format(time.RFC3339),
 				"stream":    log.Stream,
-				"data":      log.Data,
+				"data":      string(sanitized),
 			}); err != nil {
 				s.logger.Warn("failed to write sse event", "error", err)
 			}
@@ -237,10 +241,12 @@ func (s *UIServer) HandleLogs(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			for _, log := range logs {
+				rendered := terminal.Render([]byte(log.Data))
+				sanitized := bluemonday.UGCPolicy().SanitizeBytes([]byte(rendered))
 				if err := sseutil.WriteEvent(w, map[string]interface{}{
 					"timestamp": log.Timestamp.Format(time.RFC3339),
 					"stream":    log.Stream,
-					"data":      log.Data,
+					"data":      string(sanitized),
 				}); err != nil {
 					s.logger.Warn("failed to write sse event", "error", err)
 				}
@@ -289,7 +295,7 @@ func (s *UIServer) HandleRunLogsText(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	for _, log := range logs {
-		if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, log.Data); err != nil {
+		if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, strings.TrimRight(log.Data, "\n")); err != nil {
 			s.logger.Warn("failed to write log line", "error", err)
 		}
 	}
