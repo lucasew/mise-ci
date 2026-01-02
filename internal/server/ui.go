@@ -289,7 +289,7 @@ func (s *UIServer) HandleRunLogsText(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	for _, log := range logs {
-		if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, log.Data); err != nil {
+		if _, err := fmt.Fprintf(w, "[%s] %s: %s\n", log.Timestamp.Format(time.RFC3339), log.Stream, strings.TrimRight(log.Data, "\n")); err != nil {
 			s.logger.Warn("failed to write log line", "error", err)
 		}
 	}
