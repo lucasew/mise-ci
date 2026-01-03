@@ -82,5 +82,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	if cfg.JWT.Secret == "" {
+		return nil, fmt.Errorf("jwt.secret is required")
+	}
+
 	return &cfg, nil
 }
