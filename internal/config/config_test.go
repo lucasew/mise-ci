@@ -44,3 +44,52 @@ nomad:
 		t.Errorf("expected 1, got %d", cfg.GitHub.AppID)
 	}
 }
+
+func TestLoad_IncompleteAuthConfig(t *testing.T) {
+	testCases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "OnlyUsername",
+			content: `
+jwt:
+  secret: "test"
+auth:
+  admin_username: "admin"
+`,
+		},
+		{
+			name: "OnlyPassword",
+			content: `
+jwt:
+  secret: "test"
+auth:
+  admin_password: "password"
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp, err := os.CreateTemp("", "config-*.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				_ = os.Remove(tmp.Name())
+			}()
+			if _, err := tmp.Write([]byte(tc.content)); err != nil {
+				t.Fatal(err)
+			}
+			if err := tmp.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = Load(tmp.Name())
+			if err == nil {
+				t.Error("expected an error for incomplete auth config, but got nil")
+			}
+		})
+	}
+}

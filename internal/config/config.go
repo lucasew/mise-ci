@@ -86,5 +86,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("jwt.secret is required")
 	}
 
+	// Validate that if one of auth config is provided, the other one is also provided
+	if (cfg.Auth.AdminUsername != "") != (cfg.Auth.AdminPassword != "") {
+		return nil, fmt.Errorf("auth.admin_username and auth.admin_password must be configured together")
+	}
+
 	return &cfg, nil
 }
