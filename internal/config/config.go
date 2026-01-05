@@ -20,6 +20,7 @@ type Config struct {
 type AuthConfig struct {
 	AdminUsername string `mapstructure:"admin_username"`
 	AdminPassword string `mapstructure:"admin_password"`
+	BcryptCost    int    `mapstructure:"bcrypt_cost"`
 }
 
 type ServerConfig struct {
@@ -63,6 +64,7 @@ func Load(path string) (*Config, error) {
 	v.SetDefault("storage.data_dir", "./data/artifacts")
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "mise-ci.db")
+	v.SetDefault("auth.bcrypt_cost", 12)
 
 	// Config file settings
 	if path != "" {

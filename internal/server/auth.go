@@ -5,26 +5,26 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/core"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type AuthConfig struct {
-	AdminUsername string
-	AdminPassword string
-}
-
 type AuthMiddleware struct {
 	core              *core.Core
-	authConfig        *AuthConfig
+	authConfig        *config.AuthConfig
 	adminPasswordHash []byte
 }
 
-func NewAuthMiddleware(c *core.Core, config *AuthConfig) *AuthMiddleware {
+func NewAuthMiddleware(c *core.Core, config *config.AuthConfig) *AuthMiddleware {
 	var passHash []byte
 	if config.AdminPassword != "" {
+		cost := config.BcryptCost
+		if cost == 0 {
+			cost = bcrypt.DefaultCost
+		}
 		// Panics on invalid cost, which is a programming error.
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPassword), bcrypt.DefaultCost)
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(config.AdminPassword), cost)
 		if err == nil {
 			passHash = hashedPassword
 		}

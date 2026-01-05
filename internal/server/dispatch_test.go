@@ -5,14 +5,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/lucasew/mise-ci/internal/config"
 	"github.com/lucasew/mise-ci/internal/core"
 )
 
 func TestDispatchAuth(t *testing.T) {
 	// Setup minimal auth middleware
-	authConfig := &AuthConfig{
+	authConfig := &config.AuthConfig{
 		AdminUsername: "admin",
 		AdminPassword: "password",
+		BcryptCost:    4, // Use minimum cost for tests
 	}
 	// We pass nil core since we don't need token validation for Basic Auth
 	mw := NewAuthMiddleware(&core.Core{}, authConfig)
