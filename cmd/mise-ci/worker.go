@@ -252,14 +252,16 @@ func wsafeSend(conn *websocket.Conn, msg *pb.WorkerMessage) error {
 }
 
 func wsendError(conn *websocket.Conn, id uint64, err error) {
-	_ = wsafeSend(conn, &pb.WorkerMessage{
+	if err := wsafeSend(conn, &pb.WorkerMessage{
 		Id: id,
 		Payload: &pb.WorkerMessage_Error{
 			Error: &pb.Error{
 				Message: err.Error(),
 			},
 		},
-	})
+	}); err != nil {
+		logger.Error("failed to send error message to server", "error", err)
+	}
 }
 
 func handleCopy(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Copy, logger *slog.Logger) error {
@@ -517,7 +519,7 @@ func streamOutput(ctx context.Context, conn *websocket.Conn, id uint64, r io.Rea
 		copy(b, data)
 		b[len(data)] = '\n'
 
-		_ = wsafeSend(conn, &pb.WorkerMessage{
+		if err := wsafeSend(conn, &pb.WorkerMessage{
 			Id: id,
 			Payload: &pb.WorkerMessage_Output{
 				Output: &pb.Output{
@@ -525,6 +527,8 @@ func streamOutput(ctx context.Context, conn *websocket.Conn, id uint64, r io.Rea
 					Data:   b,
 				},
 			},
-		})
+		}); err != nil {
+			logger.Warn("failed to stream output to server", "error", err)
+		}
 	}
 }
