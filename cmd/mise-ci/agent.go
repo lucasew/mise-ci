@@ -137,10 +137,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 
 	svc := core.NewService(appCore, forges, r, artifactStorage, &cfg, logger)
 
-	authMiddleware := server.NewAuthMiddleware(appCore, &server.AuthConfig{
-		AdminUsername: cfg.Auth.AdminUsername,
-		AdminPassword: cfg.Auth.AdminPassword,
-	})
+	authMiddleware := server.NewAuthMiddleware(appCore, &cfg.Auth)
 
 	wsSrv := server.NewWebSocketServer(appCore, logger)
 	uiSrv := server.NewUIServer(appCore, logger)
