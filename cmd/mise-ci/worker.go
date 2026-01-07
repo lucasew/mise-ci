@@ -362,14 +362,7 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 		c.Env = append(c.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Log environment keys for debugging
-	envKeys := make([]string, 0, len(c.Env))
-	for _, e := range c.Env {
-		if idx := strings.Index(e, "="); idx != -1 {
-			envKeys = append(envKeys, e[:idx])
-		}
-	}
-	logger.Debug("running command with env", "keys", envKeys)
+	logger.Debug("running command")
 
 	stdout, err := c.StdoutPipe()
 	if err != nil {
