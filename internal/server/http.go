@@ -21,7 +21,7 @@ func getInstanceID() string {
 	instanceIDOnce.Do(func() {
 		b := make([]byte, 16)
 		if _, err := rand.Read(b); err != nil {
-			slog.Error("failed to generate instance ID", "error", err)
+			panic("failed to generate instance ID: " + err.Error())
 		}
 		instanceID = hex.EncodeToString(b)
 	})
