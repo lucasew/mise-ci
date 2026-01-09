@@ -48,6 +48,22 @@ func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer
 	}
 }
 
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Prevent MIME-type sniffing
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// A more balanced Content Security Policy
+		// - default-src 'self': Restricts all resources to the same origin.
+		// - script-src 'self' 'unsafe-inline': Allows scripts from the same origin and inline scripts.
+		// - style-src 'self' 'unsafe-inline': Allows styles from the same origin and inline styles.
+		// - img-src *: Allows images from any source.
+		// - frame-ancestors 'none': Prevents the page from being embedded in an iframe (replaces X-Frame-Options).
+		csp := "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src *; frame-ancestors 'none';"
+		w.Header().Set("Content-Security-Policy", csp)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *HttpServer) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
@@ -85,7 +101,7 @@ func (s *HttpServer) Serve(l net.Listener) error {
 		}
 	})
 
-	return http.Serve(l, mux)
+	return http.Serve(l, securityHeadersMiddleware(mux))
 }
 
 func (s *HttpServer) handleHealth(w http.ResponseWriter, r *http.Request) {
