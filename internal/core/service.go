@@ -560,7 +560,7 @@ func (s *Service) runCommand(run *Run, env map[string]string, cmd string, args .
 // runCommandSync executes a command and waits for it to complete
 func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, args ...string) error {
 	id := run.NextOpID.Add(1)
-	s.Logger.Info("executing command", "cmd", cmd, "args", s.sanitizeArgs(args))
+	s.Logger.Info("executing command", "cmd", s.sanitizeArgs([]string{cmd})[0], "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	if !s.waitForDone(run, cmd) {
@@ -572,7 +572,7 @@ func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, ar
 // runCommandCapture executes a command and captures stdout, returning it as a string
 func (s *Service) runCommandCapture(run *Run, env map[string]string, cmd string, args ...string) (string, error) {
 	id := run.NextOpID.Add(1)
-	s.Logger.Info("executing command capture", "cmd", cmd, "args", s.sanitizeArgs(args))
+	s.Logger.Info("executing command capture", "cmd", s.sanitizeArgs([]string{cmd})[0], "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	var outputBuilder strings.Builder
