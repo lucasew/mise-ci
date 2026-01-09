@@ -560,7 +560,7 @@ func (s *Service) runCommand(run *Run, env map[string]string, cmd string, args .
 // runCommandSync executes a command and waits for it to complete
 func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, args ...string) error {
 	id := run.NextOpID.Add(1)
-	s.Logger.Info("executing command", "cmd", s.sanitizeArgs([]string{cmd})[0], "args", s.sanitizeArgs(args))
+	s.Logger.Info("executing command", "cmd", s.sanitizeArg(cmd), "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	if !s.waitForDone(run, cmd) {
@@ -572,7 +572,7 @@ func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, ar
 // runCommandCapture executes a command and captures stdout, returning it as a string
 func (s *Service) runCommandCapture(run *Run, env map[string]string, cmd string, args ...string) (string, error) {
 	id := run.NextOpID.Add(1)
-	s.Logger.Info("executing command capture", "cmd", s.sanitizeArgs([]string{cmd})[0], "args", s.sanitizeArgs(args))
+	s.Logger.Info("executing command capture", "cmd", s.sanitizeArg(cmd), "args", s.sanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	var outputBuilder strings.Builder
@@ -735,25 +735,27 @@ var secretPatterns = []secretPattern{
 	},
 }
 
+func (s *Service) sanitizeArg(arg string) string {
+	// 1. Handle well-formed URLs first, as it's the most robust method.
+	if u, err := url.Parse(arg); err == nil && u.User != nil {
+		if _, isSet := u.User.Password(); isSet {
+			u.User = url.UserPassword(u.User.Username(), "[REDACTED]")
+			return u.String()
+		}
+	}
+
+	// 2. If not a URL with a password, apply regex for other common secret patterns.
+	sanitizedArg := arg
+	for _, p := range secretPatterns {
+		sanitizedArg = p.Pattern.ReplaceAllString(sanitizedArg, p.Replacement)
+	}
+	return sanitizedArg
+}
+
 func (s *Service) sanitizeArgs(args []string) []string {
 	sanitized := make([]string, len(args))
 	for i, arg := range args {
-		sanitizedArg := arg
-
-		// 1. Handle well-formed URLs first, as it's the most robust method.
-		if u, err := url.Parse(sanitizedArg); err == nil && u.User != nil {
-			if _, isSet := u.User.Password(); isSet {
-				u.User = url.UserPassword(u.User.Username(), "[REDACTED]")
-				sanitized[i] = u.String()
-				continue // Argument sanitized, move to the next one.
-			}
-		}
-
-		// 2. If not a URL with a password, apply regex for other common secret patterns.
-		for _, p := range secretPatterns {
-			sanitizedArg = p.Pattern.ReplaceAllString(sanitizedArg, p.Replacement)
-		}
-		sanitized[i] = sanitizedArg
+		sanitized[i] = s.sanitizeArg(arg)
 	}
 	return sanitized
 }
