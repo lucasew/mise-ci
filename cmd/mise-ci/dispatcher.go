@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lucasew/mise-ci/internal/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -204,7 +205,7 @@ func runWorkerContainer(serverURL string, run *PollResponse, image string) error
 	// Construir comando Docker
 	args := []string{
 		"run",
-		"--rm", // Remove container ao finalizar
+		"--rm",              // Remove container ao finalizar
 		"--network", "host", // Usar network do host para acesso ao servidor
 	}
 

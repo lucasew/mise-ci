@@ -70,6 +70,7 @@ jobs:
 
     - name: Build binaries
       run: |
+        set -eu
         mkdir build -p && ls && pwd
 
         echo "# Built targets" >> $GITHUB_STEP_SUMMARY
