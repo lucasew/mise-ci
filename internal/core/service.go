@@ -302,6 +302,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	env := map[string]string{
 		"CI":                 "true",
 		"MISE_CI":            "true",
+		// Configure git to trust the directory via env vars (cleaner than running git config commands)
 		"GIT_CONFIG_COUNT":   "1",
 		"GIT_CONFIG_KEY_0":   "safe.directory",
 		"GIT_CONFIG_VALUE_0": "*",
@@ -364,9 +365,8 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials, dispatchParams runner.RunParams) bool {
 	// Prepare generic CI environment variables
 	env := map[string]string{
-		"CI":      "true",
-		"MISE_CI": "true",
-		// Configure git to trust the directory via env vars (cleaner than running git config commands)
+		"CI":                 "true",
+		"MISE_CI":            "true",
 		"GIT_CONFIG_COUNT":   "1",
 		"GIT_CONFIG_KEY_0":   "safe.directory",
 		"GIT_CONFIG_VALUE_0": "*",
@@ -415,145 +415,121 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
 
 	defer func() {
-		run.CommandCh <- &pb.ServerMessage{
-			Id: 9999,
-			Payload: &pb.ServerMessage_Close{
-				Close: &pb.Close{},
-			},
-		}
+		run.CommandCh <- msgutil.NewCloseCommand(9999)
 	}()
 
 	// Build git clone URL with credentials
 	cloneURL := event.Clone
 	if creds.Token != "" {
-		// Parse URL and add token
 		if u, err := url.Parse(event.Clone); err == nil {
 			u.User = url.UserPassword("x-access-token", creds.Token)
 			cloneURL = u.String()
 		}
 	}
 
-	s.Logger.Info("cloning repository")
-	// Clone typically doesn't need the env vars, but we pass them for consistency if needed later
-	if !s.runCommand(run, env, "git", "clone", cloneURL, ".") {
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
-	if !s.runCommand(run, env, "git", "fetch", "origin", event.Ref) {
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
-	if !s.runCommand(run, env, "git", "checkout", event.SHA) {
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
-	if !s.runCommand(run, env, "mise", "trust") {
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
-	if !s.runCommand(run, env, "mise", "install") {
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
-	// Check tasks
-	tasksOutput, err := s.runCommandCapture(run, env, "mise", "tasks", "--json")
-	if err != nil {
-		s.Logger.Error("failed to list tasks", "error", err)
-		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-		return false
-	}
-
+	pipeline := orchestration.NewPipeline(run.ID, s.Core, s.Logger)
 	var tasks []struct {
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal([]byte(tasksOutput), &tasks); err != nil {
-		s.Logger.Error("failed to parse tasks json", "error", err)
+
+	pipeline.AddStep("clone", "Cloning repository", func() error {
+		return s.runCommandSync(run, env, "git", "clone", cloneURL, ".")
+	}).AddStep("fetch", "Fetching ref", func() error {
+		return s.runCommandSync(run, env, "git", "fetch", "origin", event.Ref)
+	}).AddStep("checkout", "Checking out SHA", func() error {
+		return s.runCommandSync(run, env, "git", "checkout", event.SHA)
+	}).AddStep("trust", "Trusting mise", func() error {
+		return s.runCommandSync(run, env, "mise", "trust")
+	}).AddStep("install", "Installing tools", func() error {
+		return s.runCommandSync(run, env, "mise", "install")
+	}).AddStep("tasks", "Listing tasks", func() error {
+		tasksOutput, err := s.runCommandCapture(run, env, "mise", "tasks", "--json")
+		if err != nil {
+			return err
+		}
+		return json.Unmarshal([]byte(tasksOutput), &tasks)
+	}).AddStep("codegen", "Running codegen", func() error {
+		if !hasTask(tasks, "codegen") {
+			s.Logger.Info("no 'codegen' task found, skipping")
+			return nil
+		}
+		if err := s.runCommandSync(run, env, "mise", "run", "codegen"); err != nil {
+			s.Logger.Error("codegen failed, continuing", "error", err)
+			s.Core.AddLog(run.ID, "system", "Codegen task failed, proceeding with caution.")
+			return nil // soft fail
+		}
+		statusOutput, err := s.runCommandCapture(run, env, "git", "status", "--porcelain")
+		if err != nil {
+			// Log error and continue, don't fail the run
+			s.Logger.Error("failed to check git status", "error", err)
+			return nil
+		}
+		if strings.TrimSpace(statusOutput) == "" {
+			return nil
+		}
+		s.Core.AddLog(run.ID, "system", "Codegen resulted in file changes. Creating PR...")
+		branchName := "miseci-codegen"
+		prPipeline := orchestration.NewPipeline(run.ID, s.Core, s.Logger)
+		prPipeline.AddStep("configure-git", "Configuring git user", func() error {
+			if err := s.runCommandSync(run, env, "git", "config", "user.name", "mise-ci"); err != nil {
+				return err
+			}
+			return s.runCommandSync(run, env, "git", "config", "user.email", "mise-ci@localhost")
+		}).AddStep("checkout-branch", "Checking out new branch", func() error {
+			return s.runCommandSync(run, env, "git", "checkout", "-b", branchName)
+		}).AddStep("add-changes", "Adding changes", func() error {
+			return s.runCommandSync(run, env, "git", "add", "-A")
+		}).AddStep("commit-changes", "Committing changes", func() error {
+			return s.runCommandSync(run, env, "git", "commit", "-m", "chore: codegen updates")
+		}).AddStep("push-changes", "Pushing changes", func() error {
+			s.runCommandSync(run, env, "git", "remote", "set-url", "origin", cloneURL)
+			return s.runCommandSync(run, env, "git", "push", "origin", branchName, "--force")
+		}).AddStep("create-pr", "Creating pull request", func() error {
+			prURL, err := f.CreatePullRequest(ctx, event.Repo, event.Branch, branchName, "chore: codegen updates", "Automated codegen updates triggered by mise-ci.")
+			if err != nil {
+				return err
+			}
+			s.Core.AddLog(run.ID, "system", fmt.Sprintf("PR created: %s", prURL))
+			return nil
+		})
+		if err := prPipeline.Run(); err != nil {
+			s.Core.AddLog(run.ID, "system", fmt.Sprintf("Failed to create PR: %v", err))
+		}
+		return nil
+	}).AddStep("ci", "Running CI", func() error {
+		if !hasTask(tasks, "ci") {
+			s.Logger.Info("no 'ci' task found, skipping")
+			s.Core.AddLog(run.ID, "system", "No 'ci' task found in mise.toml, skipping CI step.")
+			s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
+			return nil
+		}
+		return s.runCommandSync(run, env, "mise", "run", "ci")
+	})
+
+	if err := pipeline.Run(); err != nil {
 		s.Core.UpdateStatus(run.ID, StatusFailure, nil)
 		return false
 	}
 
-	hasCITask := false
-	hasCodegenTask := false
-	for _, task := range tasks {
-		if task.Name == "ci" {
-			hasCITask = true
-		}
-		if task.Name == "codegen" {
-			hasCodegenTask = true
-		}
-	}
-
-	if hasCodegenTask {
-		s.Logger.Info("running codegen task")
-		// If codegen fails, we log it but continue ("se der pau só avisa no status e segue o jogo")
-		if err := s.runCommandSync(run, env, "mise", "run", "codegen"); err != nil {
-			s.Logger.Error("codegen failed", "error", err)
-			s.Core.AddLog(run.ID, "system", "Codegen task failed, proceeding with caution.")
-		} else {
-			// Check for dirty tree
-			statusOutput, err := s.runCommandCapture(run, env, "git", "status", "--porcelain")
-			if err != nil {
-				s.Logger.Error("failed to check git status", "error", err)
-			} else if strings.TrimSpace(statusOutput) != "" {
-				s.Logger.Info("codegen resulted in dirty tree, creating PR")
-				s.Core.AddLog(run.ID, "system", "Codegen resulted in file changes. Creating PR...")
-
-				// Create PR
-				branchName := "miseci-codegen"
-
-				// Configure git user
-				s.runCommand(run, env, "git", "config", "user.name", "mise-ci")
-				s.runCommand(run, env, "git", "config", "user.email", "mise-ci@localhost")
-
-				s.runCommand(run, env, "git", "checkout", "-b", branchName)
-				s.runCommand(run, env, "git", "add", "-A")
-				s.runCommand(run, env, "git", "commit", "-m", "chore: codegen updates")
-
-				// Push
-				// Need to re-add token to remote URL if needed, but we can just use the token in env?
-				// git push usually needs credentials helper or URL with token.
-				// In Orchestrate we already have cloneURL which might have the token.
-				// But we are pushing to 'origin'.
-				// Let's set the remote url to be sure.
-				s.runCommand(run, env, "git", "remote", "set-url", "origin", cloneURL)
-
-				if s.runCommand(run, env, "git", "push", "origin", branchName, "--force") {
-					prURL, err := f.CreatePullRequest(ctx, event.Repo, event.Branch, branchName, "chore: codegen updates", "Automated codegen updates triggered by mise-ci.")
-					if err != nil {
-						s.Logger.Error("failed to create PR", "error", err)
-						s.Core.AddLog(run.ID, "system", fmt.Sprintf("Failed to create PR: %v", err))
-					} else {
-						s.Logger.Info("PR created", "url", prURL)
-						s.Core.AddLog(run.ID, "system", fmt.Sprintf("PR created: %s", prURL))
-					}
-				} else {
-					s.Logger.Error("failed to push branch")
-					s.Core.AddLog(run.ID, "system", "Failed to push codegen branch")
-				}
-			}
-		}
-	}
-
-	if hasCITask {
-		if !s.runCommand(run, env, "mise", "run", "ci") {
-			s.Core.UpdateStatus(run.ID, StatusFailure, nil)
-			return false
-		}
+	runInfo, ok := s.Core.GetRunInfo(run.ID)
+	if ok && runInfo.Status != StatusSkipped {
 		s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
-	} else {
-		s.Logger.Info("no 'ci' task found, skipping")
-		s.Core.AddLog(run.ID, "system", "No 'ci' task found in mise.toml, skipping CI step.")
-		s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
 	}
 
 	s.Core.AddLog(run.ID, "system", "Build completed")
 
 	return true
+}
+
+func hasTask(tasks []struct {
+	Name string `json:"name"`
+}, name string) bool {
+	for _, task := range tasks {
+		if task.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) runCommand(run *Run, env map[string]string, cmd string, args ...string) bool {
