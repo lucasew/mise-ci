@@ -367,10 +367,6 @@ func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) 
 	return token.SignedString(c.jwtSecret)
 }
 
-func (c *Core) generatePoolToken(tokenType TokenType) (string, error) {
-	return c.generatePoolTokenWithExpiry(tokenType, 1*time.Hour)
-}
-
 func (c *Core) generatePoolTokenWithExpiry(tokenType TokenType, expiry time.Duration) (string, error) {
 	now := time.Now()
 	var expiresAt *jwt.NumericDate

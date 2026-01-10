@@ -44,7 +44,7 @@ func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer
 		service:          service,
 		wsServer:         wsServer,
 		uiServer:         uiServer,
-		dispatcherServer: NewDispatcherServer(service.Core),
+		dispatcherServer: NewDispatcherServer(service.Core, logger),
 		authMiddleware:   authMiddleware,
 		logger:           logger,
 	}

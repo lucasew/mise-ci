@@ -483,7 +483,9 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		}).AddStep("commit-changes", "Committing changes", func() error {
 			return s.runCommandSync(run, env, "git", "commit", "-m", "chore: codegen updates")
 		}).AddStep("push-changes", "Pushing changes", func() error {
-			s.runCommandSync(run, env, "git", "remote", "set-url", "origin", cloneURL)
+			if err := s.runCommandSync(run, env, "git", "remote", "set-url", "origin", cloneURL); err != nil {
+				return err
+			}
 			return s.runCommandSync(run, env, "git", "push", "origin", branchName, "--force")
 		}).AddStep("create-pr", "Creating pull request", func() error {
 			prURL, err := f.CreatePullRequest(ctx, event.Repo, event.Branch, branchName, "chore: codegen updates", "Automated codegen updates triggered by mise-ci.")
@@ -531,10 +533,6 @@ func hasTask(tasks []struct {
 		}
 	}
 	return false
-}
-
-func (s *Service) runCommand(run *Run, env map[string]string, cmd string, args ...string) bool {
-	return s.runCommandSync(run, env, cmd, args...) == nil
 }
 
 // runCommandSync executes a command and waits for it to complete

@@ -7,7 +7,6 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -61,9 +60,6 @@ type PollResponse struct {
 }
 
 func runDispatcher(cmd *cobra.Command, args []string) error {
-	// Seed random para jitter (evita sequências idênticas em dispatchers simultâneos)
-	rand.Seed(time.Now().UnixNano())
-
 	// Usar as mesmas env vars do worker: MISE_CI_CALLBACK e MISE_CI_TOKEN
 	serverURL := viper.GetString("callback")
 	token := viper.GetString("token")
@@ -173,7 +169,9 @@ func pollForRun(pollURL, token string) (*PollResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNoContent {
 		// Sem jobs disponíveis
@@ -228,18 +226,4 @@ func runWorkerContainer(serverURL string, run *PollResponse, image string) error
 	}
 
 	return nil
-}
-
-func buildCallbackURL(serverURL string) string {
-	// Parse URL para garantir formato correto
-	u, err := url.Parse(serverURL)
-	if err != nil {
-		// Fallback: retornar como está
-		return serverURL
-	}
-
-	// Garantir que não tem trailing slash
-	u.Path = strings.TrimSuffix(u.Path, "/")
-
-	return u.String()
 }
