@@ -152,6 +152,27 @@ func (q *Queries) GetLogs(ctx context.Context, runID string) ([]GetLogsRow, erro
 	return items, nil
 }
 
+const getNextAvailableRun = `-- name: GetNextAvailableRun :one
+SELECT id
+FROM runs
+WHERE status IN ('dispatched', 'scheduled')
+ORDER BY
+  CASE status
+    WHEN 'dispatched' THEN 1
+    WHEN 'scheduled' THEN 2
+  END,
+  started_at ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED
+`
+
+func (q *Queries) GetNextAvailableRun(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNextAvailableRun)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getRepo = `-- name: GetRepo :one
 SELECT clone_url
 FROM repos
@@ -258,27 +279,6 @@ func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]Get
 		return nil, err
 	}
 	return items, nil
-}
-
-const getNextAvailableRun = `-- name: GetNextAvailableRun :one
-SELECT id
-FROM runs
-WHERE status IN ('dispatched', 'scheduled')
-ORDER BY
-  CASE status
-    WHEN 'dispatched' THEN 1
-    WHEN 'scheduled' THEN 2
-  END,
-  started_at ASC
-LIMIT 1
-FOR UPDATE SKIP LOCKED
-`
-
-func (q *Queries) GetNextAvailableRun(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getNextAvailableRun)
-	var id string
-	err := row.Scan(&id)
-	return id, err
 }
 
 const getStuckRuns = `-- name: GetStuckRuns :many
