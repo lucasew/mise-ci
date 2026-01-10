@@ -525,25 +525,39 @@ func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 	c.statusListener.Unsubscribe(ch)
 }
 
+// TryDequeueRun tenta pegar próxima run da fila sem bloquear
+func (c *Core) TryDequeueRun(ctx context.Context) (string, RunStatus, bool) {
+	runID, err := c.repo.GetNextAvailableRun(ctx)
+	if err != nil {
+		c.logger.Error("failed to get next available run", "error", err)
+		return "", "", false
+	}
+
+	if runID == "" {
+		return "", "", false
+	}
+
+	// Pega info da run para retornar o status atual
+	meta, err := c.repo.GetRun(ctx, runID)
+	if err != nil {
+		c.logger.Error("failed to get run metadata", "run_id", runID, "error", err)
+		return "", "", false
+	}
+
+	c.logger.Info("run dequeued", "run_id", runID, "status", meta.Status)
+	return runID, RunStatus(meta.Status), true
+}
+
 // WaitForRun aguarda uma run ficar disponível na fila (usa tabela runs como fila)
 func (c *Core) WaitForRun(ctx context.Context) (string, RunStatus, error) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
-		// Busca próxima run disponível do banco (prioriza dispatched > scheduled)
-		runID, err := c.repo.GetNextAvailableRun(ctx)
-		if err != nil {
-			c.logger.Error("failed to get next available run", "error", err)
-		} else if runID != "" {
-			// Pega info da run para retornar o status atual
-			meta, err := c.repo.GetRun(ctx, runID)
-			if err != nil {
-				c.logger.Error("failed to get run metadata", "run_id", runID, "error", err)
-			} else {
-				c.logger.Info("run assigned from queue", "run_id", runID, "status", meta.Status)
-				return runID, RunStatus(meta.Status), nil
-			}
+		// Tenta pegar run
+		runID, status, ok := c.TryDequeueRun(ctx)
+		if ok {
+			return runID, status, nil
 		}
 
 		// Aguarda antes de tentar novamente
