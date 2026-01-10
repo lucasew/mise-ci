@@ -39,9 +39,21 @@ WHERE id = ?;
 -- name: GetStuckRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
-WHERE status IN ('scheduled', 'running')
+WHERE status IN ('scheduled', 'dispatched', 'running')
 AND started_at < ?
 LIMIT ?;
+
+-- name: GetNextAvailableRun :one
+SELECT id
+FROM runs
+WHERE status IN ('dispatched', 'scheduled')
+ORDER BY
+  CASE status
+    WHEN 'dispatched' THEN 1
+    WHEN 'scheduled' THEN 2
+  END,
+  started_at ASC
+LIMIT 1;
 
 -- name: CreateRepo :exec
 INSERT INTO repos (clone_url)

@@ -38,6 +38,7 @@ func (m *MockRepository) Close() error { return nil }
 func (m *MockRepository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
 func (m *MockRepository) UpdateRunRepoURL(ctx context.Context, runID string, repoURL string) error { return nil }
 func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*repository.RunMetadata, error) { return nil, nil }
+func (m *MockRepository) GetNextAvailableRun(ctx context.Context) (string, error) { return "", nil }
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) { return false, nil }
 func (m *MockRepository) UpsertRule(ctx context.Context, id, ruleID, severity, tool string) error { return nil }
 func (m *MockRepository) CreateFinding(ctx context.Context, runID, ruleRef, message, path string, line int, fingerprint string) error { return nil }

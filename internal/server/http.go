@@ -29,22 +29,24 @@ func getInstanceID() string {
 }
 
 type HttpServer struct {
-	addr           string
-	service        *core.Service
-	wsServer       *WebSocketServer
-	uiServer       *UIServer
-	authMiddleware *AuthMiddleware
-	logger         *slog.Logger
+	addr             string
+	service          *core.Service
+	wsServer         *WebSocketServer
+	uiServer         *UIServer
+	dispatcherServer *DispatcherServer
+	authMiddleware   *AuthMiddleware
+	logger           *slog.Logger
 }
 
 func NewHttpServer(addr string, service *core.Service, wsServer *WebSocketServer, uiServer *UIServer, authMiddleware *AuthMiddleware, logger *slog.Logger) *HttpServer {
 	return &HttpServer{
-		addr:           addr,
-		service:        service,
-		wsServer:       wsServer,
-		uiServer:       uiServer,
-		authMiddleware: authMiddleware,
-		logger:         logger,
+		addr:             addr,
+		service:          service,
+		wsServer:         wsServer,
+		uiServer:         uiServer,
+		dispatcherServer: NewDispatcherServer(service.Core),
+		authMiddleware:   authMiddleware,
+		logger:           logger,
 	}
 }
 
@@ -76,6 +78,11 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/ui/admin/cleanup", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminCleanup))
 	mux.HandleFunc("/ui/admin/cleanup/repo-urls", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleBackfillRepoURLs))
 	mux.HandleFunc("/ui/admin/cleanup/stuck-runs", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleCleanupStuckRuns))
+	mux.HandleFunc("/ui/admin/tokens", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminTokens))
+	mux.HandleFunc("/ui/admin/tokens/generate", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleGeneratePoolToken))
+
+	// API routes for dispatcher
+	mux.HandleFunc("/api/dispatcher/poll", s.dispatcherServer.HandlePoll)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {

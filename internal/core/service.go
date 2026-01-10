@@ -77,9 +77,9 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	s.Logger.Info("test dispatch", "run_id", runID)
 
 	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
-	token, err := s.Core.GenerateWorkerToken(runID)
+	token, err := s.Core.GeneratePoolWorkerToken()
 	if err != nil {
-		s.Logger.Error("generate token", "error", err)
+		s.Logger.Error("generate pool token", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
 	}
@@ -114,6 +114,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.Logger.Info("test job dispatched", "job_id", jobID, "run_id", runID)
+	s.Core.UpdateStatus(runID, StatusDispatched, nil)
 
 	// Run test orchestration in background
 	go s.TestOrchestrate(ctx, run, params)
@@ -289,9 +290,10 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 	s.Logger.Debug("clone credentials obtained successfully")
 
-	token, err := s.Core.GenerateWorkerToken(runID)
+	// Gera token de pool worker (não específico para esta run)
+	token, err := s.Core.GeneratePoolWorkerToken()
 	if err != nil {
-		s.Logger.Error("generate token", "error", err)
+		s.Logger.Error("generate pool token", "error", err)
 		s.Core.UpdateStatus(runID, StatusError, nil)
 		return
 	}
@@ -336,6 +338,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
+	s.Core.UpdateStatus(runID, StatusDispatched, nil)
 
 	success := s.Orchestrate(ctx, run, event, f, creds, params)
 

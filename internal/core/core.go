@@ -17,19 +17,21 @@ import (
 type RunStatus string
 
 const (
-	StatusScheduled RunStatus = "scheduled"
-	StatusRunning   RunStatus = "running"
-	StatusSuccess   RunStatus = "success"
-	StatusFailure   RunStatus = "failure"
-	StatusError     RunStatus = "error"
-	StatusSkipped   RunStatus = "skipped"
+	StatusScheduled  RunStatus = "scheduled"
+	StatusDispatched RunStatus = "dispatched"
+	StatusRunning    RunStatus = "running"
+	StatusSuccess    RunStatus = "success"
+	StatusFailure    RunStatus = "failure"
+	StatusError      RunStatus = "error"
+	StatusSkipped    RunStatus = "skipped"
 )
 
 type TokenType string
 
 const (
-	TokenTypeWorker TokenType = "worker"
-	TokenTypeUI     TokenType = "ui"
+	TokenTypeWorker     TokenType = "worker"      // Legacy: worker para run específica
+	TokenTypePoolWorker TokenType = "pool_worker" // Novo: worker do pool sem run específica
+	TokenTypeUI         TokenType = "ui"
 )
 
 type LogEntry struct {
@@ -100,6 +102,7 @@ type Core struct {
 	repo           repository.Repository
 	forge          forge.Forge
 	mu             sync.RWMutex
+	dbMu           sync.Mutex                              // Lock global para todas operações de DB (critical para SQLite)
 	logger         *slog.Logger
 	jwtSecret      []byte
 	logListener    map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
@@ -221,11 +224,6 @@ func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		runID, ok := claims["run_id"].(string)
-		if !ok {
-			return "", "", fmt.Errorf("run_id claim missing or invalid")
-		}
-
 		tokenTypeStr, ok := claims["type"].(string)
 		var tokenType TokenType
 		if !ok {
@@ -233,6 +231,17 @@ func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 			tokenType = TokenTypeWorker
 		} else {
 			tokenType = TokenType(tokenTypeStr)
+		}
+
+		// Pool workers não têm run_id no token
+		if tokenType == TokenTypePoolWorker {
+			return "", tokenType, nil
+		}
+
+		// Outros tipos de token exigem run_id
+		runID, ok := claims["run_id"].(string)
+		if !ok {
+			return "", "", fmt.Errorf("run_id claim missing or invalid")
 		}
 
 		return runID, tokenType, nil
@@ -243,6 +252,14 @@ func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 
 func (c *Core) GenerateWorkerToken(runID string) (string, error) {
 	return c.generateToken(runID, TokenTypeWorker)
+}
+
+func (c *Core) GeneratePoolWorkerToken() (string, error) {
+	return c.GeneratePoolWorkerTokenWithExpiry(1 * time.Hour)
+}
+
+func (c *Core) GeneratePoolWorkerTokenWithExpiry(expiry time.Duration) (string, error) {
+	return c.generatePoolTokenWithExpiry(TokenTypePoolWorker, expiry)
 }
 
 func (c *Core) GenerateUIToken(runID string) (string, error) {
@@ -265,6 +282,31 @@ func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) 
 		"nbf":    jwt.NewNumericDate(now),
 		"iat":    jwt.NewNumericDate(now),
 	})
+	return token.SignedString(c.jwtSecret)
+}
+
+func (c *Core) generatePoolToken(tokenType TokenType) (string, error) {
+	return c.generatePoolTokenWithExpiry(tokenType, 1*time.Hour)
+}
+
+func (c *Core) generatePoolTokenWithExpiry(tokenType TokenType, expiry time.Duration) (string, error) {
+	now := time.Now()
+	var expiresAt *jwt.NumericDate
+	if expiry > 0 {
+		expiresAt = jwt.NewNumericDate(now.Add(expiry))
+	}
+	// Se expiry <= 0, não adiciona exp (token sem expiração)
+
+	claims := jwt.MapClaims{
+		"type": tokenType,
+		"nbf":  jwt.NewNumericDate(now),
+		"iat":  jwt.NewNumericDate(now),
+	}
+	if expiresAt != nil {
+		claims["exp"] = expiresAt
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(c.jwtSecret)
 }
 
@@ -316,6 +358,11 @@ func (c *Core) flushLogs(runID string, entries []LogEntry) {
 	if len(entries) == 0 {
 		return
 	}
+
+	// Lock global de DB para serializar operações críticas
+	// Critical para SQLite (evita concurrent writes)
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
 
 	// Save to database (batch)
 	ctx := context.Background()
@@ -482,6 +529,56 @@ func (c *Core) SubscribeStatus() chan RunInfo {
 
 func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 	c.statusListener.Unsubscribe(ch)
+}
+
+// TryDequeueRun tenta pegar próxima run da fila sem bloquear
+func (c *Core) TryDequeueRun(ctx context.Context) (string, RunStatus, bool) {
+	// Lock global de DB para serializar operações críticas
+	// Critical para SQLite (evita concurrent writes)
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
+
+	runID, err := c.repo.GetNextAvailableRun(ctx)
+	if err != nil {
+		c.logger.Error("failed to get next available run", "error", err)
+		return "", "", false
+	}
+
+	if runID == "" {
+		return "", "", false
+	}
+
+	// Pega info da run para retornar o status atual
+	meta, err := c.repo.GetRun(ctx, runID)
+	if err != nil {
+		c.logger.Error("failed to get run metadata", "run_id", runID, "error", err)
+		return "", "", false
+	}
+
+	c.logger.Info("run dequeued", "run_id", runID, "status", meta.Status)
+	return runID, RunStatus(meta.Status), true
+}
+
+// WaitForRun aguarda uma run ficar disponível na fila (usa tabela runs como fila)
+func (c *Core) WaitForRun(ctx context.Context) (string, RunStatus, error) {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Tenta pegar run
+		runID, status, ok := c.TryDequeueRun(ctx)
+		if ok {
+			return runID, status, nil
+		}
+
+		// Aguarda antes de tentar novamente
+		select {
+		case <-ticker.C:
+			continue
+		case <-ctx.Done():
+			return "", "", ctx.Err()
+		}
+	}
 }
 
 func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEntry, error) {

@@ -66,6 +66,10 @@ func (m *MockRepository) GetStuckRuns(ctx context.Context, olderThan time.Time, 
 	}
 	return args.Get(0).([]*repository.RunMetadata), args.Error(1)
 }
+func (m *MockRepository) GetNextAvailableRun(ctx context.Context) (string, error) {
+	args := m.Called(ctx)
+	return args.String(0), args.Error(1)
+}
 func (m *MockRepository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) {
 	args := m.Called(ctx, cloneURL)
 	return args.Bool(0), args.Error(1)
