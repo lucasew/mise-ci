@@ -1,6 +1,13 @@
 {{define "content"}}
     <h1>mise-ci</h1>
 
+    <div style="margin-bottom: 20px;">
+        <a href="/ui/" style="margin-right: 15px;">Home</a>
+        <a href="/ui/issues" style="margin-right: 15px;">Issues</a>
+        <a href="/ui/admin/cleanup" style="margin-right: 15px;">Admin: Cleanup</a>
+        <a href="/ui/admin/tokens">Admin: Tokens</a>
+    </div>
+
     <button class="refresh-btn" onclick="location.reload()">Refresh</button>
     <button class="dispatch-btn" onclick="dispatchTestJob()">Dispatch Test Job</button>
 
