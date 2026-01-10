@@ -147,6 +147,12 @@ func startWorker() error {
 		return fmt.Errorf("handshake failed: %w", err)
 	}
 
+	// If env is empty, it means no job was assigned. Exit gracefully.
+	if len(env) == 0 {
+		logger.Info("no jobs available, exiting")
+		return nil
+	}
+
 	// Initialize environment
 	workerEnv = os.Environ()
 	for k, v := range env {

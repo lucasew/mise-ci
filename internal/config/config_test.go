@@ -15,6 +15,9 @@ github:
   app_id: 1
 nomad:
   job_name: "test"
+auth:
+  admin_username: "admin"
+  admin_password: "password"
 `
 	tmp, err := os.CreateTemp("", "config-*.yaml")
 	if err != nil {

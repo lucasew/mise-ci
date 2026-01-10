@@ -33,12 +33,16 @@ Uses the same environment variables as worker:
 	RunE: runDispatcher,
 }
 
+var (
+	DefaultImage = fmt.Sprintf("ghcr.io/lucasew/mise-ci:%s", version.Get())
+)
+
 func init() {
 	rootCmd.AddCommand(dispatcherCmd)
 
 	dispatcherCmd.Flags().String("callback", "", "Server URL (e.g., https://mise-ci.example.com)")
 	dispatcherCmd.Flags().String("token", "", "Pool worker token")
-	dispatcherCmd.Flags().String("image", "ghcr.io/lucasew/mise-ci:latest", "Docker image to use for workers")
+	dispatcherCmd.Flags().String("image", DefaultImage, "Docker image to use for workers")
 	dispatcherCmd.Flags().Int("max-empty-polls", 3, "Exit after N consecutive empty polls")
 	dispatcherCmd.Flags().Duration("poll-interval", 5*time.Second, "Interval between polls when queue is empty")
 
