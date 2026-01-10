@@ -20,6 +20,7 @@ import (
 	"github.com/lucasew/mise-ci/internal/core"
 	"github.com/lucasew/mise-ci/internal/forge"
 	"github.com/lucasew/mise-ci/internal/forge/github"
+	"github.com/lucasew/mise-ci/internal/netutil"
 	"github.com/lucasew/mise-ci/internal/repository"
 	"github.com/lucasew/mise-ci/internal/repository/postgres"
 	"github.com/lucasew/mise-ci/internal/repository/sqlite"
@@ -232,7 +233,18 @@ func validatePublicURL(cfg *config.Config, logger *slog.Logger) {
 		return
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	// Use a client with a safe dialer to prevent SSRF
+	safeDialer := &netutil.SafeDialer{
+		Timeout: 5 * time.Second,
+	}
+	safeClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: safeDialer.DialContext,
+		},
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := safeClient.Do(req)
 	if err != nil {
 		logger.Error("❌ public URL is NOT accessible from this node", "url", validateURL, "error", err)
 		logger.Error("workers will NOT be able to connect back to the agent")
