@@ -18,6 +18,7 @@ type RunStatus string
 
 const (
 	StatusScheduled RunStatus = "scheduled"
+	StatusDispatched RunStatus = "dispatched"
 	StatusRunning   RunStatus = "running"
 	StatusSuccess   RunStatus = "success"
 	StatusFailure   RunStatus = "failure"

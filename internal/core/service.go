@@ -114,6 +114,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.Logger.Info("test job dispatched", "job_id", jobID, "run_id", runID)
+	s.Core.UpdateStatus(runID, StatusDispatched, nil)
 
 	// Run test orchestration in background
 	go s.TestOrchestrate(ctx, run, params)
@@ -336,6 +337,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 
 	s.Logger.Info("job dispatched", "job_id", jobID)
+	s.Core.UpdateStatus(runID, StatusDispatched, nil)
 
 	success := s.Orchestrate(ctx, run, event, f, creds, params)
 

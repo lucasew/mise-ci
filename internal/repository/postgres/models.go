@@ -35,6 +35,7 @@ type Run struct {
 	Author        string         `json:"author"`
 	Branch        string         `json:"branch"`
 	RepoUrl       sql.NullString `json:"repo_url"`
+	Env           sql.NullString `json:"env"`
 }
 
 type SarifFinding struct {

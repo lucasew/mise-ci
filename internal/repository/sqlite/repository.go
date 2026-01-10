@@ -106,11 +106,11 @@ func (r *Repository) CreateRun(ctx context.Context, meta *repository.RunMetadata
 		FinishedAt:    finishedAt,
 		ExitCode:      exitCode,
 		UiToken:       meta.UIToken,
-		GitLink:       meta.GitLink,
+		GitLink:       sql.NullString{String: meta.GitLink, Valid: meta.GitLink != ""},
 		RepoUrl:       repoURL,
-		CommitMessage: meta.CommitMessage,
-		Author:        meta.Author,
-		Branch:        meta.Branch,
+		CommitMessage: sql.NullString{String: meta.CommitMessage, Valid: meta.CommitMessage != ""},
+		Author:        sql.NullString{String: meta.Author, Valid: meta.Author != ""},
+		Branch:        sql.NullString{String: meta.Branch, Valid: meta.Branch != ""},
 	})
 }
 
@@ -157,11 +157,11 @@ func (r *Repository) GetRun(ctx context.Context, runID string) (*repository.RunM
 		FinishedAt:    finishedAt,
 		ExitCode:      exitCode,
 		UIToken:       row.UiToken,
-		GitLink:       row.GitLink,
+		GitLink:       row.GitLink.String,
 		RepoURL:       repoURL,
-		CommitMessage: row.CommitMessage,
-		Author:        row.Author,
-		Branch:        row.Branch,
+		CommitMessage: row.CommitMessage.String,
+		Author:        row.Author.String,
+		Branch:        row.Branch.String,
 	}, nil
 }
 
@@ -233,11 +233,11 @@ func (r *Repository) ListRuns(ctx context.Context, filter repository.RunFilter) 
 			FinishedAt:    finishedAt,
 			ExitCode:      exitCode,
 			UIToken:       row.UiToken,
-			GitLink:       row.GitLink,
+			GitLink:       row.GitLink.String,
 			RepoURL:       repoURL,
-			CommitMessage: row.CommitMessage,
-			Author:        row.Author,
-			Branch:        row.Branch,
+			CommitMessage: row.CommitMessage.String,
+			Author:        row.Author.String,
+			Branch:        row.Branch.String,
 		}
 	}
 
@@ -382,7 +382,7 @@ func (r *Repository) ListFindingsForRepo(ctx context.Context, repoURL string, li
 			Tool:          row.Tool,
 			Fingerprint:   row.Fingerprint.String,
 			RunID:         row.RunID,
-			CommitMessage: row.CommitMessage,
+			CommitMessage: row.CommitMessage.String,
 		}
 	}
 	return findings, nil
@@ -419,11 +419,11 @@ func (r *Repository) GetRunsWithoutRepoURL(ctx context.Context, limit int) ([]*r
 			FinishedAt:    finishedAt,
 			ExitCode:      exitCode,
 			UIToken:       row.UiToken,
-			GitLink:       row.GitLink,
+			GitLink:       row.GitLink.String,
 			RepoURL:       repoURL,
-			CommitMessage: row.CommitMessage,
-			Author:        row.Author,
-			Branch:        row.Branch,
+			CommitMessage: row.CommitMessage.String,
+			Author:        row.Author.String,
+			Branch:        row.Branch.String,
 		}
 	}
 	return runs, nil
@@ -470,11 +470,11 @@ func (r *Repository) GetStuckRuns(ctx context.Context, olderThan time.Time, limi
 			FinishedAt:    finishedAt,
 			ExitCode:      exitCode,
 			UIToken:       row.UiToken,
-			GitLink:       row.GitLink,
+			GitLink:       row.GitLink.String,
 			RepoURL:       repoURL,
-			CommitMessage: row.CommitMessage,
-			Author:        row.Author,
-			Branch:        row.Branch,
+			CommitMessage: row.CommitMessage.String,
+			Author:        row.Author.String,
+			Branch:        row.Branch.String,
 		}
 	}
 	return runs, nil

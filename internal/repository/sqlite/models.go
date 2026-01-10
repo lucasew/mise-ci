@@ -30,11 +30,12 @@ type Run struct {
 	UiToken       string         `json:"ui_token"`
 	CreatedAt     sql.NullTime   `json:"created_at"`
 	UpdatedAt     sql.NullTime   `json:"updated_at"`
-	GitLink       string         `json:"git_link"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	GitLink       sql.NullString `json:"git_link"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
 	RepoUrl       sql.NullString `json:"repo_url"`
+	Env           sql.NullString `json:"env"`
 }
 
 type SarifFinding struct {

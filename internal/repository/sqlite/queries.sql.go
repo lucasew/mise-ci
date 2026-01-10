@@ -81,8 +81,8 @@ func (q *Queries) CreateRepo(ctx context.Context, cloneUrl string) error {
 }
 
 const createRun = `-- name: CreateRun :exec
-INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch, env)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateRunParams struct {
@@ -92,11 +92,12 @@ type CreateRunParams struct {
 	FinishedAt    sql.NullTime   `json:"finished_at"`
 	ExitCode      sql.NullInt64  `json:"exit_code"`
 	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
+	GitLink       sql.NullString `json:"git_link"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
+	Env           sql.NullString `json:"env"`
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
@@ -112,8 +113,58 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 		arg.CommitMessage,
 		arg.Author,
 		arg.Branch,
+		arg.Env,
 	)
 	return err
+}
+
+const findPendingRun = `-- name: FindPendingRun :one
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch, env
+FROM runs
+WHERE status IN ('dispatched', 'scheduled')
+ORDER BY
+    CASE status
+        WHEN 'dispatched' THEN 1
+        WHEN 'scheduled' THEN 2
+        ELSE 3
+    END,
+    started_at ASC
+LIMIT 1
+`
+
+type FindPendingRunRow struct {
+	ID            string         `json:"id"`
+	Status        string         `json:"status"`
+	StartedAt     time.Time      `json:"started_at"`
+	FinishedAt    sql.NullTime   `json:"finished_at"`
+	ExitCode      sql.NullInt64  `json:"exit_code"`
+	UiToken       string         `json:"ui_token"`
+	GitLink       sql.NullString `json:"git_link"`
+	RepoUrl       sql.NullString `json:"repo_url"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
+	Env           sql.NullString `json:"env"`
+}
+
+func (q *Queries) FindPendingRun(ctx context.Context) (FindPendingRunRow, error) {
+	row := q.db.QueryRowContext(ctx, findPendingRun)
+	var i FindPendingRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.ExitCode,
+		&i.UiToken,
+		&i.GitLink,
+		&i.RepoUrl,
+		&i.CommitMessage,
+		&i.Author,
+		&i.Branch,
+		&i.Env,
+	)
+	return i, err
 }
 
 const getLogs = `-- name: GetLogs :many
@@ -166,7 +217,7 @@ func (q *Queries) GetRepo(ctx context.Context, cloneUrl string) (string, error) 
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
+SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch, env
 FROM runs
 WHERE id = ?
 `
@@ -178,11 +229,12 @@ type GetRunRow struct {
 	FinishedAt    sql.NullTime   `json:"finished_at"`
 	ExitCode      sql.NullInt64  `json:"exit_code"`
 	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
+	GitLink       sql.NullString `json:"git_link"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
+	Env           sql.NullString `json:"env"`
 }
 
 func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
@@ -200,6 +252,7 @@ func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
 		&i.CommitMessage,
 		&i.Author,
 		&i.Branch,
+		&i.Env,
 	)
 	return i, err
 }
@@ -218,11 +271,11 @@ type GetRunsWithoutRepoURLRow struct {
 	FinishedAt    sql.NullTime   `json:"finished_at"`
 	ExitCode      sql.NullInt64  `json:"exit_code"`
 	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
+	GitLink       sql.NullString `json:"git_link"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
 }
 
 func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int64) ([]GetRunsWithoutRepoURLRow, error) {
@@ -280,11 +333,11 @@ type GetStuckRunsRow struct {
 	FinishedAt    sql.NullTime   `json:"finished_at"`
 	ExitCode      sql.NullInt64  `json:"exit_code"`
 	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
+	GitLink       sql.NullString `json:"git_link"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
 }
 
 func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error) {
@@ -346,7 +399,7 @@ type ListFindingsForRepoRow struct {
 	Tool          string         `json:"tool"`
 	Fingerprint   sql.NullString `json:"fingerprint"`
 	RunID         string         `json:"run_id"`
-	CommitMessage string         `json:"commit_message"`
+	CommitMessage sql.NullString `json:"commit_message"`
 }
 
 func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error) {
@@ -481,11 +534,11 @@ type ListRunsRow struct {
 	FinishedAt    sql.NullTime   `json:"finished_at"`
 	ExitCode      sql.NullInt64  `json:"exit_code"`
 	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
+	GitLink       sql.NullString `json:"git_link"`
 	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+	CommitMessage sql.NullString `json:"commit_message"`
+	Author        sql.NullString `json:"author"`
+	Branch        sql.NullString `json:"branch"`
 }
 
 func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error) {
@@ -521,6 +574,22 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateRunEnv = `-- name: UpdateRunEnv :exec
+UPDATE runs
+SET env = ?
+WHERE id = ?
+`
+
+type UpdateRunEnvParams struct {
+	Env sql.NullString `json:"env"`
+	ID  string         `json:"id"`
+}
+
+func (q *Queries) UpdateRunEnv(ctx context.Context, arg UpdateRunEnvParams) error {
+	_, err := q.db.ExecContext(ctx, updateRunEnv, arg.Env, arg.ID)
+	return err
 }
 
 const updateRunRepoURL = `-- name: UpdateRunRepoURL :exec

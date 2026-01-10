@@ -42,6 +42,7 @@ message ContextRequest {}
 // Context response
 message ContextResponse {
   map<string, string> env = 1;
+    string token = 2;
 }
 
 // Runner info, sent on connect
