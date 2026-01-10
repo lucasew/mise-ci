@@ -3,6 +3,7 @@ package markdown
 import (
 	"bytes"
 	"html/template"
+	"log/slog"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
@@ -30,6 +31,7 @@ func Render(source string) template.HTML {
 	var buf bytes.Buffer
 	if err := md.Convert([]byte(source), &buf); err != nil {
 		// Fallback to plain text if markdown rendering fails
+		slog.Error("markdown rendering failed", "error", err)
 		return template.HTML(template.HTMLEscapeString(source))
 	}
 
