@@ -74,6 +74,9 @@ func (s *WebSocketServer) validateWorkerAuth(r *http.Request) (string, int, erro
 	if authHeader == "" {
 		return "", http.StatusUnauthorized, errors.New("missing authorization header")
 	}
+if !strings.HasPrefix(authHeader, "Bearer ") {
+		return "", http.StatusUnauthorized, errors.New("authorization header format must be 'Bearer {token}'")
+	}
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 
 	// This new function will handle both token types
