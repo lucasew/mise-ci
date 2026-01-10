@@ -250,6 +250,39 @@ func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 	return "", "", fmt.Errorf("invalid token")
 }
 
+func (c *Core) ValidatePoolToken(tokenString string) error {
+	_, tokenType, err := c.ValidateToken(tokenString)
+	if err != nil {
+		return err
+	}
+	if tokenType != TokenTypePoolWorker {
+		return fmt.Errorf("invalid token type for pool worker: expected %s, got %s", TokenTypePoolWorker, tokenType)
+	}
+	return nil
+}
+
+// DequeueNextRun atomically finds the next scheduled run and updates its status to dispatched.
+func (c *Core) DequeueNextRun(ctx context.Context) (string, error) {
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
+
+	runID, err := c.repo.GetNextAvailableRun(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get next available run: %w", err)
+	}
+
+	if runID == "" {
+		return "", nil // No run available
+	}
+
+	// Update status to dispatched to prevent other workers from picking it up
+	if err := c.repo.UpdateRunStatus(ctx, runID, string(StatusDispatched), nil); err != nil {
+		return "", fmt.Errorf("failed to update run status to dispatched: %w", err)
+	}
+
+	return runID, nil
+}
+
 func (c *Core) GenerateWorkerToken(runID string) (string, error) {
 	return c.generateToken(runID, TokenTypeWorker)
 }

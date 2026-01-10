@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
@@ -27,8 +28,9 @@ var upgrader = websocket.Upgrader{
 }
 
 type WebSocketServer struct {
-	core   *core.Core
-	logger *slog.Logger
+	core         *core.Core
+	logger       *slog.Logger
+	assignRunMux sync.Mutex
 }
 
 func NewWebSocketServer(core *core.Core, logger *slog.Logger) *WebSocketServer {
@@ -71,33 +73,14 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "missing authorization header", http.StatusUnauthorized)
 		return
 	}
-
 	token := strings.TrimPrefix(auth, "Bearer ")
-	runID, tokenType, err := s.core.ValidateToken(token)
-	if err != nil {
-		s.logger.Error("invalid token", "error", err)
+	if err := s.core.ValidatePoolToken(token); err != nil {
+		s.logger.Error("invalid pool token", "error", err)
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
 	}
 
-	if tokenType != core.TokenTypeWorker && tokenType != core.TokenTypePoolWorker {
-		s.logger.Error("invalid token type for worker connection", "type", tokenType)
-		http.Error(w, "invalid token type", http.StatusForbidden)
-		return
-	}
-
-	// 2. Para workers legados (TokenTypeWorker), verificar existência da run ANTES do upgrade
-	// Isso permite retornar HTTP 404 apropriado se a run não existir
-	if tokenType == core.TokenTypeWorker {
-		_, ok := s.core.GetRun(runID)
-		if !ok {
-			s.logger.Error("run not found for legacy worker", "run_id", runID)
-			http.Error(w, "run not found", http.StatusNotFound)
-			return
-		}
-	}
-
-	// 3. Upgrade to WebSocket
+	// 2. Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("failed to upgrade connection", "error", err)
@@ -106,31 +89,94 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 	defer func() {
 		_ = conn.Close()
 	}()
+	wsAdapter := &wsStreamAdapter{conn: conn}
 
-	// 4. Para pool workers, aguardar e atribuir uma run da fila
-	if tokenType == core.TokenTypePoolWorker {
-		s.logger.Info("pool worker connected, waiting for run assignment")
-		var queueStatus core.RunStatus
-		runID, queueStatus, err = s.core.WaitForRun(r.Context())
-		if err != nil {
-			s.logger.Error("failed to get run from queue", "error", err)
-			http.Error(w, "no runs available", http.StatusServiceUnavailable)
-			return
-		}
-		s.logger.Info("run assigned to pool worker", "run_id", runID, "from_queue", queueStatus)
+	// 3. Handshake - receive RunnerInfo
+	workerMsg, err := wsAdapter.Recv()
+	if err != nil {
+		s.logger.Error("failed to read handshake", "error", err)
+		return
 	}
-
-	// 5. Obter run (já verificado para TokenTypeWorker, fresh da fila para TokenTypePoolWorker)
-	run, ok := s.core.GetRun(runID)
+	info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo)
 	if !ok {
-		// Isso só deveria acontecer para pool workers em caso de race condition
-		s.logger.Error("run not found after assignment", "run_id", runID)
+		s.logger.Error("expected RunnerInfo as first message")
+		return
+	}
+	s.logger.Info("worker connected",
+		"hostname", info.RunnerInfo.Hostname,
+		"version", info.RunnerInfo.Version,
+		"os", info.RunnerInfo.Os,
+		"arch", info.RunnerInfo.Arch,
+	)
+
+	// Wait for ContextRequest
+	if _, err := wsAdapter.Recv(); err != nil {
+		s.logger.Error("failed to read context request", "error", err)
 		return
 	}
 
-	s.logger.Info("worker connected", "run_id", runID)
+	// 4. Dequeue a run
+	s.assignRunMux.Lock()
+	runID, err := s.core.DequeueNextRun(r.Context())
+	if err != nil {
+		s.assignRunMux.Unlock()
+		s.logger.Error("failed to dequeue run", "error", err)
+		// Send empty context to signal no jobs
+		_ = wsAdapter.Send(&pb.ServerMessage{
+			Payload: &pb.ServerMessage_ContextResponse{
+				ContextResponse: &pb.ContextResponse{Env: nil},
+			},
+		})
+		return
+	}
+	if runID == "" {
+		s.assignRunMux.Unlock()
+		s.logger.Info("no pending runs available for worker")
+		// Send empty context to signal no jobs
+		_ = wsAdapter.Send(&pb.ServerMessage{
+			Payload: &pb.ServerMessage_ContextResponse{
+				ContextResponse: &pb.ContextResponse{Env: nil},
+			},
+		})
+		return
+	}
 
-	wsAdapter := &wsStreamAdapter{conn: conn}
+	run, ok := s.core.GetRun(runID)
+	if !ok {
+		s.assignRunMux.Unlock()
+		s.logger.Error("dequeued run not found", "run_id", runID)
+		return
+	}
+	s.assignRunMux.Unlock()
+
+	s.logger.Info("assigned run to worker", "run_id", runID)
+
+	// 5. Version check
+	if info.RunnerInfo.Version != version.Get() {
+		s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
+		select {
+		case run.RetryCh <- struct{}{}:
+		default:
+		}
+		cm := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "version mismatch")
+		_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)
+		return
+	}
+
+	// 6. Send ContextResponse with run environment
+	if err := wsAdapter.Send(&pb.ServerMessage{
+		Payload: &pb.ServerMessage_ContextResponse{
+			ContextResponse: &pb.ContextResponse{Env: run.Env},
+		},
+	}); err != nil {
+		s.logger.Error("failed to send context response", "run_id", runID, "error", err)
+		return
+	}
+
+	// 7. Update run status and start streaming
+	s.core.UpdateStatus(runID, core.StatusRunning, nil)
+	s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
+	close(run.ConnectedCh)
 
 	err = stream.HandleBidiStream(
 		r.Context(),
@@ -139,59 +185,6 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		run.ResultCh,
 		stream.BidiConfig[*pb.ServerMessage]{
 			Logger: s.logger,
-			OnConnect: func() error {
-				// 6. Handshake - receive RunnerInfo
-				workerMsg, err := wsAdapter.Recv()
-				if err != nil {
-					return fmt.Errorf("failed to read handshake: %w", err)
-				}
-
-				if info, ok := workerMsg.Payload.(*pb.WorkerMessage_RunnerInfo); ok {
-					s.logger.Info("received runner info", "hostname", info.RunnerInfo.Hostname)
-					if info.RunnerInfo.Version != version.Get() {
-						s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
-						// Signal retry
-						select {
-						case run.RetryCh <- struct{}{}:
-						default:
-						}
-						// Send close frame so worker exits with 0
-						cm := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "version mismatch")
-						_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)
-						return fmt.Errorf("worker version mismatch: worker=%s server=%s", info.RunnerInfo.Version, version.Get())
-					}
-
-					// Wait for ContextRequest
-					workerMsg, err = wsAdapter.Recv()
-					if err != nil {
-						return fmt.Errorf("failed to read context request: %w", err)
-					}
-					if _, ok := workerMsg.Payload.(*pb.WorkerMessage_ContextRequest); !ok {
-						return errors.New("expected ContextRequest after RunnerInfo")
-					}
-
-					// Send ContextResponse
-					contextResp := &pb.ServerMessage{
-						Payload: &pb.ServerMessage_ContextResponse{
-							ContextResponse: &pb.ContextResponse{
-								Env: run.Env,
-							},
-						},
-					}
-					if err := wsAdapter.Send(contextResp); err != nil {
-						return fmt.Errorf("failed to send context response: %w", err)
-					}
-
-					// Update status to running when worker connects
-					s.core.UpdateStatus(runID, core.StatusRunning, nil)
-					s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
-
-					// Signal that worker is connected
-					close(run.ConnectedCh)
-					return nil
-				}
-				return errors.New("expected RunnerInfo as first message")
-			},
 			ShouldClose: func(msg *pb.ServerMessage) bool {
 				_, ok := msg.Payload.(*pb.ServerMessage_Close)
 				return ok
@@ -199,24 +192,20 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		},
 	)
 
+	// 8. Handle disconnection
 	if err != nil {
-		// Normal closure
-    var closeErr *websocket.CloseError
-    if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {
-      s.logger.Info("worker closed connection normally", "run_id", runID)
-      return
-    }
-
-		// Connection closed by us (after sending Close message)
+		var closeErr *websocket.CloseError
+		if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {
+			s.logger.Info("worker closed connection normally", "run_id", runID)
+			return
+		}
 		var netErr *net.OpError
 		if errors.As(err, &netErr) && errors.Is(netErr.Err, net.ErrClosed) {
 			s.logger.Info("connection closed by server", "run_id", runID)
 			return
 		}
-
 		s.logger.Error("worker connection error", "run_id", runID, "error", err)
-		// Only log to system log if it's not a normal close/EOF that might be wrapped
-    if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
+		if !errors.Is(err, net.ErrClosed) && !errors.Is(err, io.EOF) {
 			s.core.AddLog(runID, "system", fmt.Sprintf("Worker disconnected unexpectedly: %v", err))
 			s.core.UpdateStatus(runID, core.StatusError, nil)
 		}
