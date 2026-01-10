@@ -88,5 +88,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("jwt.secret is required")
 	}
 
+	if (cfg.Auth.AdminUsername != "" && cfg.Auth.AdminPassword == "") ||
+		(cfg.Auth.AdminUsername == "" && cfg.Auth.AdminPassword != "") {
+		return nil, fmt.Errorf("auth.admin_username and auth.admin_password must both be set or both be empty")
+	}
+
 	return &cfg, nil
 }
