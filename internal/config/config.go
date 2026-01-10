@@ -84,6 +84,14 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
+	if cfg.Auth.AdminUsername == "" {
+		cfg.Auth.AdminUsername = "admin"
+	}
+
+	if cfg.Auth.AdminPassword == "" {
+		return nil, fmt.Errorf("auth.admin_password is required")
+	}
+
 	if cfg.JWT.Secret == "" {
 		return nil, fmt.Errorf("jwt.secret is required")
 	}
