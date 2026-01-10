@@ -66,21 +66,53 @@ func (a *wsStreamAdapter) Recv() (*pb.WorkerMessage, error) {
 	return &workerMsg, nil
 }
 
-func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
-	// 1. Auth - get token from Authorization header
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		http.Error(w, "missing authorization header", http.StatusUnauthorized)
-		return
+// validateWorkerAuth handles the initial authentication and run assignment for a connecting worker.
+// It returns the run ID, an HTTP status code for errors, and an error.
+// A run ID of "" with no error indicates no jobs are available.
+func (s *WebSocketServer) validateWorkerAuth(r *http.Request) (string, int, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", http.StatusUnauthorized, errors.New("missing authorization header")
 	}
-	token := strings.TrimPrefix(auth, "Bearer ")
-	if err := s.core.ValidatePoolToken(token); err != nil {
-		s.logger.Error("invalid pool token", "error", err)
-		http.Error(w, "invalid token", http.StatusUnauthorized)
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// This new function will handle both token types
+	runID, err := s.core.ValidateWorkerToken(token)
+	if err != nil {
+		s.logger.Error("invalid worker token", "error", err)
+		return "", http.StatusUnauthorized, fmt.Errorf("invalid token: %w", err)
+	}
+
+	// If runID is returned, the token was a specific worker token.
+	if runID != "" {
+		if _, ok := s.core.GetRun(runID); !ok {
+			return "", http.StatusNotFound, fmt.Errorf("run %s not found", runID)
+		}
+		return runID, http.StatusOK, nil
+	}
+
+	// If no runID, it was a pool token. Dequeue a run.
+	s.assignRunMux.Lock()
+	defer s.assignRunMux.Unlock()
+	runID, err = s.core.DequeueNextRun(r.Context())
+	if err != nil {
+		s.logger.Error("failed to dequeue run", "error", err)
+		// Propagate the error up to be handled by the caller
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to dequeue run: %w", err)
+	}
+
+	// runID can be "" if no jobs are available.
+	return runID, http.StatusOK, nil
+}
+
+func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
+	runID, status, err := s.validateWorkerAuth(r)
+	if err != nil {
+		http.Error(w, err.Error(), status)
 		return
 	}
 
-	// 2. Upgrade to WebSocket
+	// Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("failed to upgrade connection", "error", err)
@@ -91,7 +123,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 	}()
 	wsAdapter := &wsStreamAdapter{conn: conn}
 
-	// 3. Handshake - receive RunnerInfo
+	// Handshake - receive RunnerInfo
 	workerMsg, err := wsAdapter.Recv()
 	if err != nil {
 		s.logger.Error("failed to read handshake", "error", err)
@@ -115,24 +147,10 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 4. Dequeue a run
-	s.assignRunMux.Lock()
-	runID, err := s.core.DequeueNextRun(r.Context())
-	if err != nil {
-		s.assignRunMux.Unlock()
-		s.logger.Error("failed to dequeue run", "error", err)
-		// Send empty context to signal no jobs
-		_ = wsAdapter.Send(&pb.ServerMessage{
-			Payload: &pb.ServerMessage_ContextResponse{
-				ContextResponse: &pb.ContextResponse{Env: nil},
-			},
-		})
-		return
-	}
+	// If no runID, it means no job was available for a pool worker.
 	if runID == "" {
-		s.assignRunMux.Unlock()
 		s.logger.Info("no pending runs available for worker")
-		// Send empty context to signal no jobs
+		// Send empty context to signal no jobs and close connection.
 		_ = wsAdapter.Send(&pb.ServerMessage{
 			Payload: &pb.ServerMessage_ContextResponse{
 				ContextResponse: &pb.ContextResponse{Env: nil},
@@ -141,17 +159,17 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// We have a runID, either from token or dequeued.
 	run, ok := s.core.GetRun(runID)
 	if !ok {
-		s.assignRunMux.Unlock()
-		s.logger.Error("dequeued run not found", "run_id", runID)
+		// This should be rare, as validateWorkerAuth checks this.
+		s.logger.Error("assigned run not found", "run_id", runID)
 		return
 	}
-	s.assignRunMux.Unlock()
 
 	s.logger.Info("assigned run to worker", "run_id", runID)
 
-	// 5. Version check
+	// Version check
 	if info.RunnerInfo.Version != version.Get() {
 		s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
 		select {
@@ -163,7 +181,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 6. Send ContextResponse with run environment
+	// Send ContextResponse with run environment
 	if err := wsAdapter.Send(&pb.ServerMessage{
 		Payload: &pb.ServerMessage_ContextResponse{
 			ContextResponse: &pb.ContextResponse{Env: run.Env},
@@ -173,7 +191,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 7. Update run status and start streaming
+	// Update run status and start streaming
 	s.core.UpdateStatus(runID, core.StatusRunning, nil)
 	s.core.AddLog(runID, "system", fmt.Sprintf("Worker connected: %s (%s/%s)", info.RunnerInfo.Hostname, info.RunnerInfo.Os, info.RunnerInfo.Arch))
 	close(run.ConnectedCh)
@@ -192,7 +210,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		},
 	)
 
-	// 8. Handle disconnection
+	// Handle disconnection
 	if err != nil {
 		var closeErr *websocket.CloseError
 		if errors.As(err, &closeErr) && (closeErr.Code == websocket.CloseNormalClosure || closeErr.Code == websocket.CloseGoingAway) {

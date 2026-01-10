@@ -261,6 +261,20 @@ func (c *Core) ValidatePoolToken(tokenString string) error {
 	return nil
 }
 
+// ValidateWorkerToken checks if a token is valid for a worker, accepting either
+// a run-specific token or a pool token. It returns the runID if present.
+func (c *Core) ValidateWorkerToken(tokenString string) (string, error) {
+	runID, tokenType, err := c.ValidateToken(tokenString)
+	if err != nil {
+		return "", err
+	}
+	if tokenType != TokenTypeWorker && tokenType != TokenTypePoolWorker {
+		return "", fmt.Errorf("invalid token type for worker: expected %s or %s, got %s",
+			TokenTypeWorker, TokenTypePoolWorker, tokenType)
+	}
+	return runID, nil
+}
+
 // DequeueNextRun atomically finds the next scheduled run and updates its status to dispatched.
 func (c *Core) DequeueNextRun(ctx context.Context) (string, error) {
 	c.dbMu.Lock()
