@@ -86,7 +86,18 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// 2. Upgrade to WebSocket
+	// 2. Para workers legados (TokenTypeWorker), verificar existência da run ANTES do upgrade
+	// Isso permite retornar HTTP 404 apropriado se a run não existir
+	if tokenType == core.TokenTypeWorker {
+		_, ok := s.core.GetRun(runID)
+		if !ok {
+			s.logger.Error("run not found for legacy worker", "run_id", runID)
+			http.Error(w, "run not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	// 3. Upgrade to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.logger.Error("failed to upgrade connection", "error", err)
@@ -96,7 +107,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		_ = conn.Close()
 	}()
 
-	// 3. Para pool workers, aguardar e atribuir uma run da fila
+	// 4. Para pool workers, aguardar e atribuir uma run da fila
 	if tokenType == core.TokenTypePoolWorker {
 		s.logger.Info("pool worker connected, waiting for run assignment")
 		var queueStatus core.RunStatus
@@ -109,9 +120,11 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		s.logger.Info("run assigned to pool worker", "run_id", runID, "from_queue", queueStatus)
 	}
 
+	// 5. Obter run (já verificado para TokenTypeWorker, fresh da fila para TokenTypePoolWorker)
 	run, ok := s.core.GetRun(runID)
 	if !ok {
-		s.logger.Error("run not found", "run_id", runID)
+		// Isso só deveria acontecer para pool workers em caso de race condition
+		s.logger.Error("run not found after assignment", "run_id", runID)
 		return
 	}
 
@@ -127,7 +140,7 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		stream.BidiConfig[*pb.ServerMessage]{
 			Logger: s.logger,
 			OnConnect: func() error {
-				// 3. Handshake - receive RunnerInfo
+				// 6. Handshake - receive RunnerInfo
 				workerMsg, err := wsAdapter.Recv()
 				if err != nil {
 					return fmt.Errorf("failed to read handshake: %w", err)
