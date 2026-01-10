@@ -271,6 +271,7 @@ ORDER BY
   END,
   started_at ASC
 LIMIT 1
+FOR UPDATE SKIP LOCKED
 `
 
 func (q *Queries) GetNextAvailableRun(ctx context.Context) (string, error) {

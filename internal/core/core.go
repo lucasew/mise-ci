@@ -102,6 +102,7 @@ type Core struct {
 	repo           repository.Repository
 	forge          forge.Forge
 	mu             sync.RWMutex
+	dbMu           sync.Mutex                              // Lock global para todas operações de DB (critical para SQLite)
 	logger         *slog.Logger
 	jwtSecret      []byte
 	logListener    map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
@@ -358,6 +359,11 @@ func (c *Core) flushLogs(runID string, entries []LogEntry) {
 		return
 	}
 
+	// Lock global de DB para serializar operações críticas
+	// Critical para SQLite (evita concurrent writes)
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
+
 	// Save to database (batch)
 	ctx := context.Background()
 	repoEntries := make([]repository.LogEntry, len(entries))
@@ -527,6 +533,11 @@ func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 
 // TryDequeueRun tenta pegar próxima run da fila sem bloquear
 func (c *Core) TryDequeueRun(ctx context.Context) (string, RunStatus, bool) {
+	// Lock global de DB para serializar operações críticas
+	// Critical para SQLite (evita concurrent writes)
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
+
 	runID, err := c.repo.GetNextAvailableRun(ctx)
 	if err != nil {
 		c.logger.Error("failed to get next available run", "error", err)

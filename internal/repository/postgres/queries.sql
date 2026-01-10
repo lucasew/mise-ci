@@ -53,7 +53,8 @@ ORDER BY
     WHEN 'scheduled' THEN 2
   END,
   started_at ASC
-LIMIT 1;
+LIMIT 1
+FOR UPDATE SKIP LOCKED;
 
 -- name: CreateRepo :exec
 INSERT INTO repos (clone_url)

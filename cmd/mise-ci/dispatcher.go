@@ -56,6 +56,9 @@ type PollResponse struct {
 }
 
 func runDispatcher(cmd *cobra.Command, args []string) error {
+	// Seed random para jitter (evita sequências idênticas em dispatchers simultâneos)
+	rand.Seed(time.Now().UnixNano())
+
 	// Usar as mesmas env vars do worker: MISE_CI_CALLBACK e MISE_CI_TOKEN
 	serverURL := viper.GetString("callback")
 	token := viper.GetString("token")
