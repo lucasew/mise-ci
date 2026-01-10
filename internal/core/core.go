@@ -198,9 +198,44 @@ func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, bra
 
 func (c *Core) GetRun(id string) (*Run, bool) {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
 	run, ok := c.runs[id]
-	return run, ok
+	c.mu.RUnlock()
+	if ok {
+		return run, true
+	}
+
+	// Slow path: check DB and hydrate
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Check memory again in case it was created while we waited for lock
+	if run, ok := c.runs[id]; ok {
+		return run, true
+	}
+
+	// Check DB
+	ctx := context.Background()
+	meta, err := c.repo.GetRun(ctx, id)
+	if err != nil {
+		return nil, false
+	}
+
+	// Only revive if the run is active or pending
+	if meta.Status == string(StatusScheduled) || meta.Status == string(StatusDispatched) || meta.Status == string(StatusRunning) {
+		run = &Run{
+			ID:          id,
+			CommandCh:   make(chan *pb.ServerMessage, 10),
+			ResultCh:    make(chan *pb.WorkerMessage, 10),
+			DoneCh:      make(chan struct{}),
+			ConnectedCh: make(chan struct{}),
+			RetryCh:     make(chan struct{}, 1),
+			Env:         make(map[string]string),
+		}
+		c.runs[id] = run
+		return run, true
+	}
+
+	return nil, false
 }
 
 func (c *Core) SetRunEnv(id string, env map[string]string) {
