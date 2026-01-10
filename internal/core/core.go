@@ -98,22 +98,16 @@ func (lb *LogBuffer) append(entry LogEntry) {
 }
 
 type Core struct {
-	runs              map[string]*Run
-	repo              repository.Repository
-	forge             forge.Forge
-	mu                sync.RWMutex
-	logger            *slog.Logger
-	jwtSecret         []byte
-	logListener       map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
-	statusListener    *ListenerManager[RunInfo]               // global status change listeners manager
-	logBuffers        map[string]*LogBuffer
-	StartTime         time.Time
-	dispatchedQueue   []string      // Fila de runs dispatched aguardando worker
-	scheduledQueue    []string      // Fila de runs scheduled aguardando worker
-	queueMu           sync.Mutex    // Mutex para acesso à fila
-	waitingWorkers    chan struct{} // Canal para sinalizar workers aguardando
-	waitingWorkersMu  sync.Mutex
-	waitingWorkersMap map[chan string]struct{} // Conjunto de workers aguardando runs
+	runs           map[string]*Run
+	repo           repository.Repository
+	forge          forge.Forge
+	mu             sync.RWMutex
+	logger         *slog.Logger
+	jwtSecret      []byte
+	logListener    map[string]*ListenerManager[[]LogEntry] // run_id -> log listeners manager
+	statusListener *ListenerManager[RunInfo]               // global status change listeners manager
+	logBuffers     map[string]*LogBuffer
+	StartTime      time.Time
 }
 
 type Run struct {
@@ -129,18 +123,14 @@ type Run struct {
 
 func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Core {
 	return &Core{
-		runs:              make(map[string]*Run),
-		repo:              repo,
-		logger:            logger,
-		jwtSecret:         []byte(secret),
-		logListener:       make(map[string]*ListenerManager[[]LogEntry]),
-		statusListener:    NewListenerManager[RunInfo](),
-		logBuffers:        make(map[string]*LogBuffer),
-		StartTime:         time.Now(),
-		dispatchedQueue:   make([]string, 0),
-		scheduledQueue:    make([]string, 0),
-		waitingWorkers:    make(chan struct{}, 100),
-		waitingWorkersMap: make(map[chan string]struct{}),
+		runs:           make(map[string]*Run),
+		repo:           repo,
+		logger:         logger,
+		jwtSecret:      []byte(secret),
+		logListener:    make(map[string]*ListenerManager[[]LogEntry]),
+		statusListener: NewListenerManager[RunInfo](),
+		logBuffers:     make(map[string]*LogBuffer),
+		StartTime:      time.Now(),
 	}
 }
 
@@ -201,9 +191,6 @@ func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, bra
 		Author:        author,
 		Branch:        branch,
 	})
-
-	// Adiciona à fila de runs aguardando worker
-	c.EnqueueRun(id, StatusScheduled)
 
 	return run
 }
@@ -267,7 +254,11 @@ func (c *Core) GenerateWorkerToken(runID string) (string, error) {
 }
 
 func (c *Core) GeneratePoolWorkerToken() (string, error) {
-	return c.generatePoolToken(TokenTypePoolWorker)
+	return c.GeneratePoolWorkerTokenWithExpiry(1 * time.Hour)
+}
+
+func (c *Core) GeneratePoolWorkerTokenWithExpiry(expiry time.Duration) (string, error) {
+	return c.generatePoolTokenWithExpiry(TokenTypePoolWorker, expiry)
 }
 
 func (c *Core) GenerateUIToken(runID string) (string, error) {
@@ -294,15 +285,27 @@ func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) 
 }
 
 func (c *Core) generatePoolToken(tokenType TokenType) (string, error) {
-	now := time.Now()
-	expiresAt := jwt.NewNumericDate(now.Add(1 * time.Hour))
+	return c.generatePoolTokenWithExpiry(tokenType, 1*time.Hour)
+}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+func (c *Core) generatePoolTokenWithExpiry(tokenType TokenType, expiry time.Duration) (string, error) {
+	now := time.Now()
+	var expiresAt *jwt.NumericDate
+	if expiry > 0 {
+		expiresAt = jwt.NewNumericDate(now.Add(expiry))
+	}
+	// Se expiry <= 0, não adiciona exp (token sem expiração)
+
+	claims := jwt.MapClaims{
 		"type": tokenType,
-		"exp":  expiresAt,
 		"nbf":  jwt.NewNumericDate(now),
 		"iat":  jwt.NewNumericDate(now),
-	})
+	}
+	if expiresAt != nil {
+		claims["exp"] = expiresAt
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(c.jwtSecret)
 }
 
@@ -402,9 +405,6 @@ func (c *Core) UpdateStatus(runID string, status RunStatus, exitCode *int32) {
 		c.logger.Error("failed to update status in database", "error", err, "run_id", runID)
 		return
 	}
-
-	// Gerenciar filas baseado na mudança de status
-	c.manageQueueOnStatusChange(runID, status)
 
 	// Get updated run info for broadcast
 	meta, err := c.repo.GetRun(ctx, runID)
@@ -525,110 +525,35 @@ func (c *Core) UnsubscribeStatus(ch chan RunInfo) {
 	c.statusListener.Unsubscribe(ch)
 }
 
-// EnqueueRun adiciona uma run à fila apropriada baseada no status
-func (c *Core) EnqueueRun(runID string, status RunStatus) {
-	c.queueMu.Lock()
-	defer c.queueMu.Unlock()
-
-	if status == StatusDispatched {
-		c.dispatchedQueue = append(c.dispatchedQueue, runID)
-		c.logger.Info("run enqueued", "run_id", runID, "queue", "dispatched", "queue_size", len(c.dispatchedQueue))
-	} else if status == StatusScheduled {
-		c.scheduledQueue = append(c.scheduledQueue, runID)
-		c.logger.Info("run enqueued", "run_id", runID, "queue", "scheduled", "queue_size", len(c.scheduledQueue))
-	}
-
-	// Notifica workers aguardando
-	select {
-	case c.waitingWorkers <- struct{}{}:
-	default:
-	}
-}
-
-// DequeueRun pega a próxima run da fila (prioriza dispatched sobre scheduled)
-func (c *Core) DequeueRun() (string, RunStatus, bool) {
-	c.queueMu.Lock()
-	defer c.queueMu.Unlock()
-
-	// Prioriza runs dispatched
-	if len(c.dispatchedQueue) > 0 {
-		runID := c.dispatchedQueue[0]
-		c.dispatchedQueue = c.dispatchedQueue[1:]
-		c.logger.Info("run dequeued", "run_id", runID, "queue", "dispatched", "remaining", len(c.dispatchedQueue))
-		return runID, StatusDispatched, true
-	}
-
-	// Se não há dispatched, pega da fila scheduled
-	if len(c.scheduledQueue) > 0 {
-		runID := c.scheduledQueue[0]
-		c.scheduledQueue = c.scheduledQueue[1:]
-		c.logger.Info("run dequeued", "run_id", runID, "queue", "scheduled", "remaining", len(c.scheduledQueue))
-		return runID, StatusScheduled, true
-	}
-
-	return "", "", false
-}
-
-// WaitForRun aguarda uma run ficar disponível na fila
+// WaitForRun aguarda uma run ficar disponível na fila (usa tabela runs como fila)
 func (c *Core) WaitForRun(ctx context.Context) (string, RunStatus, error) {
-	// Primeiro tenta pegar uma run da fila
-	if runID, status, ok := c.DequeueRun(); ok {
-		return runID, status, nil
-	}
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 
-	// Se não há runs, aguarda notificação
-	select {
-	case <-c.waitingWorkers:
-		// Tenta novamente após notificação
-		if runID, status, ok := c.DequeueRun(); ok {
-			return runID, status, nil
+	for {
+		// Busca próxima run disponível do banco (prioriza dispatched > scheduled)
+		runID, err := c.repo.GetNextAvailableRun(ctx)
+		if err != nil {
+			c.logger.Error("failed to get next available run", "error", err)
+		} else if runID != "" {
+			// Pega info da run para retornar o status atual
+			meta, err := c.repo.GetRun(ctx, runID)
+			if err != nil {
+				c.logger.Error("failed to get run metadata", "run_id", runID, "error", err)
+			} else {
+				c.logger.Info("run assigned from queue", "run_id", runID, "status", meta.Status)
+				return runID, RunStatus(meta.Status), nil
+			}
 		}
-		return "", "", fmt.Errorf("no runs available after notification")
-	case <-ctx.Done():
-		return "", "", ctx.Err()
-	}
-}
 
-// manageQueueOnStatusChange gerencia as filas quando o status muda
-func (c *Core) manageQueueOnStatusChange(runID string, newStatus RunStatus) {
-	c.queueMu.Lock()
-	defer c.queueMu.Unlock()
-
-	switch newStatus {
-	case StatusDispatched:
-		// Remove da fila scheduled e adiciona à dispatched
-		c.removeFromQueue(&c.scheduledQueue, runID)
-		// Só adiciona se não estiver já na fila dispatched
-		if !c.isInQueue(c.dispatchedQueue, runID) {
-			c.dispatchedQueue = append(c.dispatchedQueue, runID)
-			c.logger.Info("run moved to dispatched queue", "run_id", runID)
-		}
-	case StatusRunning, StatusSuccess, StatusFailure, StatusError, StatusSkipped:
-		// Remove de ambas as filas quando começa a executar ou termina
-		c.removeFromQueue(&c.scheduledQueue, runID)
-		c.removeFromQueue(&c.dispatchedQueue, runID)
-		c.logger.Info("run removed from queues", "run_id", runID, "status", newStatus)
-	}
-}
-
-// removeFromQueue remove um runID de uma fila
-func (c *Core) removeFromQueue(queue *[]string, runID string) {
-	for i, id := range *queue {
-		if id == runID {
-			*queue = append((*queue)[:i], (*queue)[i+1:]...)
-			return
+		// Aguarda antes de tentar novamente
+		select {
+		case <-ticker.C:
+			continue
+		case <-ctx.Done():
+			return "", "", ctx.Err()
 		}
 	}
-}
-
-// isInQueue verifica se um runID está na fila
-func (c *Core) isInQueue(queue []string, runID string) bool {
-	for _, id := range queue {
-		if id == runID {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *Core) GetLogsFromRepository(ctx context.Context, runID string) ([]LogEntry, error) {

@@ -1,9 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/lucasew/mise-ci/internal/version"
 )
@@ -88,4 +90,58 @@ func (s *UIServer) HandleCleanupStuckRuns(w http.ResponseWriter, r *http.Request
     if err := s.engine.Render(w, "templates/pages/admin_cleanup.html", data); err != nil {
         s.logger.Error("failed to render template", "error", err)
     }
+}
+
+func (s *UIServer) HandleAdminTokens(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Title":   "Worker Tokens",
+		"Version": version.Get(),
+	}
+
+	if err := s.engine.Render(w, "templates/pages/admin_tokens.html", data); err != nil {
+		s.logger.Error("failed to render template", "template", "admin_tokens", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+func (s *UIServer) HandleGeneratePoolToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	expiryStr := r.FormValue("expiry")
+	var expiry time.Duration
+
+	if expiryStr == "never" || expiryStr == "" {
+		expiry = 0 // Token sem expiração
+	} else {
+		// Parse duration em dias
+		days, err := strconv.Atoi(expiryStr)
+		if err != nil || days < 0 {
+			http.Error(w, "Invalid expiry value", http.StatusBadRequest)
+			return
+		}
+		expiry = time.Duration(days) * 24 * time.Hour
+	}
+
+	token, err := s.core.GeneratePoolWorkerTokenWithExpiry(expiry)
+	if err != nil {
+		s.logger.Error("failed to generate pool token", "error", err)
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"token":  token,
+		"expiry": expiryStr,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

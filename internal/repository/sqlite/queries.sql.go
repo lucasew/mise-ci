@@ -260,6 +260,26 @@ func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int64) ([]Get
 	return items, nil
 }
 
+const getNextAvailableRun = `-- name: GetNextAvailableRun :one
+SELECT id
+FROM runs
+WHERE status IN ('dispatched', 'scheduled')
+ORDER BY
+  CASE status
+    WHEN 'dispatched' THEN 1
+    WHEN 'scheduled' THEN 2
+  END,
+  started_at ASC
+LIMIT 1
+`
+
+func (q *Queries) GetNextAvailableRun(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getNextAvailableRun)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getStuckRuns = `-- name: GetStuckRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs

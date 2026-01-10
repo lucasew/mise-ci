@@ -43,6 +43,18 @@ WHERE status IN ('scheduled', 'dispatched', 'running')
 AND started_at < $1
 LIMIT $2;
 
+-- name: GetNextAvailableRun :one
+SELECT id
+FROM runs
+WHERE status IN ('dispatched', 'scheduled')
+ORDER BY
+  CASE status
+    WHEN 'dispatched' THEN 1
+    WHEN 'scheduled' THEN 2
+  END,
+  started_at ASC
+LIMIT 1;
+
 -- name: CreateRepo :exec
 INSERT INTO repos (clone_url)
 VALUES ($1);

@@ -34,6 +34,9 @@ type Repository interface {
 	GetStuckRuns(ctx context.Context, olderThan time.Time, limit int) ([]*RunMetadata, error)
 	CheckRepoExists(ctx context.Context, cloneURL string) (bool, error)
 
+	// Queue operations
+	GetNextAvailableRun(ctx context.Context) (string, error)
+
 	// Log operations
 	AppendLog(ctx context.Context, runID string, entry LogEntry) error
 	AppendLogs(ctx context.Context, runID string, entries []LogEntry) error

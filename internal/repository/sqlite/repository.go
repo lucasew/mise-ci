@@ -480,6 +480,14 @@ func (r *Repository) GetStuckRuns(ctx context.Context, olderThan time.Time, limi
 	return runs, nil
 }
 
+func (r *Repository) GetNextAvailableRun(ctx context.Context) (string, error) {
+	id, err := r.queries.GetNextAvailableRun(ctx)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return id, err
+}
+
 func (r *Repository) CheckRepoExists(ctx context.Context, cloneURL string) (bool, error) {
 	_, err := r.queries.CheckRepoExists(ctx, cloneURL)
 	if err != nil {

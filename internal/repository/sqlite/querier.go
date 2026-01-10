@@ -19,6 +19,7 @@ type Querier interface {
 	GetRepo(ctx context.Context, cloneUrl string) (string, error)
 	GetRun(ctx context.Context, id string) (GetRunRow, error)
 	GetRunsWithoutRepoURL(ctx context.Context, limit int64) ([]GetRunsWithoutRepoURLRow, error)
+	GetNextAvailableRun(ctx context.Context) (string, error)
 	GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error)
 	ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error)
 	ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error)
