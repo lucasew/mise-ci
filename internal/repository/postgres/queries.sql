@@ -39,7 +39,7 @@ WHERE id = $2;
 -- name: GetStuckRuns :many
 SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
 FROM runs
-WHERE status IN ('scheduled', 'running')
+WHERE status IN ('scheduled', 'dispatched', 'running')
 AND started_at < $1
 LIMIT $2;
 

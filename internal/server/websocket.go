@@ -80,16 +80,9 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if tokenType != core.TokenTypeWorker {
+	if tokenType != core.TokenTypeWorker && tokenType != core.TokenTypePoolWorker {
 		s.logger.Error("invalid token type for worker connection", "type", tokenType)
 		http.Error(w, "invalid token type", http.StatusForbidden)
-		return
-	}
-
-	run, ok := s.core.GetRun(runID)
-	if !ok {
-		s.logger.Error("run not found", "run_id", runID)
-		http.Error(w, "run not found", http.StatusNotFound)
 		return
 	}
 
@@ -102,6 +95,25 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 	defer func() {
 		_ = conn.Close()
 	}()
+
+	// 3. Para pool workers, aguardar e atribuir uma run da fila
+	if tokenType == core.TokenTypePoolWorker {
+		s.logger.Info("pool worker connected, waiting for run assignment")
+		var queueStatus core.RunStatus
+		runID, queueStatus, err = s.core.WaitForRun(r.Context())
+		if err != nil {
+			s.logger.Error("failed to get run from queue", "error", err)
+			http.Error(w, "no runs available", http.StatusServiceUnavailable)
+			return
+		}
+		s.logger.Info("run assigned to pool worker", "run_id", runID, "from_queue", queueStatus)
+	}
+
+	run, ok := s.core.GetRun(runID)
+	if !ok {
+		s.logger.Error("run not found", "run_id", runID)
+		return
+	}
 
 	s.logger.Info("worker connected", "run_id", runID)
 
