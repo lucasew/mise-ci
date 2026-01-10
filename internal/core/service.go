@@ -77,9 +77,10 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	s.Logger.Info("test dispatch", "run_id", runID)
 
 	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
-	token, err := s.Core.GeneratePoolWorkerToken()
+	// Generate a run-specific token for the test dispatch
+	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
-		s.Logger.Error("generate pool token", "error", err)
+		s.Logger.Error("generate worker token", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
 	}
@@ -290,10 +291,10 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 	s.Logger.Debug("clone credentials obtained successfully")
 
-	// Gera token de pool worker (não específico para esta run)
-	token, err := s.Core.GeneratePoolWorkerToken()
+	// Generate a run-specific token
+	token, err := s.Core.GenerateWorkerToken(runID)
 	if err != nil {
-		s.Logger.Error("generate pool token", "error", err)
+		s.Logger.Error("generate worker token", "error", err)
 		s.Core.UpdateStatus(runID, StatusError, nil)
 		return
 	}
