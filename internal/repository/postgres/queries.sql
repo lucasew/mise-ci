@@ -46,11 +46,12 @@ LIMIT $2;
 -- name: GetNextAvailableRun :one
 SELECT id
 FROM runs
-WHERE status IN ('dispatched', 'scheduled')
+WHERE status IN ('dispatched', 'scheduled', 'error')
 ORDER BY
   CASE status
     WHEN 'dispatched' THEN 1
     WHEN 'scheduled' THEN 2
+    WHEN 'error' THEN 3
   END,
   started_at ASC
 LIMIT 1
