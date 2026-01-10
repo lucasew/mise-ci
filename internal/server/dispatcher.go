@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -9,11 +10,15 @@ import (
 )
 
 type DispatcherServer struct {
-	core *core.Core
+	core   *core.Core
+	logger *slog.Logger
 }
 
-func NewDispatcherServer(core *core.Core) *DispatcherServer {
-	return &DispatcherServer{core: core}
+func NewDispatcherServer(core *core.Core, logger *slog.Logger) *DispatcherServer {
+	return &DispatcherServer{
+		core:   core,
+		logger: logger,
+	}
 }
 
 type PollResponse struct {
@@ -64,8 +69,11 @@ func (s *DispatcherServer) HandlePoll(w http.ResponseWriter, r *http.Request) {
 
 	// Retornar runID + token
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(PollResponse{
+	if err := json.NewEncoder(w).Encode(PollResponse{
 		RunID:       runID,
 		WorkerToken: workerToken,
-	})
+	}); err != nil {
+		// Log error, mas é tarde para enviar status HTTP
+		s.logger.Error("failed to encode poll response", "error", err)
+	}
 }
