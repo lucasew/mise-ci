@@ -17,6 +17,19 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 }
 
+func (c *Config) validate() error {
+	if c.JWT.Secret == "" {
+		return fmt.Errorf("jwt.secret is required")
+	}
+	if c.Auth.AdminUsername != "" && c.Auth.AdminPassword == "" {
+		return fmt.Errorf("auth.admin_username cannot be set without auth.admin_password")
+	}
+	if c.Auth.AdminPassword != "" && c.Auth.AdminUsername == "" {
+		c.Auth.AdminUsername = "admin"
+	}
+	return nil
+}
+
 type AuthConfig struct {
 	AdminUsername string `mapstructure:"admin_username"`
 	AdminPassword string `mapstructure:"admin_password"`
@@ -84,19 +97,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	if cfg.JWT.Secret == "" {
-		return nil, fmt.Errorf("jwt.secret is required")
-	}
-
-	// Validate admin auth config
-	if cfg.Auth.AdminPassword != "" {
-		if cfg.Auth.AdminUsername == "" {
-			cfg.Auth.AdminUsername = "admin"
-		}
-	} else {
-		if cfg.Auth.AdminUsername != "" {
-			return nil, fmt.Errorf("auth.admin_username cannot be set without auth.admin_password")
-		}
+	if err := cfg.validate(); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil
