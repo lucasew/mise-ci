@@ -36,7 +36,7 @@ func TestIngestSARIF(t *testing.T) {
 	// Use core to create run to ensure everything is linked
 	core.CreateRun(runID, repoURL+"/commit/sha", repoURL, "fix: stuff", "me", "main")
 
-	service := NewService(core, nil, nil, &artifacts.LocalStorage{}, &config.Config{}, logger)
+	service := NewService(core, nil, &artifacts.LocalStorage{}, &config.Config{}, logger)
 
 	// 2. Create a dummy Go file with a lint error
 	workDir := t.TempDir()

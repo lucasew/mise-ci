@@ -52,10 +52,16 @@ func (s *DispatcherServer) HandlePoll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Tentar pegar próxima run da fila (sem bloquear)
-	runID, _, ok := s.core.TryDequeueRun(r.Context())
-	if !ok || runID == "" {
-		// Nenhuma run disponível
+	// Wait for the next available run. This will block until a run is ready or timeout.
+	runID, err := s.core.DequeueNextRun(r.Context())
+	if err != nil {
+		s.logger.Error("failed to dequeue run", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// If runID is empty, it means the request timed out.
+	if runID == "" {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
