@@ -51,11 +51,28 @@ func (m *AuthMiddleware) checkBasicAuth(w http.ResponseWriter, r *http.Request) 
 	// Constant-time comparison for username
 	userMatch := subtle.ConstantTimeCompare([]byte(user), []byte(m.authConfig.AdminUsername))
 
-	// bcrypt.CompareHashAndPassword is inherently resistant to timing attacks
+	// bcrypt.CompareHashAndPassword is inherently resistant to timing attacks.
+	// It's crucial to perform this check regardless of the username comparison result
+	// to ensure a constant-time execution path.
 	err := bcrypt.CompareHashAndPassword(m.adminPasswordHash, []byte(pass))
 	passMatch := (err == nil)
 
-	if !ok || userMatch != 1 || !passMatch {
+	// Combine authentication checks using bitwise operations to prevent short-circuiting,
+	// which would create a timing side-channel.
+	// A valid request requires `ok` to be true, `userMatch` to be 1, and `passMatch` to be true.
+	// We use bitwise AND (`&`) to ensure all checks are evaluated.
+	var okAsInt, passMatchAsInt int
+	if ok {
+		okAsInt = 1
+	}
+	if passMatch {
+		passMatchAsInt = 1
+	}
+
+	// `valid` will be 1 only if all conditions are met.
+	valid := okAsInt & userMatch & passMatchAsInt
+
+	if valid != 1 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return false
