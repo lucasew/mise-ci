@@ -61,13 +61,11 @@
                         <td>{{if .ExpiresAt.Valid}}{{.ExpiresAt.Time.Format "2006-01-02 15:04"}}{{else}}Never{{end}}</td>
                         <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
                         <td>
-                            {{if .RevokedAt}}
+                            {{if .RevokedAt.Valid}}
                                 <span class="badge bg-danger">Revoked</span>
-                            {{else if .ExpiresAt}}{{if .ExpiresAt.Before (now)}}
+                            {{else if .ExpiresAt.Valid && .ExpiresAt.Time.Before(now)}}
                                 <span class="badge bg-warning text-dark">Expired</span>
                             {{else}}
-                                <span class="badge bg-success">Active</span>
-                            {{end}}{{else}}
                                 <span class="badge bg-success">Active</span>
                             {{end}}
                         </td>
