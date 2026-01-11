@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/go-github/v80/github"
+	"github.com/google/go-github/v81/github"
 	"github.com/lucasew/mise-ci/internal/forge"
 )
 
@@ -64,8 +64,8 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		return &forge.WebhookEvent{
 			Type:          forge.EventTypePush,
 			Repo:          *e.Repo.FullName,
-			Ref:   *e.Ref,
-			SHA:   *e.After,
+			Ref:           *e.Ref,
+			SHA:           *e.After,
 			Clone:         e.Repo.GetCloneURL(),
 			Link:          link,
 			CommitMessage: msg,
@@ -88,8 +88,8 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		return &forge.WebhookEvent{
 			Type:          forge.EventTypePullRequest,
 			Repo:          *e.Repo.FullName,
-			Ref:   fmt.Sprintf("refs/pull/%d/head", e.GetNumber()),
-			SHA:   *e.PullRequest.Head.SHA,
+			Ref:           fmt.Sprintf("refs/pull/%d/head", e.GetNumber()),
+			SHA:           *e.PullRequest.Head.SHA,
 			Clone:         e.Repo.GetCloneURL(),
 			Link:          link,
 			CommitMessage: e.PullRequest.GetTitle(),
@@ -131,8 +131,8 @@ func (g *GitHubForge) ParseWebhook(r *http.Request) (*forge.WebhookEvent, error)
 		return &forge.WebhookEvent{
 			Type:          forge.EventTypeCheckRun,
 			Repo:          *e.Repo.FullName,
-			Ref:   ref,
-			SHA:   *e.CheckRun.HeadSHA,
+			Ref:           ref,
+			SHA:           *e.CheckRun.HeadSHA,
 			Clone:         e.Repo.GetCloneURL(),
 			Link:          link,
 			CommitMessage: msg,
