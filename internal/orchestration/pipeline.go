@@ -1,9 +1,13 @@
 package orchestration
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 )
+
+// ErrSkipped is used to signal that a step was skipped and the pipeline should stop successfully.
+var ErrSkipped = errors.New("step skipped")
 
 // LogProvider defines the interface needed for logging
 type LogProvider interface {
@@ -54,6 +58,11 @@ func (p *Pipeline) Run() error {
 		p.logProvider.AddLog(p.runID, "system", fmt.Sprintf("[%d/%d] %s...", i+1, len(p.steps), step.Description))
 
 		if err := step.Execute(); err != nil {
+			if errors.Is(err, ErrSkipped) {
+				p.logger.Info("step skipped, stopping pipeline", "run_id", p.runID, "step", step.Name)
+				p.logProvider.AddLog(p.runID, "system", fmt.Sprintf("Step '%s' skipped. Halting pipeline.", step.Name))
+				return nil // Stop execution, but successfully
+			}
 			p.logger.Error("step failed", "run_id", p.runID, "step", step.Name, "error", err)
 			p.logProvider.AddLog(p.runID, "system", fmt.Sprintf("Step '%s' failed: %v", step.Name, err))
 			return fmt.Errorf("step %s failed: %w", step.Name, err)
