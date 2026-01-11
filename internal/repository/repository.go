@@ -42,25 +42,8 @@ type Repository interface {
 	AppendLogs(ctx context.Context, runID string, entries []LogEntry) error
 	GetLogs(ctx context.Context, runID string) ([]LogEntry, error)
 
-	// Worker Token lifecycle
-	CreateWorkerToken(ctx context.Context, token *WorkerToken) error
-	GetWorkerToken(ctx context.Context, id string) (*WorkerToken, error)
-	ListWorkerTokens(ctx context.Context) ([]*WorkerToken, error)
-	RevokeWorkerToken(ctx context.Context, id string, revokedAt time.Time) error
-	DeleteWorkerToken(ctx context.Context, id string) error
-
 	// Cleanup
 	Close() error
-}
-
-// WorkerToken represents a worker authentication token
-type WorkerToken struct {
-	ID         string
-	Name       string
-	ExpiresAt  *time.Time
-	RevokedAt  *time.Time
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
 }
 
 // Repo represents a repository

@@ -52,7 +52,7 @@ ORDER BY
     WHEN 'dispatched' THEN 1
     WHEN 'scheduled' THEN 2
     WHEN 'error' THEN 3
-  END
+  END,
   started_at ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED;
@@ -102,26 +102,3 @@ SELECT timestamp, stream, data
 FROM log_entries
 WHERE run_id = $1
 ORDER BY id ASC;
-
--- name: CreateWorkerToken :exec
-INSERT INTO worker_tokens (id, name, expires_at, created_at, updated_at)
-VALUES (, , , , );
-
--- name: GetWorkerToken :one
-SELECT id, name, expires_at, revoked_at, created_at, updated_at
-FROM worker_tokens
-WHERE id = ;
-
--- name: ListWorkerTokens :many
-SELECT id, name, expires_at, revoked_at, created_at, updated_at
-FROM worker_tokens
-ORDER BY created_at DESC;
-
--- name: RevokeWorkerToken :exec
-UPDATE worker_tokens
-SET revoked_at = , updated_at =
-WHERE id = ;
-
--- name: DeleteWorkerToken :exec
-DELETE FROM worker_tokens
-WHERE id = ;

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gofrs/uuid/v5"
 	"github.com/lucasew/mise-ci/internal/forge"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/repository"
@@ -260,20 +259,6 @@ func (c *Core) ValidateToken(tokenString string) (string, TokenType, error) {
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		// Check for token revocation
-		if tokenID, ok := claims["token_id"].(string); ok {
-			dbToken, err := c.repo.GetWorkerToken(context.Background(), tokenID)
-			if err != nil {
-				return "", "", fmt.Errorf("token not found")
-			}
-			if dbToken.RevokedAt != nil {
-				return "", "", fmt.Errorf("token has been revoked")
-			}
-			if dbToken.ExpiresAt != nil && time.Now().After(*dbToken.ExpiresAt) {
-				return "", "", fmt.Errorf("token has expired")
-			}
-		}
-
 		tokenTypeStr, ok := claims["type"].(string)
 		var tokenType TokenType
 		if !ok {
@@ -351,45 +336,16 @@ func (c *Core) GenerateWorkerToken(runID string) (string, error) {
 	return c.generateToken(runID, TokenTypeWorker)
 }
 
-func (c *Core) CreateWorkerToken(ctx context.Context, name string, expiry time.Duration) (string, error) {
-    // Generate a new UUIDv7 for the token ID
-    tokenID, err := uuid.NewV7()
-    if err != nil {
-        return "", fmt.Errorf("failed to generate token ID: %w", err)
-    }
+func (c *Core) GeneratePoolWorkerToken() (string, error) {
+	return c.GeneratePoolWorkerTokenWithExpiry(1 * time.Hour)
+}
 
-    now := time.Now()
-    var expiresAt *time.Time
-    if expiry > 0 {
-        t := now.Add(expiry)
-        expiresAt = &t
-    }
+func (c *Core) GeneratePoolWorkerTokenWithExpiry(expiry time.Duration) (string, error) {
+	return c.generatePoolTokenWithExpiry(TokenTypePoolWorker, expiry)
+}
 
-    // Create the token in the database
-    dbToken := &repository.WorkerToken{
-        ID:        tokenID.String(),
-        Name:      name,
-        ExpiresAt: expiresAt,
-        CreatedAt: now,
-        UpdatedAt: now,
-    }
-    if err := c.repo.CreateWorkerToken(ctx, dbToken); err != nil {
-        return "", fmt.Errorf("failed to create worker token in db: %w", err)
-    }
-
-    // Generate the JWT
-    claims := jwt.MapClaims{
-        "token_id": dbToken.ID,
-        "type":     TokenTypePoolWorker,
-        "nbf":      jwt.NewNumericDate(now),
-        "iat":      jwt.NewNumericDate(now),
-    }
-    if expiresAt != nil {
-        claims["exp"] = jwt.NewNumericDate(*expiresAt)
-    }
-
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-    return token.SignedString(c.jwtSecret)
+func (c *Core) GenerateUIToken(runID string) (string, error) {
+	return c.generateToken(runID, TokenTypeUI)
 }
 
 func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) {
@@ -408,6 +364,27 @@ func (c *Core) generateToken(runID string, tokenType TokenType) (string, error) 
 		"nbf":    jwt.NewNumericDate(now),
 		"iat":    jwt.NewNumericDate(now),
 	})
+	return token.SignedString(c.jwtSecret)
+}
+
+func (c *Core) generatePoolTokenWithExpiry(tokenType TokenType, expiry time.Duration) (string, error) {
+	now := time.Now()
+	var expiresAt *jwt.NumericDate
+	if expiry > 0 {
+		expiresAt = jwt.NewNumericDate(now.Add(expiry))
+	}
+	// Se expiry <= 0, não adiciona exp (token sem expiração)
+
+	claims := jwt.MapClaims{
+		"type": tokenType,
+		"nbf":  jwt.NewNumericDate(now),
+		"iat":  jwt.NewNumericDate(now),
+	}
+	if expiresAt != nil {
+		claims["exp"] = expiresAt
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(c.jwtSecret)
 }
 

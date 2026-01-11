@@ -78,16 +78,8 @@ func (s *HttpServer) Serve(l net.Listener) error {
 	mux.HandleFunc("/ui/admin/cleanup", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminCleanup))
 	mux.HandleFunc("/ui/admin/cleanup/repo-urls", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleBackfillRepoURLs))
 	mux.HandleFunc("/ui/admin/cleanup/stuck-runs", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleCleanupStuckRuns))
-	mux.HandleFunc("POST /ui/admin/tokens", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleCreateToken))
-	mux.HandleFunc("GET /ui/admin/tokens", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminTokens))
-	mux.HandleFunc("POST /ui/admin/tokens/{id}/revoke", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleRevokeToken))
-	mux.HandleFunc("POST /ui/admin/tokens/{id}", s.authMiddleware.RequireBasicAuth(func(w http.ResponseWriter, r *http.Request) {
-		if r.FormValue("_method") == "DELETE" {
-			s.uiServer.HandleDeleteToken(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))
+	mux.HandleFunc("/ui/admin/tokens", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleAdminTokens))
+	mux.HandleFunc("/ui/admin/tokens/generate", s.authMiddleware.RequireBasicAuth(s.uiServer.HandleGeneratePoolToken))
 
 	// API routes for dispatcher
 	mux.HandleFunc("/api/dispatcher/poll", s.dispatcherServer.HandlePoll)
