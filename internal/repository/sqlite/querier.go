@@ -15,6 +15,8 @@ type Querier interface {
 	CreateFinding(ctx context.Context, arg CreateFindingParams) error
 	CreateRepo(ctx context.Context, cloneUrl string) error
 	CreateRun(ctx context.Context, arg CreateRunParams) error
+	CreateWorkerToken(ctx context.Context, arg CreateWorkerTokenParams) error
+	DeleteWorkerToken(ctx context.Context, id string) error
 	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
 	GetNextAvailableRun(ctx context.Context) (string, error)
 	GetRepo(ctx context.Context, cloneUrl string) (string, error)
@@ -25,6 +27,8 @@ type Querier interface {
 	ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error)
 	ListRepos(ctx context.Context) ([]sql.NullString, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
+	ListWorkerTokens(ctx context.Context) ([]WorkerToken, error)
+	RevokeWorkerToken(ctx context.Context, id string) error
 	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
 	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
 	UpsertRule(ctx context.Context, arg UpsertRuleParams) error

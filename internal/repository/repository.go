@@ -42,6 +42,12 @@ type Repository interface {
 	AppendLogs(ctx context.Context, runID string, entries []LogEntry) error
 	GetLogs(ctx context.Context, runID string) ([]LogEntry, error)
 
+	// Worker token operations
+	CreateWorkerToken(ctx context.Context, token *WorkerToken) error
+	ListWorkerTokens(ctx context.Context) ([]WorkerToken, error)
+	RevokeWorkerToken(ctx context.Context, tokenID string) error
+	DeleteWorkerToken(ctx context.Context, tokenID string) error
+
 	// Cleanup
 	Close() error
 }
@@ -100,4 +106,13 @@ type Finding struct {
 	Path        string
 	Line        int
 	Fingerprint string
+}
+
+type WorkerToken struct {
+	ID        string
+	Name      string
+	ExpiresAt *time.Time
+	RevokedAt *time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

@@ -388,6 +388,18 @@ func (c *Core) generatePoolTokenWithExpiry(tokenType TokenType, expiry time.Dura
 	return token.SignedString(c.jwtSecret)
 }
 
+func (c *Core) ListWorkerTokens(ctx context.Context) ([]repository.WorkerToken, error) {
+	return c.repo.ListWorkerTokens(ctx)
+}
+
+func (c *Core) RevokeWorkerToken(ctx context.Context, tokenID string) error {
+	return c.repo.RevokeWorkerToken(ctx, tokenID)
+}
+
+func (c *Core) DeleteWorkerToken(ctx context.Context, tokenID string) error {
+	return c.repo.DeleteWorkerToken(ctx, tokenID)
+}
+
 func (c *Core) GetRunUIURL(runID string, baseURL string) string {
 	ctx := context.Background()
 	meta, err := c.repo.GetRun(ctx, runID)

@@ -48,6 +48,9 @@ func NewUIServer(c *core.Core, logger *slog.Logger, publicURL string) *UIServer 
 			}
 			return strings.TrimSpace(s[idx+1:])
 		},
+        "now": func() time.Time {
+            return time.Now()
+        },
 		"formatTime": func(t time.Time) string {
 			return t.Format("2006-01-02 15:04:05")
 		},
