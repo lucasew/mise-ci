@@ -21,6 +21,7 @@ import (
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/repository"
 	"github.com/lucasew/mise-ci/internal/runner"
+	"github.com/lucasew/mise-ci/internal/sanitize"
 	"strings"
 )
 
@@ -538,7 +539,7 @@ func hasTask(tasks []struct {
 // runCommandSync executes a command and waits for it to complete
 func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, args ...string) error {
 	id := run.NextOpID.Add(1)
-	s.Logger.Info("executing command", "cmd", cmd, "args", s.sanitizeArgs(args))
+	s.Logger.Info("executing command", "cmd", cmd, "args", sanitize.SanitizeArgs(args))
 	run.CommandCh <- msgutil.NewRunCommand(id, env, cmd, args...)
 
 	if !s.waitForDone(run, cmd) {
