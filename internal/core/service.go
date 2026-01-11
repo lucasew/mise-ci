@@ -444,11 +444,10 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		tasksOutput, err := s.runCommandCapture(run, env, "mise", "tasks", "--json")
 		if err != nil {
 			if strings.Contains(err.Error(), "No mise.toml file found") {
-				s.Logger.Info("no mise.toml found, assuming no tasks")
-				tasks = []struct {
-					Name string `json:"name"`
-				}{}
-				return nil
+				s.Logger.Info("no mise.toml found, skipping run")
+				s.Core.AddLog(run.ID, "system", "No mise.toml file found. Skipping.")
+				s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
+				return orchestration.ErrSkipped
 			}
 			return err
 		}
