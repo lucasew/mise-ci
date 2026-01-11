@@ -106,21 +106,27 @@ func (s *WebSocketServer) validateWorkerAuth(r *http.Request) (string, int, erro
 }
 
 func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) {
-	runID, status, err := s.validateWorkerAuth(r)
-	if err != nil {
-		http.Error(w, err.Error(), status)
-		return
-	}
-
-	// Upgrade to WebSocket
+	// Upgrade to WebSocket immediately
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		// upgrader.Upgrade sends the HTTP error response itself in case of failure
 		s.logger.Error("failed to upgrade connection", "error", err)
 		return
 	}
 	defer func() {
 		_ = conn.Close()
 	}()
+
+	// Now validate authentication
+	runID, status, err := s.validateWorkerAuth(r)
+	if err != nil {
+		s.logger.Warn("worker authentication failed", "status", status, "error", err.Error())
+		// Send a WebSocket close message on authentication failure
+		// Use ClosePolicyViolation as it's a generic "something is wrong with you"
+		closeMsg := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, err.Error())
+		_ = conn.WriteMessage(websocket.CloseMessage, closeMsg)
+		return
+	}
 	wsAdapter := &wsStreamAdapter{conn: conn}
 
 	// Handshake - receive RunnerInfo

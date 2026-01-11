@@ -2,12 +2,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
-    "time"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/lucasew/mise-ci/internal/core"
@@ -141,5 +142,46 @@ if err != nil {
 
 	if val := ctxResp.ContextResponse.Env["TEST_VAR"]; val != "test-value" {
 		t.Errorf("Expected TEST_VAR=test-value, got %s", val)
+	}
+}
+
+func TestWebSocketHandshake_InvalidToken(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	repo := &MockRepository{}
+	c := core.NewCore(logger, "test-secret", repo)
+
+	// Setup Server
+	wsServer := NewWebSocketServer(c, logger)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", wsServer.HandleConnect)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Connect with an invalid token
+	wsURL := "ws" + server.URL[4:] + "/ws"
+	header := http.Header{}
+	header.Add("Authorization", "Bearer invalid-token")
+
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+	if err != nil {
+		// With the new flow, the connection should succeed, and the error should be sent after.
+		t.Fatalf("Dial should succeed even with an invalid token, but failed: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	// The server should immediately close the connection. Reading from it should reveal the error.
+	_, _, err = conn.ReadMessage()
+	if err == nil {
+		t.Fatalf("Expected an error when reading from connection with invalid token, but got none")
+	}
+
+	// Check that the error is a WebSocket close error with the correct code
+	var closeErr *websocket.CloseError
+	if !errors.As(err, &closeErr) {
+		t.Fatalf("Expected a websocket.CloseError, but got %T: %v", err, err)
+	}
+
+	if closeErr.Code != websocket.ClosePolicyViolation {
+		t.Errorf("Expected close code %d, but got %d", websocket.ClosePolicyViolation, closeErr.Code)
 	}
 }
