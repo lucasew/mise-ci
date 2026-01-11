@@ -109,6 +109,20 @@ func (m *MockRepository) ListFindingsForRepo(ctx context.Context, repoURL string
 	return args.Get(0).([]repository.SarifFinding), args.Error(1)
 }
 
+func (m *MockRepository) CreateWorkerToken(ctx context.Context, token *repository.WorkerToken) error {
+	return m.Called(ctx, token).Error(0)
+}
+func (m *MockRepository) ListWorkerTokens(ctx context.Context) ([]repository.WorkerToken, error) {
+	args := m.Called(ctx)
+	return args.Get(0).([]repository.WorkerToken), args.Error(1)
+}
+func (m *MockRepository) RevokeWorkerToken(ctx context.Context, tokenID string) error {
+	return m.Called(ctx, tokenID).Error(0)
+}
+func (m *MockRepository) DeleteWorkerToken(ctx context.Context, tokenID string) error {
+	return m.Called(ctx, tokenID).Error(0)
+}
+
 // MockForge for testing
 type MockForge struct {
 	mock.Mock

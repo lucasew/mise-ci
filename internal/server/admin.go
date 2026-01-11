@@ -98,9 +98,18 @@ func (s *UIServer) HandleAdminTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	tokens, err := s.core.ListWorkerTokens(r.Context())
+	if err != nil {
+		s.logger.Error("failed to list worker tokens", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	data := map[string]interface{}{
 		"Title":   "Worker Tokens",
 		"Version": version.Get(),
+		"Tokens":  tokens,
+		"Now":     time.Now(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/admin_tokens.html", data); err != nil {

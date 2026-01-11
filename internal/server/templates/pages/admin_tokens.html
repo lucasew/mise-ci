@@ -58,12 +58,12 @@
                     {{range .Tokens}}
                     <tr>
                         <td>{{.Name}}</td>
-                        <td>{{if .ExpiresAt.Valid}}{{.ExpiresAt.Time.Format "2006-01-02 15:04"}}{{else}}Never{{end}}</td>
+                        <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04"}}{{else}}Never{{end}}</td>
                         <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
                         <td>
-                            {{if .RevokedAt.Valid}}
+                            {{if .RevokedAt}}
                                 <span class="badge bg-danger">Revoked</span>
-                            {{else if .ExpiresAt.Valid && .ExpiresAt.Time.Before(now)}}
+                            {{else if and .ExpiresAt ($.Now.After .ExpiresAt)}}
                                 <span class="badge bg-warning text-dark">Expired</span>
                             {{else}}
                                 <span class="badge bg-success">Active</span>

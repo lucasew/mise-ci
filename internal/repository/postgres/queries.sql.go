@@ -116,6 +116,32 @@ func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
 	return err
 }
 
+const createWorkerToken = `-- name: CreateWorkerToken :exec
+INSERT INTO worker_tokens (id, name, expires_at)
+VALUES ($1, $2, $3)
+`
+
+type CreateWorkerTokenParams struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
+}
+
+func (q *Queries) CreateWorkerToken(ctx context.Context, arg CreateWorkerTokenParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkerToken, arg.ID, arg.Name, arg.ExpiresAt)
+	return err
+}
+
+const deleteWorkerToken = `-- name: DeleteWorkerToken :exec
+DELETE FROM worker_tokens
+WHERE id = $1
+`
+
+func (q *Queries) DeleteWorkerToken(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkerToken, id)
+	return err
+}
+
 const getLogs = `-- name: GetLogs :many
 SELECT timestamp, stream, data
 FROM log_entries
@@ -543,6 +569,53 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 		return nil, err
 	}
 	return items, nil
+}
+
+const listWorkerTokens = `-- name: ListWorkerTokens :many
+SELECT id, name, expires_at, revoked_at, created_at, updated_at
+FROM worker_tokens
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListWorkerTokens(ctx context.Context) ([]WorkerToken, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkerTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WorkerToken{}
+	for rows.Next() {
+		var i WorkerToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const revokeWorkerToken = `-- name: RevokeWorkerToken :exec
+UPDATE worker_tokens
+SET revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+func (q *Queries) RevokeWorkerToken(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, revokeWorkerToken, id)
+	return err
 }
 
 const updateRunRepoURL = `-- name: UpdateRunRepoURL :exec

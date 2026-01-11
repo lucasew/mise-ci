@@ -533,6 +533,56 @@ func (r *Repository) GetLogs(ctx context.Context, runID string) ([]repository.Lo
 	return logs, nil
 }
 
+func (r *Repository) CreateWorkerToken(ctx context.Context, token *repository.WorkerToken) error {
+	var expiresAt sql.NullTime
+	if token.ExpiresAt != nil {
+		expiresAt = sql.NullTime{Time: *token.ExpiresAt, Valid: true}
+	}
+
+	return r.queries.CreateWorkerToken(ctx, CreateWorkerTokenParams{
+		ID:        token.ID,
+		Name:      token.Name,
+		ExpiresAt: expiresAt,
+	})
+}
+
+func (r *Repository) ListWorkerTokens(ctx context.Context) ([]repository.WorkerToken, error) {
+	rows, err := r.queries.ListWorkerTokens(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	tokens := make([]repository.WorkerToken, len(rows))
+	for i, row := range rows {
+		var expiresAt, revokedAt *time.Time
+		if row.ExpiresAt.Valid {
+			expiresAt = &row.ExpiresAt.Time
+		}
+		if row.RevokedAt.Valid {
+			revokedAt = &row.RevokedAt.Time
+		}
+
+		tokens[i] = repository.WorkerToken{
+			ID:        row.ID,
+			Name:      row.Name,
+			ExpiresAt: expiresAt,
+			RevokedAt: revokedAt,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		}
+	}
+
+	return tokens, nil
+}
+
+func (r *Repository) RevokeWorkerToken(ctx context.Context, tokenID string) error {
+	return r.queries.RevokeWorkerToken(ctx, tokenID)
+}
+
+func (r *Repository) DeleteWorkerToken(ctx context.Context, tokenID string) error {
+	return r.queries.DeleteWorkerToken(ctx, tokenID)
+}
+
 func (r *Repository) Close() error {
 	return r.db.Close()
 }

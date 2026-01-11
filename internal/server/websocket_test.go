@@ -47,6 +47,10 @@ func (m *MockRepository) BatchUpsertRules(ctx context.Context, rules []repositor
 func (m *MockRepository) BatchCreateFindings(ctx context.Context, findings []repository.Finding) error { return nil }
 func (m *MockRepository) ListFindingsForRun(ctx context.Context, runID string) ([]repository.SarifFinding, error) { return nil, nil }
 func (m *MockRepository) ListFindingsForRepo(ctx context.Context, repoURL string, limit int) ([]repository.SarifFinding, error) { return nil, nil }
+func (m *MockRepository) CreateWorkerToken(ctx context.Context, token *repository.WorkerToken) error { return nil }
+func (m *MockRepository) ListWorkerTokens(ctx context.Context) ([]repository.WorkerToken, error) { return nil, nil }
+func (m *MockRepository) RevokeWorkerToken(ctx context.Context, tokenID string) error { return nil }
+func (m *MockRepository) DeleteWorkerToken(ctx context.Context, tokenID string) error { return nil }
 
 func TestWebSocketHandshake(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))

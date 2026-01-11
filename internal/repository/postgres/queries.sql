@@ -102,3 +102,21 @@ SELECT timestamp, stream, data
 FROM log_entries
 WHERE run_id = $1
 ORDER BY id ASC;
+
+-- name: CreateWorkerToken :exec
+INSERT INTO worker_tokens (id, name, expires_at)
+VALUES ($1, $2, $3);
+
+-- name: ListWorkerTokens :many
+SELECT id, name, expires_at, revoked_at, created_at, updated_at
+FROM worker_tokens
+ORDER BY created_at DESC;
+
+-- name: RevokeWorkerToken :exec
+UPDATE worker_tokens
+SET revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+
+-- name: DeleteWorkerToken :exec
+DELETE FROM worker_tokens
+WHERE id = $1;
