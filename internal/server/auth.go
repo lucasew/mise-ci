@@ -55,7 +55,22 @@ func (m *AuthMiddleware) checkBasicAuth(w http.ResponseWriter, r *http.Request) 
 	err := bcrypt.CompareHashAndPassword(m.adminPasswordHash, []byte(pass))
 	passMatch := (err == nil)
 
-	if !ok || userMatch != 1 || !passMatch {
+	// To mitigate timing side-channel attacks, we combine the checks using non-short-circuiting
+	// bitwise operations. This ensures that the execution time is the same regardless of
+	// whether the username is valid, preventing username enumeration.
+	// `userMatch` is 1 for a valid user, 0 otherwise.
+	// We convert booleans `ok` and `passMatch` to integers (1 or 0) for the bitwise operation.
+	var okAsInt, passMatchAsInt int
+	if ok {
+		okAsInt = 1
+	}
+	if passMatch {
+		passMatchAsInt = 1
+	}
+
+	// `valid` will be 1 only if all three conditions (ok, userMatch, passMatch) are true.
+	valid := okAsInt & userMatch & passMatchAsInt
+	if valid != 1 {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return false
