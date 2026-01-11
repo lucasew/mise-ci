@@ -101,7 +101,7 @@ func extractSHA(run *repository.RunMetadata) string {
 }
 
 // CleanupStuckRuns marks runs as failed if they are stuck in scheduled/running state for too long
-func (c *Core) CleanupStuckRuns(ctx context.Context, olderThan time.Time, limit int) (int, error) {
+func (c *Core) CleanupStuckRuns(ctx context.Context, olderThan time.Time, limit int, publicURL string) (int, error) {
 	runs, err := c.repo.GetStuckRuns(ctx, olderThan, limit)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get stuck runs: %w", err)
@@ -109,7 +109,8 @@ func (c *Core) CleanupStuckRuns(ctx context.Context, olderThan time.Time, limit 
 
 	count := 0
 	for _, run := range runs {
-		if !c.updateForgeStatus(ctx, run) {
+		targetURL := c.GetRunUIURL(run.ID, publicURL)
+		if !c.updateForgeStatus(ctx, run, targetURL) {
 			continue
 		}
 
@@ -137,7 +138,7 @@ func (c *Core) CleanupStuckRuns(ctx context.Context, olderThan time.Time, limit 
 	return count, nil
 }
 
-func (c *Core) updateForgeStatus(ctx context.Context, run *repository.RunMetadata) bool {
+func (c *Core) updateForgeStatus(ctx context.Context, run *repository.RunMetadata, targetURL string) bool {
 	if c.forge == nil {
 		return true
 	}
@@ -167,7 +168,7 @@ func (c *Core) updateForgeStatus(ctx context.Context, run *repository.RunMetadat
 		State:       forge.StateError,
 		Context:     "mise-ci",
 		Description: "Internal error, please retry",
-		TargetURL:   "", // No logs link available/relevant? Or maybe link to run page?
+		TargetURL:   targetURL,
 	})
 
 	if err != nil {

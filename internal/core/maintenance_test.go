@@ -167,17 +167,18 @@ func TestCleanupStuckRuns(t *testing.T) {
 		}
 
 		repo.On("GetStuckRuns", ctx, mock.Anything, 10).Return(runs, nil)
+		repo.On("GetRun", ctx, "123-abc").Return(&repository.RunMetadata{ID: "123-abc", UIToken: "test-token"}, nil)
 
 		// Expect Forge update
 		f.On("UpdateStatus", ctx, "owner/repo", "sha123", mock.MatchedBy(func(s forge.Status) bool {
-			return s.State == forge.StateError && s.Description == "Internal error, please retry"
+			return s.State == forge.StateError && s.Description == "Internal error, please retry" && s.TargetURL == "http://localhost:8080/ui/run/123-abc?token=test-token"
 		})).Return(nil)
 
 		// Expect DB update
 		repo.On("UpdateRunStatus", ctx, "123-abc", "error", mock.Anything).Return(nil)
 		repo.On("AppendLog", ctx, "123-abc", mock.Anything).Return(nil)
 
-		count, err := c.CleanupStuckRuns(ctx, time.Now(), 10)
+		count, err := c.CleanupStuckRuns(ctx, time.Now(), 10, "http://localhost:8080")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, count)
 
@@ -200,6 +201,7 @@ func TestCleanupStuckRuns(t *testing.T) {
 		}
 
 		repo.On("GetStuckRuns", ctx, mock.Anything, 10).Return(runs, nil)
+		repo.On("GetRun", ctx, "123-abc").Return(&repository.RunMetadata{ID: "123-abc", UIToken: "test-token"}, nil)
 
 		// Forge update fails
 		f.On("UpdateStatus", ctx, "owner/repo", "sha123", mock.Anything).Return(errors.New("forge error"))
@@ -208,7 +210,7 @@ func TestCleanupStuckRuns(t *testing.T) {
 		// Assert that UpdateRunStatus is NOT called
         // repo.AssertNotCalled(t, "UpdateRunStatus") -> but we need to verify strict mock
 
-		count, err := c.CleanupStuckRuns(ctx, time.Now(), 10)
+		count, err := c.CleanupStuckRuns(ctx, time.Now(), 10, "http://localhost:8080")
 		assert.NoError(t, err)
 		assert.Equal(t, 0, count)
 

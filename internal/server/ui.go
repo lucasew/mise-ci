@@ -25,12 +25,13 @@ import (
 var templatesFS embed.FS
 
 type UIServer struct {
-	core   *core.Core
-	logger *slog.Logger
-	engine mold.Engine
+	core      *core.Core
+	logger    *slog.Logger
+	engine    mold.Engine
+	publicURL string
 }
 
-func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
+func NewUIServer(c *core.Core, logger *slog.Logger, publicURL string) *UIServer {
 	funcMap := template.FuncMap{
 		"markdown": markdown.Render,
 		"subject": func(s string) string {
@@ -77,9 +78,10 @@ func NewUIServer(c *core.Core, logger *slog.Logger) *UIServer {
 	engine := mold.Must(mold.New(templatesFS, mold.WithLayout("templates/layouts/layout.html"), mold.WithFuncMap(funcMap)))
 
 	return &UIServer{
-		core:   c,
-		logger: logger,
-		engine: engine,
+		core:      c,
+		logger:    logger,
+		engine:    engine,
+		publicURL: publicURL,
 	}
 }
 
@@ -113,12 +115,12 @@ func (s *UIServer) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Title":      "Runs",
-		"Runs":       runs,
-		"Repos":      repos,
+		"Title":       "Runs",
+		"Runs":        runs,
+		"Repos":       repos,
 		"CurrentRepo": repoFilter,
-		"Token":      token,
-		"Version":    version.Get(),
+		"Token":       token,
+		"Version":     version.Get(),
 	}
 
 	if err := s.engine.Render(w, "templates/pages/index.html", data); err != nil {
