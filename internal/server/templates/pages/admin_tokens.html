@@ -58,7 +58,7 @@
                     {{range .Tokens}}
                     <tr>
                         <td>{{.Name}}</td>
-                        <td>{{if .ExpiresAt}}{{.ExpiresAt.Format "2006-01-02 15:04"}}{{else}}Never{{end}}</td>
+                        <td>{{if .ExpiresAt.Valid}}{{.ExpiresAt.Time.Format "2006-01-02 15:04"}}{{else}}Never{{end}}</td>
                         <td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
                         <td>
                             {{if .RevokedAt}}
