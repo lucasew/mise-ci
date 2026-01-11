@@ -24,7 +24,6 @@ import (
 	"github.com/lucasew/mise-ci/internal/repository"
 	"github.com/lucasew/mise-ci/internal/repository/postgres"
 	"github.com/lucasew/mise-ci/internal/repository/sqlite"
-	"github.com/lucasew/mise-ci/internal/runner/nomad"
 	"github.com/lucasew/mise-ci/internal/server"
 )
 
@@ -73,26 +72,6 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		logger.Info("github forge enabled", "app_id", cfg.GitHub.AppID)
 	}
 
-	// Runner
-	var r *nomad.NomadRunner
-	var err error
-
-	// Nomad
-	if cfg.Nomad.JobName != "" {
-		nomadAddr := cfg.Nomad.Addr
-		if nomadAddr == "" {
-			nomadAddr = os.Getenv("NOMAD_ADDR")
-		}
-		r, err = nomad.NewNomadRunner(nomadAddr, cfg.Nomad.JobName)
-		if err != nil {
-			return fmt.Errorf("failed to create nomad runner: %w", err)
-		}
-		logger.Info("nomad runner enabled", "addr", nomadAddr, "job", cfg.Nomad.JobName)
-		logger.Info("nomad parameterized job verified successfully", "job", cfg.Nomad.JobName)
-	} else {
-		return fmt.Errorf("no runner configured (nomad.job_name missing)")
-	}
-
 	// Storage & Database
 	dataDir := cfg.Storage.DataDir
 	if dataDir == "" {
@@ -136,7 +115,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		appCore.SetForge(forges[0])
 	}
 
-	svc := core.NewService(appCore, forges, r, artifactStorage, &cfg, logger)
+	svc := core.NewService(appCore, forges, artifactStorage, &cfg, logger)
 
 	authMiddleware := server.NewAuthMiddleware(appCore, &cfg.Auth)
 
@@ -169,16 +148,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 		logger.Info("forges", "status", "none configured")
 	}
 
-	if r != nil {
-		defaultImage := cfg.Nomad.DefaultImage
-		if defaultImage == "" {
-			defaultImage = "(not set)"
-		}
-		logger.Info("runner", "type", "nomad", "addr", cfg.Nomad.Addr, "job", cfg.Nomad.JobName, "default_image", defaultImage)
-	} else {
-		logger.Info("runner", "status", "not configured")
-	}
-
+	logger.Info("runner", "type", "pull", "status", "workers connect to the server")
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
 	
 	authConfigured := cfg.Auth.AdminUsername != "" && cfg.Auth.AdminPassword != ""

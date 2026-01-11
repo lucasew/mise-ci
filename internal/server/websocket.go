@@ -177,10 +177,15 @@ func (s *WebSocketServer) HandleConnect(w http.ResponseWriter, r *http.Request) 
 
 	// Version check
 	if info.RunnerInfo.Version != version.Get() {
-		s.logger.Warn("worker version mismatch", "worker", info.RunnerInfo.Version, "server", version.Get())
-		select {
-		case run.RetryCh <- struct{}{}:
-		default:
+		s.logger.Warn("worker version mismatch, re-queuing run",
+			"run_id", runID,
+			"worker_version", info.RunnerInfo.Version,
+			"server_version", version.Get(),
+		)
+		// Re-queue the run so another worker can pick it up
+		if err := s.core.RequeueRun(r.Context(), runID); err != nil {
+			s.logger.Error("failed to re-queue run", "run_id", runID, "error", err)
+			// Continue to close the connection, but log the error.
 		}
 		cm := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "version mismatch")
 		_ = wsAdapter.conn.WriteMessage(websocket.CloseMessage, cm)

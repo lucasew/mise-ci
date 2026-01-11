@@ -109,6 +109,7 @@ type Core struct {
 	statusListener *ListenerManager[RunInfo]               // global status change listeners manager
 	logBuffers     map[string]*LogBuffer
 	StartTime      time.Time
+	newRunCh       chan struct{}
 }
 
 type Run struct {
@@ -132,6 +133,7 @@ func NewCore(logger *slog.Logger, secret string, repo repository.Repository) *Co
 		statusListener: NewListenerManager[RunInfo](),
 		logBuffers:     make(map[string]*LogBuffer),
 		StartTime:      time.Now(),
+		newRunCh:       make(chan struct{}, 1),
 	}
 }
 
@@ -192,6 +194,12 @@ func (c *Core) CreateRun(id string, gitLink, repoURL, commitMessage, author, bra
 		Author:        author,
 		Branch:        branch,
 	})
+
+	// Notify waiting workers
+	select {
+	case c.newRunCh <- struct{}{}:
+	default:
+	}
 
 	return run
 }
@@ -312,6 +320,30 @@ func (c *Core) ValidateWorkerToken(tokenString string) (string, error) {
 
 // DequeueNextRun atomically finds the next scheduled run and updates its status to dispatched.
 func (c *Core) DequeueNextRun(ctx context.Context) (string, error) {
+	// First, try to get a run without blocking
+	runID, err := c.tryDequeueSingle(ctx)
+	if err != nil {
+		return "", err
+	}
+	if runID != "" {
+		return runID, nil
+	}
+
+	// If no run is available, wait for a signal or timeout
+	select {
+	case <-c.newRunCh:
+		// A new run was created, try again
+		return c.tryDequeueSingle(ctx)
+	case <-time.After(30 * time.Second):
+		// Timeout, no jobs
+		return "", nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
+// tryDequeueSingle is the core non-blocking logic to get the next run.
+func (c *Core) tryDequeueSingle(ctx context.Context) (string, error) {
 	c.dbMu.Lock()
 	defer c.dbMu.Unlock()
 
@@ -328,8 +360,27 @@ func (c *Core) DequeueNextRun(ctx context.Context) (string, error) {
 	if err := c.repo.UpdateRunStatus(ctx, runID, string(StatusDispatched), nil); err != nil {
 		return "", fmt.Errorf("failed to update run status to dispatched: %w", err)
 	}
-
+	c.logger.Info("run dispatched", "run_id", runID)
 	return runID, nil
+}
+
+// RequeueRun puts a run that was dispatched back into the scheduled queue.
+func (c *Core) RequeueRun(ctx context.Context, runID string) error {
+	c.dbMu.Lock()
+	defer c.dbMu.Unlock()
+
+	// Update status back to scheduled
+	if err := c.repo.UpdateRunStatus(ctx, runID, string(StatusScheduled), nil); err != nil {
+		return fmt.Errorf("failed to update run status to scheduled: %w", err)
+	}
+
+	// Notify waiting workers that a job is available
+	select {
+	case c.newRunCh <- struct{}{}:
+	default:
+	}
+
+	return nil
 }
 
 func (c *Core) GenerateWorkerToken(runID string) (string, error) {

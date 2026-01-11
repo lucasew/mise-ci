@@ -11,7 +11,6 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	GitHub   GitHubConfig   `mapstructure:"github"`
-	Nomad    NomadConfig    `mapstructure:"nomad"`
 	Auth     AuthConfig     `mapstructure:"auth"`
 	Storage  StorageConfig  `mapstructure:"storage"`
 	Database DatabaseConfig `mapstructure:"database"`
@@ -38,12 +37,6 @@ type GitHubConfig struct {
 	WebhookSecret string `mapstructure:"webhook_secret"`
 }
 
-type NomadConfig struct {
-	Addr         string `mapstructure:"addr"`
-	JobName      string `mapstructure:"job_name"`
-	DefaultImage string `mapstructure:"default_image"`
-}
-
 type StorageConfig struct {
 	DataDir string `mapstructure:"data_dir"`
 }
@@ -58,9 +51,6 @@ func Load(path string) (*Config, error) {
 
 	// Set defaults
 	v.SetDefault("server.http_addr", ":8080")
-	v.SetDefault("nomad.addr", "http://127.0.0.1:4646")
-	v.SetDefault("nomad.job_name", "mise-ci-worker")
-	v.SetDefault("nomad.default_image", "ghcr.io/mise-ci/worker:latest")
 	v.SetDefault("storage.data_dir", "./data/artifacts")
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "mise-ci.db")

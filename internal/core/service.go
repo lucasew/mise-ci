@@ -20,7 +20,6 @@ import (
 	"github.com/lucasew/mise-ci/internal/orchestration"
 	pb "github.com/lucasew/mise-ci/internal/proto"
 	"github.com/lucasew/mise-ci/internal/repository"
-	"github.com/lucasew/mise-ci/internal/runner"
 	"github.com/lucasew/mise-ci/internal/sanitize"
 	"strings"
 )
@@ -31,17 +30,15 @@ var testProjectMiseToml string
 type Service struct {
 	Core            *Core
 	Forges          []forge.Forge
-	Runner          runner.Runner
 	ArtifactStorage artifacts.Storage
 	Config          *config.Config
 	Logger          *slog.Logger
 }
 
-func NewService(core *Core, forges []forge.Forge, r runner.Runner, artifactStorage artifacts.Storage, cfg *config.Config, logger *slog.Logger) *Service {
+func NewService(core *Core, forges []forge.Forge, artifactStorage artifacts.Storage, cfg *config.Config, logger *slog.Logger) *Service {
 	return &Service{
 		Core:            core,
 		Forges:          forges,
-		Runner:          r,
 		ArtifactStorage: artifactStorage,
 		Config:          cfg,
 		Logger:          logger,
@@ -78,9 +75,7 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	s.Logger.Info("test dispatch", "run_id", runID)
 
 	run := s.Core.CreateRun(runID, "", "", "Test Dispatch", "admin", "test")
-	// Generate a run-specific token for the test dispatch
-	token, err := s.Core.GenerateWorkerToken(runID)
-	if err != nil {
+	if _, err := s.Core.GenerateWorkerToken(runID); err != nil {
 		s.Logger.Error("generate worker token", "error", err)
 		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
 		return
@@ -101,25 +96,12 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Core.SetRunEnv(runID, env)
 
-	callback := publicURL
-	params := runner.RunParams{
-		CallbackURL: callback,
-		Token:       token,
-		Image:       s.Config.Nomad.DefaultImage,
-	}
-
-	jobID, err := s.Runner.Dispatch(ctx, params)
-	if err != nil {
-		s.Logger.Error("dispatch job", "error", err)
-		httputil.WriteError(w, http.StatusInternalServerError, "error: %v", err)
-		return
-	}
-
-	s.Logger.Info("test job dispatched", "job_id", jobID, "run_id", runID)
-	s.Core.UpdateStatus(runID, StatusDispatched, nil)
+	s.Logger.Info("test job created", "run_id", runID)
+	// The run is already "scheduled" by CreateRun. A worker will pick it up.
+	// We don't need to dispatch, just start the orchestration goroutine.
 
 	// Run test orchestration in background
-	go s.TestOrchestrate(ctx, run, params)
+	go s.TestOrchestrate(ctx, run)
 
 	// Generate UI URL
 	// reusing publicURL defined earlier
@@ -128,9 +110,8 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	// Return JSON response with run details
 	response := map[string]string{
 		"run_id": runID,
-		"job_id": jobID,
 		"ui_url": uiURL,
-		"status": "dispatched",
+		"status": "scheduled",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -140,10 +121,10 @@ func (s *Service) HandleTestDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Service) TestOrchestrate(ctx context.Context, run *Run, dispatchParams runner.RunParams) {
+func (s *Service) TestOrchestrate(ctx context.Context, run *Run) {
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	if !s.waitForConnection(ctx, run, dispatchParams) {
+	if !s.waitForConnection(ctx, run) {
 		return
 	}
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
@@ -293,8 +274,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	s.Logger.Debug("clone credentials obtained successfully")
 
 	// Generate a run-specific token
-	token, err := s.Core.GenerateWorkerToken(runID)
-	if err != nil {
+	if _, err := s.Core.GenerateWorkerToken(runID); err != nil {
 		s.Logger.Error("generate worker token", "error", err)
 		s.Core.UpdateStatus(runID, StatusError, nil)
 		return
@@ -321,29 +301,10 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 
 	s.Core.SetRunEnv(runID, env)
 
-	callback := publicURL
-	params := runner.RunParams{
-		CallbackURL: callback,
-		Token:       token,
-		Image:       s.Config.Nomad.DefaultImage,
-	}
+	s.Logger.Info("run created and waiting for worker", "run_id", runID)
+	// The run is already "scheduled". A worker will pick it up from the queue.
 
-	jobID, err := s.Runner.Dispatch(ctx, params)
-	if err != nil {
-		s.Logger.Error("dispatch job", "error", err)
-		s.Core.UpdateStatus(runID, StatusError, nil)
-		status.State = forge.StateError
-		status.Description = "Failed to dispatch job"
-		if err := f.UpdateStatus(ctx, event.Repo, event.SHA, status); err != nil {
-			s.Logger.Error("update status failed", "error", err)
-		}
-		return
-	}
-
-	s.Logger.Info("job dispatched", "job_id", jobID)
-	s.Core.UpdateStatus(runID, StatusDispatched, nil)
-
-	success := s.Orchestrate(ctx, run, event, f, creds, params)
+	success := s.Orchestrate(ctx, run, event, f, creds)
 
 	status.State = forge.StateSuccess
 	status.Description = "Build passed"
@@ -364,7 +325,7 @@ func (s *Service) StartRun(event *forge.WebhookEvent, f forge.Forge) {
 	}
 }
 
-func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials, dispatchParams runner.RunParams) bool {
+func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.WebhookEvent, f forge.Forge, creds *forge.Credentials) bool {
 	// Prepare generic CI environment variables
 	env := map[string]string{
 		"CI":                 "true",
@@ -411,7 +372,7 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 
 	// Wait for worker to connect
 	s.Logger.Info("waiting for worker to connect", "run_id", run.ID)
-	if !s.waitForConnection(ctx, run, dispatchParams) {
+	if !s.waitForConnection(ctx, run) {
 		return false
 	}
 	s.Logger.Info("worker connected, starting orchestration", "run_id", run.ID)
@@ -621,24 +582,14 @@ func (s *Service) copyFileFromWorker(run *Run, source, dest string) error {
 	return nil
 }
 
-func (s *Service) waitForConnection(ctx context.Context, run *Run, dispatchParams runner.RunParams) bool {
-	for {
-		select {
-		case <-run.ConnectedCh:
-			return true
-		case <-run.RetryCh:
-			s.Logger.Info("received retry signal, redispatching worker", "run_id", run.ID)
-			s.Core.AddLog(run.ID, "system", "Worker handshake failed (version mismatch). Enqueuing another worker...")
-			if _, err := s.Runner.Dispatch(ctx, dispatchParams); err != nil {
-				s.Logger.Error("failed to redispatch worker", "error", err)
-				s.Core.AddLog(run.ID, "system", fmt.Sprintf("Failed to enqueue worker: %v", err))
-				// We don't return false here, we wait for next retry or timeout
-			}
-		case <-time.After(10 * time.Minute):
-			s.Logger.Error("timeout waiting for worker to connect", "run_id", run.ID)
-			s.Core.UpdateStatus(run.ID, StatusError, nil)
-			return false
-		}
+func (s *Service) waitForConnection(ctx context.Context, run *Run) bool {
+	select {
+	case <-run.ConnectedCh:
+		return true
+	case <-time.After(10 * time.Minute):
+		s.Logger.Error("timeout waiting for worker to connect", "run_id", run.ID)
+		s.Core.UpdateStatus(run.ID, StatusError, nil)
+		return false
 	}
 }
 
