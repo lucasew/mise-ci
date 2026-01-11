@@ -440,21 +440,38 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return s.runCommandSync(run, env, "git", "fetch", "origin", event.Ref)
 	}).AddStep("checkout", "Checking out SHA", func() error {
 		return s.runCommandSync(run, env, "git", "checkout", event.SHA)
-	}).AddStep("trust", "Trusting mise", func() error {
-		return s.runCommandSync(run, env, "mise", "trust")
-	}).AddStep("install", "Installing tools", func() error {
-		return s.runCommandSync(run, env, "mise", "install")
 	}).AddStep("tasks", "Listing tasks", func() error {
 		tasksOutput, err := s.runCommandCapture(run, env, "mise", "tasks", "--json")
 		if err != nil {
+			// If mise.toml doesn't exist, it's not an error, just no tasks.
+			if strings.Contains(err.Error(), "No mise.toml file found") {
+				s.Logger.Info("no mise.toml found, assuming no tasks")
+				tasks = []struct {
+					Name string `json:"name"`
+				}{}
+				return nil
+			}
 			return err
 		}
 		return json.Unmarshal([]byte(tasksOutput), &tasks)
-	}).AddStep("codegen", "Running codegen", func() error {
+	})
+
+	// Conditional steps based on task existence
+	if hasTask(tasks, "ci") || hasTask(tasks, "codegen") || hasTask(tasks, "deploy") {
+		pipeline.AddStep("trust", "Trusting mise", func() error {
+			return s.runCommandSync(run, env, "mise", "trust")
+		}).AddStep("install", "Installing tools", func() error {
+			return s.runCommandSync(run, env, "mise", "install")
+		})
+	}
+
+	anyTaskRan := false
+	pipeline.AddStep("codegen", "Running codegen", func() error {
 		if !hasTask(tasks, "codegen") {
 			s.Logger.Info("no 'codegen' task found, skipping")
 			return nil
 		}
+		anyTaskRan = true
 		if err := s.runCommandSync(run, env, "mise", "run", "codegen"); err != nil {
 			s.Logger.Error("codegen failed, continuing", "error", err)
 			s.Core.AddLog(run.ID, "system", "Codegen task failed, proceeding with caution.")
@@ -503,11 +520,17 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 	}).AddStep("ci", "Running CI", func() error {
 		if !hasTask(tasks, "ci") {
 			s.Logger.Info("no 'ci' task found, skipping")
-			s.Core.AddLog(run.ID, "system", "No 'ci' task found in mise.toml, skipping CI step.")
-			s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
 			return nil
 		}
+		anyTaskRan = true
 		return s.runCommandSync(run, env, "mise", "run", "ci")
+	}).AddStep("deploy", "Running deploy", func() error {
+		if !hasTask(tasks, "deploy") {
+			s.Logger.Info("no 'deploy' task found, skipping")
+			return nil
+		}
+		anyTaskRan = true
+		return s.runCommandSync(run, env, "mise", "run", "deploy")
 	})
 
 	if err := pipeline.Run(); err != nil {
@@ -515,9 +538,18 @@ func (s *Service) Orchestrate(ctx context.Context, run *Run, event *forge.Webhoo
 		return false
 	}
 
+	// Final status update
 	runInfo, ok := s.Core.GetRunInfo(run.ID)
-	if ok && runInfo.Status != StatusSkipped {
-		s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
+	if ok {
+		// Only update status if it's still in a running state
+		if runInfo.Status == StatusDispatched || runInfo.Status == StatusRunning {
+			if anyTaskRan {
+				s.Core.UpdateStatus(run.ID, StatusSuccess, nil)
+			} else {
+				s.Core.AddLog(run.ID, "system", "No runnable tasks found (ci, codegen, deploy). Skipping.")
+				s.Core.UpdateStatus(run.ID, StatusSkipped, nil)
+			}
+		}
 	}
 
 	s.Core.AddLog(run.ID, "system", "Build completed")
