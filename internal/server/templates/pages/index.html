@@ -63,14 +63,16 @@
                         {{end}}
                     </div>
 
-                    <!-- Row 3: Description (Commit Message Body) -->
-                    {{if .CommitMessage}}
-                    {{if .CommitMessage | body}}
-                    <div class="commit-message" style="color: #444; margin-top: 5px; font-size: 0.95em;">
-                        {{.CommitMessage | body | markdown}}
-                    </div>
-                    {{end}}
-                    {{end}}
+                    <blockquote>
+                        <!-- Row 3: Description (Commit Message Body) -->
+                        {{if .CommitMessage}}
+                        {{if .CommitMessage | body}}
+                        <div class="commit-message" style="color: #444; margin-top: 5px; font-size: 0.95em;">
+                            {{.CommitMessage | body | markdown}}
+                        </div>
+                        {{end}}
+                        {{end}}
+                    </blockquote>
                 </td>
             </tr>
             {{end}}
