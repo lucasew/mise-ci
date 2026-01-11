@@ -13,7 +13,7 @@ import (
 func TestRenderRunMarkdown(t *testing.T) {
 	logger := slog.Default()
 	// Core can be nil for this test as we only test template rendering of provided data
-	s := NewUIServer(nil, logger)
+	s := NewUIServer(nil, logger, "http://localhost:8080")
 
 	run := &core.RunInfo{
 		ID:            "test-run",
@@ -42,7 +42,7 @@ func TestRenderRunMarkdown(t *testing.T) {
 
 func TestRenderRunMarkdownSplit(t *testing.T) {
 	logger := slog.Default()
-	s := NewUIServer(nil, logger)
+	s := NewUIServer(nil, logger, "http://localhost:8080")
 
 	run := &core.RunInfo{
 		ID:            "test-run",

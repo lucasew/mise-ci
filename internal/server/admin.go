@@ -75,7 +75,7 @@ func (s *UIServer) HandleCleanupStuckRuns(w http.ResponseWriter, r *http.Request
     // (since in-memory state is lost on restart)
     cutoff := s.core.StartTime
 
-    count, err := s.core.CleanupStuckRuns(r.Context(), cutoff, limit)
+    count, err := s.core.CleanupStuckRuns(r.Context(), cutoff, limit, s.publicURL)
 
     data := map[string]interface{}{
         "Title": "Maintenance",

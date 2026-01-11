@@ -141,7 +141,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	authMiddleware := server.NewAuthMiddleware(appCore, &cfg.Auth)
 
 	wsSrv := server.NewWebSocketServer(appCore, logger)
-	uiSrv := server.NewUIServer(appCore, logger)
+	uiSrv := server.NewUIServer(appCore, logger, cfg.Server.PublicURL)
 	httpSrv := server.NewHttpServer(cfg.Server.HTTPAddr, svc, wsSrv, uiSrv, authMiddleware, logger)
 
 	// Simple HTTP listener (no multiplexing needed!)
