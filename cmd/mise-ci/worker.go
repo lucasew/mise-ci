@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/lucasew/mise-ci/internal/proto"
+	"github.com/lucasew/mise-ci/internal/sanitize"
 	"github.com/lucasew/mise-ci/internal/version"
 )
 
@@ -346,7 +347,7 @@ func sendFile(ctx context.Context, conn *websocket.Conn, id uint64, path string,
 }
 
 func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run, logger *slog.Logger) error {
-	logger.Info("handling run", "cmd", cmd.Cmd, "args", sanitizeArgs(cmd.Args))
+	logger.Info("handling run", "cmd", cmd.Cmd, "args", sanitize.SanitizeArgs(cmd.Args))
 
 	// Create temp dir for SARIF reports
 	sarifDir, err := os.MkdirTemp("", "mise-ci-sarif-*")
