@@ -7,7 +7,7 @@ require (
 	github.com/buildkite/terminal-to-html/v3 v3.16.8
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang-migrate/migrate/v4 v4.19.1
-	github.com/google/go-github/v80 v80.0.0
+	github.com/google/go-github/v81 v81.0.0
 	github.com/google/go-github/v81 v81.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/nomad/api v0.0.0-20260109151928-35b4d582cded
