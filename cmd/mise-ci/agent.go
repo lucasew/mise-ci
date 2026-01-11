@@ -79,6 +79,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	}
 
 	var repo repository.Repository
+	var err error
 	if cfg.Database.Driver == "postgres" {
 		if cfg.Database.DSN == "" {
 			return fmt.Errorf("postgres driver requires 'dsn' (MISE_CI_DATABASE_DSN) to be set")
@@ -150,7 +151,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 
 	logger.Info("runner", "type", "pull", "status", "workers connect to the server")
 	logger.Info("jwt", "secret_set", cfg.JWT.Secret != "")
-	
+
 	authConfigured := cfg.Auth.AdminUsername != "" && cfg.Auth.AdminPassword != ""
 	if !authConfigured {
 		logger.Warn("admin credentials not configured - /ui/ endpoint will be unprotected")
@@ -160,7 +161,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 	logger.Info("authentication",
 		"admin_auth_enabled", authConfigured,
 		"ui_tokens_enabled", true)
-		
+
 	logger.Info("websocket", "endpoint", "/ws")
 	logger.Info("webui", "url", fmt.Sprintf("http://%s/ui/", cfg.Server.HTTPAddr))
 	logger.Info("=================================")
