@@ -203,8 +203,7 @@ func runWorkerContainer(serverURL string, run *PollResponse, image string) error
 	// Construir comando Docker
 	args := []string{
 		"run",
-		"--rm",              // Remove container ao finalizar
-		"--network", "host", // Usar network do host para acesso ao servidor
+		"--rm",
 	}
 
 	// Adicionar env vars
