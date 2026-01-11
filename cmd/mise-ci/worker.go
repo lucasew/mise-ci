@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"regexp"
 
 	"github.com/gorilla/websocket"
 	"github.com/spf13/cobra"
@@ -93,6 +92,20 @@ func performHandshake(conn *websocket.Conn) (map[string]string, error) {
 	}
 
 	return ctxResp.ContextResponse.Env, nil
+}
+
+func handleWithPanicRecovery(conn *websocket.Conn, msgID uint64, cancel context.CancelFunc, handlerName string, handlerFunc func() error) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("panic in handler", "handler", handlerName, "panic", r)
+			wsendError(conn, msgID, fmt.Errorf("panic: %v", r))
+		}
+	}()
+	defer cancel()
+
+	if err := handlerFunc(); err != nil {
+		wsendError(conn, msgID, err)
+	}
 }
 
 func startWorker() error {
@@ -192,46 +205,20 @@ func startWorker() error {
 		switch payload := msg.Payload.(type) {
 		case *pb.ServerMessage_Copy:
 			watchdog.Stop()
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("panic in copy handler", "panic", r)
-						wsendError(conn, msg.Id, fmt.Errorf("panic: %v", r))
-					}
-				}()
-				defer cancel()
-
+			go handleWithPanicRecovery(conn, msg.Id, cancel, "copy", func() error {
 				if payload.Copy == nil {
-					logger.Error("received copy message with nil payload")
-					wsendError(conn, msg.Id, fmt.Errorf("nil copy payload"))
-					return
+					return fmt.Errorf("nil copy payload")
 				}
-
-				if err := handleCopy(opCtx, conn, msg.Id, payload.Copy, logger); err != nil {
-					wsendError(conn, msg.Id, err)
-				}
-			}()
+				return handleCopy(opCtx, conn, msg.Id, payload.Copy, logger)
+			})
 		case *pb.ServerMessage_Run:
 			watchdog.Stop()
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						logger.Error("panic in run handler", "panic", r)
-						wsendError(conn, msg.Id, fmt.Errorf("panic: %v", r))
-					}
-				}()
-				defer cancel()
-
+			go handleWithPanicRecovery(conn, msg.Id, cancel, "run", func() error {
 				if payload.Run == nil {
-					logger.Error("received run message with nil payload")
-					wsendError(conn, msg.Id, fmt.Errorf("nil run payload"))
-					return
+					return fmt.Errorf("nil run payload")
 				}
-
-				if err := handleRun(opCtx, conn, msg.Id, payload.Run, logger); err != nil {
-					wsendError(conn, msg.Id, err)
-				}
-			}()
+				return handleRun(opCtx, conn, msg.Id, payload.Run, logger)
+			})
 		case *pb.ServerMessage_Close:
 			logger.Info("received close")
 			cancel()
@@ -447,62 +434,6 @@ func handleRun(ctx context.Context, conn *websocket.Conn, id uint64, cmd *pb.Run
 			},
 		},
 	})
-}
-
-type secretPattern struct {
-	Pattern     *regexp.Regexp
-	Replacement string
-}
-
-// secretPatterns is a list of compiled regular expressions and their corresponding replacements for detecting secrets.
-var secretPatterns = []secretPattern{
-	{
-		// Redact value in 'Authorization: Bearer <token>' or 'Authorization: token <token>'
-		Pattern:     regexp.MustCompile(`(?i)(Authorization:\s*(?:Bearer|token)\s+)\S+`),
-		Replacement: `${1}[REDACTED]`,
-	},
-	{
-		// Redact common key formats like 'api-key: value' or 'password = "value"'
-		Pattern:     regexp.MustCompile(`(?i)((?:api-key|token|secret|password|key)(?:[\s=:]*['"]?))([a-zA-Z0-9_.-]{20,})(['"]?)`),
-		Replacement: `${1}[REDACTED]${3}`,
-	},
-	{
-		// Redact specific token patterns
-		Pattern:     regexp.MustCompile(`ghp_[a-zA-Z0-9]{36}`),
-		Replacement: "[REDACTED]",
-	},
-	{
-		Pattern:     regexp.MustCompile(`glpat-[a-zA-Z0-9_-]{20,}`),
-		Replacement: "[REDACTED]",
-	},
-	{
-		// Redact JWTs
-		Pattern:     regexp.MustCompile(`ey[J-Za-z0-9-_=]+\.[J-Za-z0-9-_=]+\.[J-Za-z0-9-_.+/=]*`),
-		Replacement: "[REDACTED]",
-	},
-}
-
-func sanitizeArgs(args []string) []string {
-	sanitized := make([]string, len(args))
-	for i, arg := range args {
-		sanitizedArg := arg
-
-		// 1. Handle well-formed URLs first, as it's the most robust method.
-		if u, err := url.Parse(sanitizedArg); err == nil && u.User != nil {
-			if _, isSet := u.User.Password(); isSet {
-				u.User = url.UserPassword(u.User.Username(), "[REDACTED]")
-				sanitized[i] = u.String()
-				continue // Argument sanitized, move to the next one.
-			}
-		}
-
-		// 2. If not a URL with a password, apply regex for other common secret patterns.
-		for _, p := range secretPatterns {
-			sanitizedArg = p.Pattern.ReplaceAllString(sanitizedArg, p.Replacement)
-		}
-		sanitized[i] = sanitizedArg
-	}
-	return sanitized
 }
 
 func streamOutput(ctx context.Context, conn *websocket.Conn, id uint64, r io.Reader, type_ pb.Output_Stream) {
