@@ -552,3 +552,80 @@ func (r *Repository) GetLogs(ctx context.Context, runID string) ([]repository.Lo
 func (r *Repository) Close() error {
 	return r.db.Close()
 }
+
+// Implement WorkerToken methods
+func (r *Repository) CreateWorkerToken(ctx context.Context, token *repository.WorkerToken) error {
+	var expiresAt sql.NullTime
+	if token.ExpiresAt != nil {
+		expiresAt = sql.NullTime{Time: *token.ExpiresAt, Valid: true}
+	}
+	return r.queries.CreateWorkerToken(ctx, CreateWorkerTokenParams{
+		ID:        token.ID,
+		Name:      token.Name,
+		ExpiresAt: expiresAt,
+		CreatedAt: token.CreatedAt,
+		UpdatedAt: token.UpdatedAt,
+	})
+}
+
+func (r *Repository) GetWorkerToken(ctx context.Context, id string) (*repository.WorkerToken, error) {
+	row, err := r.queries.GetWorkerToken(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	var expiresAt *time.Time
+	if row.ExpiresAt.Valid {
+		expiresAt = &row.ExpiresAt.Time
+	}
+	var revokedAt *time.Time
+	if row.RevokedAt.Valid {
+		revokedAt = &row.RevokedAt.Time
+	}
+	return &repository.WorkerToken{
+		ID:        row.ID,
+		Name:      row.Name,
+		ExpiresAt: expiresAt,
+		RevokedAt: revokedAt,
+		CreatedAt: row.CreatedAt,
+		UpdatedAt: row.UpdatedAt,
+	}, nil
+}
+
+func (r *Repository) ListWorkerTokens(ctx context.Context) ([]*repository.WorkerToken, error) {
+	rows, err := r.queries.ListWorkerTokens(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tokens := make([]*repository.WorkerToken, len(rows))
+	for i, row := range rows {
+		var expiresAt *time.Time
+		if row.ExpiresAt.Valid {
+			expiresAt = &row.ExpiresAt.Time
+		}
+		var revokedAt *time.Time
+		if row.RevokedAt.Valid {
+			revokedAt = &row.RevokedAt.Time
+		}
+		tokens[i] = &repository.WorkerToken{
+			ID:        row.ID,
+			Name:      row.Name,
+			ExpiresAt: expiresAt,
+			RevokedAt: revokedAt,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
+		}
+	}
+	return tokens, nil
+}
+
+func (r *Repository) RevokeWorkerToken(ctx context.Context, id string, revokedAt time.Time) error {
+	return r.queries.RevokeWorkerToken(ctx, RevokeWorkerTokenParams{
+		ID:        id,
+		RevokedAt: sql.NullTime{Time: revokedAt, Valid: true},
+		UpdatedAt: time.Now(),
+	})
+}
+
+func (r *Repository) DeleteWorkerToken(ctx context.Context, id string) error {
+	return r.queries.DeleteWorkerToken(ctx, id)
+}

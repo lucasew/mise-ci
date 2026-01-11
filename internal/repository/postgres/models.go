@@ -54,3 +54,12 @@ type SarifRule struct {
 	Severity  string       `json:"severity"`
 	CreatedAt sql.NullTime `json:"created_at"`
 }
+
+type WorkerToken struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
+	RevokedAt sql.NullTime `json:"revoked_at"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
+}

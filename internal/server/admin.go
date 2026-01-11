@@ -93,57 +93,73 @@ func (s *UIServer) HandleCleanupStuckRuns(w http.ResponseWriter, r *http.Request
 }
 
 func (s *UIServer) HandleAdminTokens(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+    tokens, err := s.core.ListWorkerTokens(r.Context())
+    if err != nil {
+        s.logger.Error("failed to list worker tokens", "error", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+        return
+    }
 
-	data := map[string]interface{}{
-		"Title":   "Worker Tokens",
-		"Version": version.Get(),
-	}
+    data := map[string]interface{}{
+        "Title":   "Worker Tokens",
+        "Version": version.Get(),
+        "Tokens":  tokens,
+    }
 
-	if err := s.engine.Render(w, "templates/pages/admin_tokens.html", data); err != nil {
-		s.logger.Error("failed to render template", "template", "admin_tokens", "error", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
+    if err := s.engine.Render(w, "templates/pages/admin_tokens.html", data); err != nil {
+        s.logger.Error("failed to render template", "template", "admin_tokens", "error", err)
+        http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+    }
 }
 
-func (s *UIServer) HandleGeneratePoolToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (s *UIServer) HandleCreateToken(w http.ResponseWriter, r *http.Request) {
+    name := r.FormValue("name")
+    if name == "" {
+        http.Error(w, "Token name is required", http.StatusBadRequest)
+        return
+    }
 
-	expiryStr := r.FormValue("expiry")
-	var expiry time.Duration
+    expiryDaysStr := r.FormValue("expiry")
+    expiryDays, err := strconv.Atoi(expiryDaysStr)
+    if err != nil {
+        http.Error(w, "Invalid expiry value", http.StatusBadRequest)
+        return
+    }
 
-	if expiryStr == "never" || expiryStr == "" {
-		expiry = 0 // Token sem expiração
-	} else {
-		// Parse duration em dias
-		days, err := strconv.Atoi(expiryStr)
-		if err != nil || days < 0 {
-			http.Error(w, "Invalid expiry value", http.StatusBadRequest)
-			return
-		}
-		expiry = time.Duration(days) * 24 * time.Hour
-	}
+    var expiry time.Duration
+    if expiryDays > 0 {
+        expiry = time.Duration(expiryDays) * 24 * time.Hour
+    }
 
-	token, err := s.core.GeneratePoolWorkerTokenWithExpiry(expiry)
-	if err != nil {
-		s.logger.Error("failed to generate pool token", "error", err)
-		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-		return
-	}
+    token, err := s.core.CreateWorkerToken(r.Context(), name, expiry)
+    if err != nil {
+        s.logger.Error("failed to create token", "error", err)
+        http.Error(w, "Failed to create token", http.StatusInternalServerError)
+        return
+    }
 
-	response := map[string]interface{}{
-		"token":  token,
-		"expiry": expiryStr,
-	}
+    w.Header().Set("Content-Type", "application/json")
+    if err := json.NewEncoder(w).Encode(map[string]string{"token": token}); err != nil {
+        s.logger.Error("failed to encode json response", "error", err)
+    }
+}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.logger.Error("failed to encode json response", "error", err)
-	}
+func (s *UIServer) HandleRevokeToken(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")
+    if err := s.core.RevokeWorkerToken(r.Context(), id); err != nil {
+        s.logger.Error("failed to revoke token", "error", err)
+        http.Error(w, "Failed to revoke token", http.StatusInternalServerError)
+        return
+    }
+    http.Redirect(w, r, "/ui/admin/tokens", http.StatusFound)
+}
+
+func (s *UIServer) HandleDeleteToken(w http.ResponseWriter, r *http.Request) {
+    id := r.PathValue("id")
+    if err := s.core.DeleteWorkerToken(r.Context(), id); err != nil {
+        s.logger.Error("failed to delete token", "error", err)
+        http.Error(w, "Failed to delete token", http.StatusInternalServerError)
+        return
+    }
+    http.Redirect(w, r, "/ui/admin/tokens", http.StatusFound)
 }

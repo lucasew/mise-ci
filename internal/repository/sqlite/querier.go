@@ -6,28 +6,14 @@ package sqlite
 
 import (
 	"context"
-	"database/sql"
 )
 
 type Querier interface {
-	AppendLog(ctx context.Context, arg AppendLogParams) error
-	CheckRepoExists(ctx context.Context, cloneUrl string) (int64, error)
-	CreateFinding(ctx context.Context, arg CreateFindingParams) error
-	CreateRepo(ctx context.Context, cloneUrl string) error
-	CreateRun(ctx context.Context, arg CreateRunParams) error
-	GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error)
-	GetNextAvailableRun(ctx context.Context) (string, error)
-	GetRepo(ctx context.Context, cloneUrl string) (string, error)
-	GetRun(ctx context.Context, id string) (GetRunRow, error)
-	GetRunsWithoutRepoURL(ctx context.Context, limit int64) ([]GetRunsWithoutRepoURLRow, error)
-	GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error)
-	ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error)
-	ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error)
-	ListRepos(ctx context.Context) ([]sql.NullString, error)
-	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
-	UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error
-	UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error
-	UpsertRule(ctx context.Context, arg UpsertRuleParams) error
+	CreateWorkerToken(ctx context.Context, arg CreateWorkerTokenParams) error
+	DeleteWorkerToken(ctx context.Context, id string) error
+	GetWorkerToken(ctx context.Context, id string) (WorkerToken, error)
+	ListWorkerTokens(ctx context.Context) ([]WorkerToken, error)
+	RevokeWorkerToken(ctx context.Context, arg RevokeWorkerTokenParams) error
 }
 
 var _ Querier = (*Queries)(nil)

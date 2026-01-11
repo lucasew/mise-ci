@@ -11,263 +11,82 @@ import (
 	"time"
 )
 
-const appendLog = `-- name: AppendLog :exec
-INSERT INTO log_entries (run_id, timestamp, stream, data)
-VALUES ($1, $2, $3, $4)
+const createWorkerToken = `-- name: CreateWorkerToken :exec
+INSERT INTO worker_tokens (id, name, expires_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5)
 `
 
-type AppendLogParams struct {
-	RunID     string    `json:"run_id"`
-	Timestamp time.Time `json:"timestamp"`
-	Stream    string    `json:"stream"`
-	Data      string    `json:"data"`
+type CreateWorkerTokenParams struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	ExpiresAt sql.NullTime `json:"expires_at"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
-func (q *Queries) AppendLog(ctx context.Context, arg AppendLogParams) error {
-	_, err := q.db.ExecContext(ctx, appendLog,
-		arg.RunID,
-		arg.Timestamp,
-		arg.Stream,
-		arg.Data,
-	)
-	return err
-}
-
-const checkRepoExists = `-- name: CheckRepoExists :one
-SELECT 1 FROM repos WHERE clone_url = $1 LIMIT 1
-`
-
-func (q *Queries) CheckRepoExists(ctx context.Context, cloneUrl string) (int32, error) {
-	row := q.db.QueryRowContext(ctx, checkRepoExists, cloneUrl)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const createFinding = `-- name: CreateFinding :exec
-INSERT INTO sarif_findings (run_id, rule_ref, message, path, line, fingerprint)
-VALUES ($1, $2, $3, $4, $5, $6)
-`
-
-type CreateFindingParams struct {
-	RunID       string         `json:"run_id"`
-	RuleRef     string         `json:"rule_ref"`
-	Message     string         `json:"message"`
-	Path        string         `json:"path"`
-	Line        sql.NullInt32  `json:"line"`
-	Fingerprint sql.NullString `json:"fingerprint"`
-}
-
-func (q *Queries) CreateFinding(ctx context.Context, arg CreateFindingParams) error {
-	_, err := q.db.ExecContext(ctx, createFinding,
-		arg.RunID,
-		arg.RuleRef,
-		arg.Message,
-		arg.Path,
-		arg.Line,
-		arg.Fingerprint,
-	)
-	return err
-}
-
-const createRepo = `-- name: CreateRepo :exec
-INSERT INTO repos (clone_url)
-VALUES ($1)
-`
-
-func (q *Queries) CreateRepo(ctx context.Context, cloneUrl string) error {
-	_, err := q.db.ExecContext(ctx, createRepo, cloneUrl)
-	return err
-}
-
-const createRun = `-- name: CreateRun :exec
-INSERT INTO runs (id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-`
-
-type CreateRunParams struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
-}
-
-func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
-	_, err := q.db.ExecContext(ctx, createRun,
+func (q *Queries) CreateWorkerToken(ctx context.Context, arg CreateWorkerTokenParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkerToken,
 		arg.ID,
-		arg.Status,
-		arg.StartedAt,
-		arg.FinishedAt,
-		arg.ExitCode,
-		arg.UiToken,
-		arg.GitLink,
-		arg.RepoUrl,
-		arg.CommitMessage,
-		arg.Author,
-		arg.Branch,
+		arg.Name,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
 
-const getLogs = `-- name: GetLogs :many
-SELECT timestamp, stream, data
-FROM log_entries
-WHERE run_id = $1
-ORDER BY id ASC
-`
-
-type GetLogsRow struct {
-	Timestamp time.Time `json:"timestamp"`
-	Stream    string    `json:"stream"`
-	Data      string    `json:"data"`
-}
-
-func (q *Queries) GetLogs(ctx context.Context, runID string) ([]GetLogsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getLogs, runID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetLogsRow{}
-	for rows.Next() {
-		var i GetLogsRow
-		if err := rows.Scan(&i.Timestamp, &i.Stream, &i.Data); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getNextAvailableRun = `-- name: GetNextAvailableRun :one
-SELECT id
-FROM runs
-WHERE status IN ('dispatched', 'scheduled', 'error')
-ORDER BY
-  CASE status
-    WHEN 'dispatched' THEN 1
-    WHEN 'scheduled' THEN 2
-    WHEN 'error' THEN 3
-  END,
-  started_at ASC
-LIMIT 1
-FOR UPDATE SKIP LOCKED
-`
-
-func (q *Queries) GetNextAvailableRun(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getNextAvailableRun)
-	var id string
-	err := row.Scan(&id)
-	return id, err
-}
-
-const getRepo = `-- name: GetRepo :one
-SELECT clone_url
-FROM repos
-WHERE clone_url = $1
-`
-
-func (q *Queries) GetRepo(ctx context.Context, cloneUrl string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getRepo, cloneUrl)
-	var clone_url string
-	err := row.Scan(&clone_url)
-	return clone_url, err
-}
-
-const getRun = `-- name: GetRun :one
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
-FROM runs
+const deleteWorkerToken = `-- name: DeleteWorkerToken :exec
+DELETE FROM worker_tokens
 WHERE id = $1
 `
 
-type GetRunRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
+func (q *Queries) DeleteWorkerToken(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkerToken, id)
+	return err
 }
 
-func (q *Queries) GetRun(ctx context.Context, id string) (GetRunRow, error) {
-	row := q.db.QueryRowContext(ctx, getRun, id)
-	var i GetRunRow
+const getWorkerToken = `-- name: GetWorkerToken :one
+SELECT id, name, expires_at, revoked_at, created_at, updated_at
+FROM worker_tokens
+WHERE id = $1
+`
+
+func (q *Queries) GetWorkerToken(ctx context.Context, id string) (WorkerToken, error) {
+	row := q.db.QueryRowContext(ctx, getWorkerToken, id)
+	var i WorkerToken
 	err := row.Scan(
 		&i.ID,
-		&i.Status,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.ExitCode,
-		&i.UiToken,
-		&i.GitLink,
-		&i.RepoUrl,
-		&i.CommitMessage,
-		&i.Author,
-		&i.Branch,
+		&i.Name,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getRunsWithoutRepoURL = `-- name: GetRunsWithoutRepoURL :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
-FROM runs
-WHERE repo_url IS NULL OR repo_url = ''
-LIMIT $1
+const listWorkerTokens = `-- name: ListWorkerTokens :many
+SELECT id, name, expires_at, revoked_at, created_at, updated_at
+FROM worker_tokens
+ORDER BY created_at DESC
 `
 
-type GetRunsWithoutRepoURLRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
-}
-
-func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]GetRunsWithoutRepoURLRow, error) {
-	rows, err := q.db.QueryContext(ctx, getRunsWithoutRepoURL, limit)
+func (q *Queries) ListWorkerTokens(ctx context.Context) ([]WorkerToken, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkerTokens)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []GetRunsWithoutRepoURLRow{}
+	items := []WorkerToken{}
 	for rows.Next() {
-		var i GetRunsWithoutRepoURLRow
+		var i WorkerToken
 		if err := rows.Scan(
 			&i.ID,
-			&i.Status,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ExitCode,
-			&i.UiToken,
-			&i.GitLink,
-			&i.RepoUrl,
-			&i.CommitMessage,
-			&i.Author,
-			&i.Branch,
+			&i.Name,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -282,327 +101,19 @@ func (q *Queries) GetRunsWithoutRepoURL(ctx context.Context, limit int32) ([]Get
 	return items, nil
 }
 
-const getStuckRuns = `-- name: GetStuckRuns :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
-FROM runs
-WHERE status IN ('scheduled', 'dispatched', 'running')
-AND started_at < $1
-LIMIT $2
+const revokeWorkerToken = `-- name: RevokeWorkerToken :exec
+UPDATE worker_tokens
+SET revoked_at = $1, updated_at = $2
+WHERE id = $3
 `
 
-type GetStuckRunsParams struct {
-	StartedAt time.Time `json:"started_at"`
-	Limit     int32     `json:"limit"`
+type RevokeWorkerTokenParams struct {
+	RevokedAt sql.NullTime `json:"revoked_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
+	ID        string       `json:"id"`
 }
 
-type GetStuckRunsRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
-}
-
-func (q *Queries) GetStuckRuns(ctx context.Context, arg GetStuckRunsParams) ([]GetStuckRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getStuckRuns, arg.StartedAt, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetStuckRunsRow{}
-	for rows.Next() {
-		var i GetStuckRunsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Status,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ExitCode,
-			&i.UiToken,
-			&i.GitLink,
-			&i.RepoUrl,
-			&i.CommitMessage,
-			&i.Author,
-			&i.Branch,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFindingsForRepo = `-- name: ListFindingsForRepo :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint, runs.id as run_id, runs.commit_message
-FROM sarif_findings f
-JOIN sarif_rules r ON f.rule_ref = r.id
-JOIN runs ON f.run_id = runs.id
-WHERE runs.repo_url = $1
-ORDER BY runs.created_at DESC
-LIMIT $2
-`
-
-type ListFindingsForRepoParams struct {
-	RepoUrl sql.NullString `json:"repo_url"`
-	Limit   int32          `json:"limit"`
-}
-
-type ListFindingsForRepoRow struct {
-	RuleID        string         `json:"rule_id"`
-	Message       string         `json:"message"`
-	Path          string         `json:"path"`
-	Line          sql.NullInt32  `json:"line"`
-	Severity      string         `json:"severity"`
-	Tool          string         `json:"tool"`
-	Fingerprint   sql.NullString `json:"fingerprint"`
-	RunID         string         `json:"run_id"`
-	CommitMessage string         `json:"commit_message"`
-}
-
-func (q *Queries) ListFindingsForRepo(ctx context.Context, arg ListFindingsForRepoParams) ([]ListFindingsForRepoRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFindingsForRepo, arg.RepoUrl, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListFindingsForRepoRow{}
-	for rows.Next() {
-		var i ListFindingsForRepoRow
-		if err := rows.Scan(
-			&i.RuleID,
-			&i.Message,
-			&i.Path,
-			&i.Line,
-			&i.Severity,
-			&i.Tool,
-			&i.Fingerprint,
-			&i.RunID,
-			&i.CommitMessage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listFindingsForRun = `-- name: ListFindingsForRun :many
-SELECT r.rule_id, f.message, f.path, f.line, r.severity, r.tool, f.fingerprint
-FROM sarif_findings f
-JOIN sarif_rules r ON f.rule_ref = r.id
-WHERE f.run_id = $1
-`
-
-type ListFindingsForRunRow struct {
-	RuleID      string         `json:"rule_id"`
-	Message     string         `json:"message"`
-	Path        string         `json:"path"`
-	Line        sql.NullInt32  `json:"line"`
-	Severity    string         `json:"severity"`
-	Tool        string         `json:"tool"`
-	Fingerprint sql.NullString `json:"fingerprint"`
-}
-
-func (q *Queries) ListFindingsForRun(ctx context.Context, runID string) ([]ListFindingsForRunRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFindingsForRun, runID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListFindingsForRunRow{}
-	for rows.Next() {
-		var i ListFindingsForRunRow
-		if err := rows.Scan(
-			&i.RuleID,
-			&i.Message,
-			&i.Path,
-			&i.Line,
-			&i.Severity,
-			&i.Tool,
-			&i.Fingerprint,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRepos = `-- name: ListRepos :many
-SELECT DISTINCT repo_url
-FROM runs
-WHERE repo_url IS NOT NULL AND repo_url != ''
-ORDER BY repo_url
-`
-
-func (q *Queries) ListRepos(ctx context.Context) ([]sql.NullString, error) {
-	rows, err := q.db.QueryContext(ctx, listRepos)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []sql.NullString{}
-	for rows.Next() {
-		var repo_url sql.NullString
-		if err := rows.Scan(&repo_url); err != nil {
-			return nil, err
-		}
-		items = append(items, repo_url)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRuns = `-- name: ListRuns :many
-SELECT id, status, started_at, finished_at, exit_code, ui_token, git_link, repo_url, commit_message, author, branch
-FROM runs
-WHERE ($1::text IS NULL OR repo_url = $1)
-ORDER BY started_at DESC
-LIMIT $3 OFFSET $2
-`
-
-type ListRunsParams struct {
-	RepoUrl sql.NullString `json:"repo_url"`
-	Offset  int32          `json:"offset"`
-	Limit   int32          `json:"limit"`
-}
-
-type ListRunsRow struct {
-	ID            string         `json:"id"`
-	Status        string         `json:"status"`
-	StartedAt     time.Time      `json:"started_at"`
-	FinishedAt    sql.NullTime   `json:"finished_at"`
-	ExitCode      sql.NullInt32  `json:"exit_code"`
-	UiToken       string         `json:"ui_token"`
-	GitLink       string         `json:"git_link"`
-	RepoUrl       sql.NullString `json:"repo_url"`
-	CommitMessage string         `json:"commit_message"`
-	Author        string         `json:"author"`
-	Branch        string         `json:"branch"`
-}
-
-func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRuns, arg.RepoUrl, arg.Offset, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListRunsRow{}
-	for rows.Next() {
-		var i ListRunsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Status,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.ExitCode,
-			&i.UiToken,
-			&i.GitLink,
-			&i.RepoUrl,
-			&i.CommitMessage,
-			&i.Author,
-			&i.Branch,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateRunRepoURL = `-- name: UpdateRunRepoURL :exec
-UPDATE runs
-SET repo_url = $1
-WHERE id = $2
-`
-
-type UpdateRunRepoURLParams struct {
-	RepoUrl sql.NullString `json:"repo_url"`
-	ID      string         `json:"id"`
-}
-
-func (q *Queries) UpdateRunRepoURL(ctx context.Context, arg UpdateRunRepoURLParams) error {
-	_, err := q.db.ExecContext(ctx, updateRunRepoURL, arg.RepoUrl, arg.ID)
-	return err
-}
-
-const updateRunStatus = `-- name: UpdateRunStatus :exec
-UPDATE runs
-SET status = $2, exit_code = $3, finished_at = $4, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-`
-
-type UpdateRunStatusParams struct {
-	ID         string        `json:"id"`
-	Status     string        `json:"status"`
-	ExitCode   sql.NullInt32 `json:"exit_code"`
-	FinishedAt sql.NullTime  `json:"finished_at"`
-}
-
-func (q *Queries) UpdateRunStatus(ctx context.Context, arg UpdateRunStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateRunStatus,
-		arg.ID,
-		arg.Status,
-		arg.ExitCode,
-		arg.FinishedAt,
-	)
-	return err
-}
-
-const upsertRule = `-- name: UpsertRule :exec
-INSERT INTO sarif_rules (id, rule_id, tool, severity)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT(id) DO NOTHING
-`
-
-type UpsertRuleParams struct {
-	ID       string `json:"id"`
-	RuleID   string `json:"rule_id"`
-	Tool     string `json:"tool"`
-	Severity string `json:"severity"`
-}
-
-func (q *Queries) UpsertRule(ctx context.Context, arg UpsertRuleParams) error {
-	_, err := q.db.ExecContext(ctx, upsertRule,
-		arg.ID,
-		arg.RuleID,
-		arg.Tool,
-		arg.Severity,
-	)
+func (q *Queries) RevokeWorkerToken(ctx context.Context, arg RevokeWorkerTokenParams) error {
+	_, err := q.db.ExecContext(ctx, revokeWorkerToken, arg.RevokedAt, arg.UpdatedAt, arg.ID)
 	return err
 }

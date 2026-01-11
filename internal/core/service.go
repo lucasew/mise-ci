@@ -536,6 +536,18 @@ func hasTask(tasks []struct {
 	return false
 }
 
+func (s *Service) ListWorkerTokens(ctx context.Context) ([]*repository.WorkerToken, error) {
+    return s.Core.repo.ListWorkerTokens(ctx)
+}
+
+func (s *Service) RevokeWorkerToken(ctx context.Context, id string) error {
+    return s.Core.repo.RevokeWorkerToken(ctx, id, time.Now())
+}
+
+func (s *Service) DeleteWorkerToken(ctx context.Context, id string) error {
+    return s.Core.repo.DeleteWorkerToken(ctx, id)
+}
+
 // runCommandSync executes a command and waits for it to complete
 func (s *Service) runCommandSync(run *Run, env map[string]string, cmd string, args ...string) error {
 	id := run.NextOpID.Add(1)
